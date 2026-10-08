@@ -1,0 +1,17 @@
+.toast {
+  position: fixed;
+  bottom: 28px; right: 28px;
+  z-index: 300;
+  background: var(--surface);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: slideInRight .25s ease;
+  min-width: 220px;
+}
+
+.icon { font-size: 22px; }
+.text { font-size: 15px; font-weight: 600; }

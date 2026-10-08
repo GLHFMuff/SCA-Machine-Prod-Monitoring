@@ -1,0 +1,52 @@
+.overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: fadeIn .2s ease;
+}
+
+.box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  width: 100%; max-width: 400px;
+  animation: slideUp .2s ease;
+}
+
+.body {
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.scanAnim {
+  width: 88px; height: 88px; border-radius: 50%;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px;
+  margin: 0 auto 24px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.successIcon {
+  font-size: 80px;
+  margin-bottom: 16px;
+}
+
+.text { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+.sub  { font-size: 15px; color: var(--muted); margin-bottom: 32px; }
+
+.progressTrack {
+  height: 5px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  animation: prog 2.5s ease forwards;
+}

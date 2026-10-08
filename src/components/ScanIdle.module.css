@@ -1,0 +1,29 @@
+.container {
+  background: var(--surface);
+  border: 2px dashed var(--border);
+  border-radius: 24px;
+  padding: 72px 32px;
+  text-align: center;
+  transition: border-color .3s;
+}
+.container:hover { border-color: rgba(59,130,246,.4); }
+
+.icon  { font-size: 72px; margin-bottom: 20px; }
+.title { font-size: 28px; font-weight: 700; margin-bottom: 10px; }
+.sub   { color: var(--muted); font-size: 16px; margin-bottom: 36px; }
+
+.scanBtn {
+  width: auto !important;
+  font-size: 20px !important;
+  padding: 20px 56px !important;
+  border-radius: 14px !important;
+}
+
+.machineInfo {
+  margin-top: 28px;
+  color: var(--muted);
+  font-size: 15px;
+}
+.machineInfo strong {
+  color: var(--accent);
+}
