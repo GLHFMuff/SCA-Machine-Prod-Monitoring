@@ -14,13 +14,15 @@ function normalizeHeader(body, user) {
   };
 }
 
-function normalizeLine(item, parentProdId = '') {
+function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
   return {
     ProdId: (item.ProdId || item.prodId || item.prod_id || parentProdId || '').trim(),
     RoolNumber: parseInt(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? item.roll_number ?? item.id ?? 0, 10),
     Description: (item.Description || item.description || `Roll #${item.RoolNumber || item.id || ''}`).trim(),
     Length: parseFloat(item.Length ?? item.length ?? 0),
     IsExecute: Boolean(item.IsExecute ?? item.isExecute ?? item.is_execute ?? false),
+    NoMesin: String(item.NoMesin || item.noMesin || item.no_mesin || parentNoMesin || '').trim(),
+    isPrinted: Boolean(item.isPrinted ?? item.is_printed ?? false),
   };
 }
 
@@ -66,18 +68,18 @@ async function upsertLineQuery(client, line) {
   if (check.rows.length > 0) {
     const res = await client.query(
       `UPDATE "CountingKainLines"
-       SET "Description" = $3, "Length" = $4, "IsExecute" = $5
+       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute]
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted]
     );
     return { action: 'updated', data: res.rows[0] };
   } else {
     const res = await client.query(
-      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute")
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute]
+      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted]
     );
     return { action: 'created', data: res.rows[0] };
   }
@@ -113,7 +115,7 @@ router.post('/upsert', async (req, res) => {
     // 2. Upsert lines
     const lineResults = [];
     for (const rawLine of rawLines) {
-      const line = normalizeLine(rawLine, header.ProdId);
+      const line = normalizeLine(rawLine, header.ProdId, header.NoMesin);
       if (line.RoolNumber > 0) {
         const lineRes = await upsertLineQuery(client, line);
         lineResults.push(lineRes);
@@ -205,6 +207,7 @@ router.get('/headers', async (req, res) => {
 router.get('/headers/:prodId', async (req, res) => {
   try {
     const { prodId } = req.params;
+    const targetMachine = String(req.query.noMesin || req.query.machineId || '').trim();
 
     const headerRes = await pool.query(
       'SELECT "ProdId", "NoMesin", "UserId" FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1',
@@ -219,19 +222,40 @@ router.get('/headers/:prodId', async (req, res) => {
       });
     }
 
+    const header = headerRes.rows[0];
+    const headerMachine = String(header.NoMesin || '').trim();
+
     const linesRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1
        ORDER BY "RoolNumber" ASC`,
       [prodId]
     );
 
+    const allLines = linesRes.rows.map((line) => {
+      // Normalisasi jika NoMesin di baris null, gunakan NoMesin dari Header
+      const resolvedMachine = line.NoMesin ? String(line.NoMesin).trim() : headerMachine;
+      return {
+        ...line,
+        NoMesin: resolvedMachine,
+      };
+    });
+
+    // Jika targetMachine disediakan, hanya tampilkan lines milik targetMachine
+    const lines = targetMachine
+      ? allLines.filter((l) => String(l.NoMesin || '').trim() === targetMachine)
+      : allLines;
+
     return res.status(200).json({
       success: true,
       data: {
-        ...headerRes.rows[0],
-        lines: linesRes.rows,
+        ...header,
+        lines,
+        allLines,
+        targetMachine: targetMachine || null,
+        machineLinesCount: lines.length,
+        totalLinesCount: allLines.length,
       },
     });
   } catch (err) {
@@ -340,7 +364,7 @@ router.get('/lines', async (req, res) => {
     values.push(parseInt(offset, 10) || 0);
 
     const query = `
-      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute"
+      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"
       FROM "CountingKainLines"
       ${whereClause}
       ORDER BY "ProdId" DESC, "RoolNumber" ASC
@@ -368,7 +392,7 @@ router.get('/lines/:prodId/:roolNumber', async (req, res) => {
     const { prodId, roolNumber } = req.params;
 
     const result = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
        LIMIT 1`,
@@ -472,6 +496,225 @@ router.delete('/lines/:prodId/:roolNumber', async (req, res) => {
   } catch (err) {
     console.error('[Delete Line Error]:', err);
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/counting/lines/:prodId/:roolNumber/print
+ * Update isPrinted = true when E-Ticket is printed
+ */
+router.patch('/lines/:prodId/:roolNumber/print', async (req, res) => {
+  try {
+    const { prodId, roolNumber } = req.params;
+
+    const result = await pool.query(
+      `UPDATE "CountingKainLines"
+       SET "isPrinted" = true
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"`,
+      [prodId, parseInt(roolNumber, 10)]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `Line ProdId '${prodId}' with RoolNumber '${roolNumber}' not found.`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Line #${roolNumber} E-Ticket marked as printed.`,
+      data: result.rows[0],
+    });
+  } catch (err) {
+    console.error('[Update isPrinted Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/counting/next-roll/:prodId
+ * Multi-machine roll reservation helper: returns existing rolls, max roll, and per-machine stats
+ */
+router.get('/next-roll/:prodId', async (req, res) => {
+  try {
+    const { prodId } = req.params;
+    const targetMachine = String(req.query.noMesin || req.query.machineId || '').trim();
+
+    const query = `
+      SELECT 
+        "RoolNumber",
+        "NoMesin",
+        "Length",
+        "isPrinted",
+        "Description"
+      FROM "CountingKainLines"
+      WHERE "ProdId" = $1
+      ORDER BY "RoolNumber" ASC
+    `;
+
+    const result = await pool.query(query, [prodId]);
+    const lines = result.rows;
+
+    const maxRoll = lines.length > 0 ? Math.max(...lines.map((l) => l.RoolNumber || 0)) : 0;
+    const nextSuggestedRoll = maxRoll + 1;
+
+    // Aggregate by machine
+    const rollsByMachine = {};
+    for (const line of lines) {
+      const m = String(line.NoMesin || 'Unknown').trim();
+      if (!rollsByMachine[m]) {
+        rollsByMachine[m] = {
+          machine: m,
+          count: 0,
+          totalLength: 0,
+          rolls: [],
+          maxRoll: 0,
+          nextRoll: 1,
+        };
+      }
+      rollsByMachine[m].count += 1;
+      rollsByMachine[m].totalLength += parseFloat(line.Length) || 0;
+      rollsByMachine[m].rolls.push(line.RoolNumber);
+      if (line.RoolNumber > rollsByMachine[m].maxRoll) {
+        rollsByMachine[m].maxRoll = line.RoolNumber;
+        rollsByMachine[m].nextRoll = line.RoolNumber + 1;
+      }
+    }
+
+    // Hitung khusus untuk targetMachine jika disediakan
+    let machineMaxRoll = 0;
+    let machineNextRoll = 1;
+    let machineRollsCount = 0;
+
+    if (targetMachine) {
+      const mData = rollsByMachine[targetMachine];
+      if (mData) {
+        machineMaxRoll = mData.maxRoll;
+        machineNextRoll = mData.nextRoll;
+        machineRollsCount = mData.count;
+      } else {
+        machineMaxRoll = 0;
+        machineNextRoll = 1;
+        machineRollsCount = 0;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        prodId,
+        targetMachine: targetMachine || null,
+        maxRoll,
+        nextSuggestedRoll,
+        machineMaxRoll,
+        machineNextRoll,
+        machineRollsCount,
+        totalRolls: lines.length,
+        rollsByMachine,
+        existingRollNumbers: lines.map((l) => l.RoolNumber),
+        lines,
+      },
+    });
+  } catch (err) {
+    console.error('[Get Next Roll Info Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/counting/autonic/get-and-delete
+ * Body: { machineId, prodId }
+ * Pulls machine length and automatically deletes record from database
+ */
+router.post('/autonic/get-and-delete', async (req, res) => {
+  const machineId = parseInt(req.body.machineId || req.body.nomesin || 1, 10);
+  const client = await pool.connect();
+
+  try {
+    let reading = null;
+
+    // 1. Coba hubungi webhook Autonic eksternal terlebih dahulu
+    try {
+      const webhookRes = await fetch('http://192.168.23.61:5678/webhook/getdataautonic', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0',
+        },
+        body: JSON.stringify({ nomesin: machineId }),
+      });
+
+      if (webhookRes.ok) {
+        reading = await webhookRes.json();
+      }
+    } catch (whErr) {
+      console.warn('[Autonic Webhook Fallback to DB]:', whErr.message);
+    }
+
+    // 2. Jika webhook gagal atau tidak mengembalikan data, baca langsung dari tabel database autonicmachine_${machineId}
+    const tableName = `autonicmachine_${machineId}`;
+    if (!reading || !reading.Length) {
+      const directRes = await client.query(
+        `SELECT createdatetime, length FROM "${tableName}" ORDER BY createdatetime DESC LIMIT 1`
+      );
+      if (directRes.rows.length > 0) {
+        reading = {
+          DateTimeCreated: directRes.rows[0].createdatetime,
+          Length: String(directRes.rows[0].length),
+        };
+      }
+    }
+
+    const lengthVal = parseFloat(reading?.Length || 0);
+    const dt = reading?.DateTimeCreated;
+
+    // 3. Hapus data otomatis langsung dari database agar tidak terbaca ulang
+    await client.query('BEGIN');
+    let deletedCount = 0;
+
+    if (dt) {
+      const delTbl = await client.query(
+        `DELETE FROM "${tableName}" WHERE createdatetime <= $1 RETURNING createdatetime`,
+        [dt]
+      );
+      deletedCount += delTbl.rows.length;
+
+      // Juga bersihkan dari tabel gabungan autonicmachine jika ada
+      await client.query(
+        `DELETE FROM "autonicmachine" WHERE createdatetime <= $1`,
+        [dt]
+      );
+    } else {
+      // Hapus row terbaru jika tidak ada timestamp pasti
+      const delLatest = await client.query(
+        `DELETE FROM "${tableName}" WHERE ctid IN (SELECT ctid FROM "${tableName}" ORDER BY createdatetime DESC LIMIT 1) RETURNING createdatetime`
+      );
+      deletedCount += delLatest.rows.length;
+    }
+
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      success: true,
+      message: `Data Mesin #${machineId} berhasil ditarik (${lengthVal} yard) dan otomatis dihapus dari database.`,
+      data: {
+        Length: lengthVal,
+        DateTimeCreated: dt || new Date().toISOString(),
+        deletedCount,
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[Autonic Get-and-Delete Error]:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Gagal memproses data mesin',
+      message: err.message,
+    });
+  } finally {
+    client.release();
   }
 });
 

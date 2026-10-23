@@ -84,6 +84,17 @@
   padding: 18px;
 }
 
+.errorBanner {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 14px;
+}
+
 .addFormLabel {
   font-size: 12px;
   font-weight: 600;

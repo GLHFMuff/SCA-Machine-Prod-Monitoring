@@ -339,3 +339,74 @@
   color: var(--muted);
   font-size: 14px;
 }
+
+.reserveBtn {
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--primary, #0ea5e9);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+}
+
+.reserveBtn:hover {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: var(--primary, #0ea5e9);
+}
+
+.machineBadge {
+  display: inline-block;
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--primary, #0ea5e9);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.printTicketBtn {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all .15s;
+}
+
+.printTicketBtn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+}
+
+.ticketPrintedBadge {
+  display: inline-block;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 99px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ticketNotPrintedBadge {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+

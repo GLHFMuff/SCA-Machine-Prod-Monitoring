@@ -156,6 +156,39 @@ export function getStoredSession() {
 }
 
 /**
+ * Save / Upsert CountingKainHeader specifically
+ * @param {object} payload - { ProdId, NoMesin, UserId }
+ * @returns {Promise<object>}
+ */
+export async function saveCountingHeader(payload) {
+  const url = `${API_BASE}/api/counting/headers`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.success) {
+      const errorMsg = data?.message || data?.error || `Gagal menyimpan header (Status ${res.status})`;
+      throw new Error(errorMsg);
+    }
+
+    return data;
+  } catch (err) {
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      throw new Error('Tidak dapat terhubung ke server backend API (Port 5000). Pastikan server backend aktif.');
+    }
+    throw err;
+  }
+}
+
+/**
  * Save / Upsert CountingKainHeader and CountingKainLines
  * @param {object} payload - { ProdId, NoMesin, UserId, lines: [...] }
  * @returns {Promise<object>}
@@ -189,13 +222,15 @@ export async function saveCountingData(payload) {
 }
 
 /**
- * Get CountingKainHeader by ProdId including all lines
+ * Get CountingKainHeader by ProdId including its lines (optionally filtered by machineId)
  * @param {string} prodId 
+ * @param {string|number} [machineId]
  * @returns {Promise<object>}
  */
-export async function getCountingData(prodId) {
+export async function getCountingData(prodId, machineId = '') {
   if (!prodId) return null;
-  const url = `${API_BASE}/api/counting/headers/${encodeURIComponent(prodId.trim())}`;
+  const param = machineId ? `?noMesin=${encodeURIComponent(String(machineId).trim())}` : '';
+  const url = `${API_BASE}/api/counting/headers/${encodeURIComponent(prodId.trim())}${param}`;
 
   try {
     const res = await fetch(url);
@@ -217,3 +252,108 @@ export async function getCountingData(prodId) {
     return null;
   }
 }
+
+/**
+ * Mark a roll line as printed (isPrinted = true) in the database
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @returns {Promise<object>}
+ */
+export async function markRollTicketPrinted(prodId, roolNumber) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(prodId.trim())}/${roolNumber}/print`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'PATCH',
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal memperbarui status cetak');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[markRollTicketPrinted] Error for ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Get next roll number information & per-machine roll counts for an OP
+ * @param {string} prodId
+ * @param {string|number} [machineId]
+ * @returns {Promise<object>}
+ */
+export async function getNextRollInfo(prodId, machineId = '') {
+  if (!prodId) return null;
+  const param = machineId ? `?noMesin=${encodeURIComponent(String(machineId).trim())}` : '';
+  const url = `${API_BASE}/api/counting/next-roll/${encodeURIComponent(prodId.trim())}${param}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.success && data?.data) {
+      return data.data;
+    }
+    return null;
+  } catch (err) {
+    console.warn(`[getNextRollInfo] Error fetching for '${prodId}':`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Delete a single roll line from CountingKainLines in the database
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @returns {Promise<object>}
+ */
+export async function deleteRollApi(prodId, roolNumber) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(prodId.trim())}/${roolNumber}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'DELETE',
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal menghapus roll dari database');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[deleteRollApi] Error deleting ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Pull machine data and automatically delete the record from PostgreSQL database
+ * @param {number|string} machineId
+ * @returns {Promise<{ Length: number, DateTimeCreated: string }>}
+ */
+export async function pullAndClearMachineData(machineId) {
+  const url = `${API_BASE}/api/counting/autonic/get-and-delete`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        machineId: Number(machineId) || 1,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal menarik data mesin dari server');
+    }
+    return data.data;
+  } catch (err) {
+    console.error('[pullAndClearMachineData] Error:', err);
+    throw err;
+  }
+}
+

@@ -1,16 +1,78 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { getNextRollInfo } from '../services/api.js'
 import styles from './ManualRollModal.module.css'
 
-export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
+export default function ManualRollModal({
+  defaultRollId,
+  prodId,
+  machineId,
+  rolls = [],
+  onSave,
+  onClose,
+}) {
   const [rollId, setRollId] = useState(defaultRollId || 1)
+  const [loadingDb, setLoadingDb] = useState(false)
+  const [isManuallyEdited, setIsManuallyEdited] = useState(false)
   const [length, setLength] = useState('')
   const [bsQty, setBsQty] = useState('0')
   const [error, setError] = useState('')
+
+  // Sinkronisasi otomatis roll number sesuai mesin & prodId dari database CountingKainLines
+  useEffect(() => {
+    let isMounted = true
+
+    async function syncRollIdFromDb() {
+      if (!prodId || !machineId) return
+      setLoadingDb(true)
+      try {
+        const stats = await getNextRollInfo(prodId, machineId)
+        if (!isMounted || !stats) return
+
+        // 1. Max roll dari database CountingKainLines untuk mesin ini
+        const dbMachineMax = stats.machineMaxRoll || 0
+
+        // 2. Max roll dari state rolls lokal untuk mesin ini
+        const localMachineRolls = (rolls || []).filter(
+          (r) => String(r.noMesin || machineId) === String(machineId)
+        )
+        const localMachineMax =
+          localMachineRolls.length > 0 ? Math.max(...localMachineRolls.map((r) => r.id)) : 0
+
+        const activeMachineMax = Math.max(dbMachineMax, localMachineMax)
+
+        if (!isManuallyEdited) {
+          if (activeMachineMax > 0) {
+            setRollId(activeMachineMax + 1)
+          } else if (defaultRollId) {
+            setRollId(defaultRollId)
+          } else if (stats.machineNextRoll) {
+            setRollId(stats.machineNextRoll)
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal sinkronisasi nomor roll dari database:', err)
+      } finally {
+        if (isMounted) setLoadingDb(false)
+      }
+    }
+
+    syncRollIdFromDb()
+
+    return () => {
+      isMounted = false
+    }
+  }, [prodId, machineId, defaultRollId, isManuallyEdited, rolls])
 
   function handleSubmit(e) {
     e.preventDefault()
     const parsedLength = parseFloat(length)
     const parsedBs = parseFloat(bsQty || 0)
+    const parsedRollId = parseInt(rollId, 10)
+
+    if (isNaN(parsedRollId) || parsedRollId <= 0) {
+      setError('Nomor roll harus berupa angka positif mulai dari 1.')
+      return
+    }
 
     if (isNaN(parsedLength) || parsedLength <= 0) {
       setError('Panjang roll harus diisi dengan angka lebih dari 0.')
@@ -22,8 +84,13 @@ export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
       return
     }
 
+    if (parsedBs >= parsedLength) {
+      setError(`BS Qty (${parsedBs} yd) harus di bawah panjang roll (${parsedLength} yd).`)
+      return
+    }
+
     onSave({
-      id: parseInt(rollId, 10),
+      id: parsedRollId,
       length: parsedLength,
       bsQty: parsedBs,
     })
@@ -31,11 +98,13 @@ export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
 
   return (
     <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
-      <div className={styles.box} onClick={e => e.stopPropagation()}>
+      <div className={styles.box} onClick={(e) => e.stopPropagation()}>
         <div className={styles.head}>
           <div>
             <h3 className={styles.title}>➕ Input Roll Manual</h3>
-            <p className={styles.sub}>Masukkan data roll & BS QTY produksi</p>
+            <p className={styles.sub}>
+              Masukkan data roll & BS QTY produksi {machineId ? `(Mesin #${machineId})` : ''}
+            </p>
           </div>
           <button
             type="button"
@@ -53,8 +122,10 @@ export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
 
             <div className={styles.formGroup}>
               <label className={styles.label}>
-                Nomor Roll
-                <span className={styles.req}>*Otomatis berurutan</span>
+                Nomor Roll {machineId ? `(Mesin #${machineId})` : ''}
+                <span className={styles.req}>
+                  {loadingDb ? '🔄 Mengambil dari DB…' : '*Sesuai urutan mesin & prodId'}
+                </span>
               </label>
               <div className={styles.inputWrap}>
                 <input
@@ -62,7 +133,11 @@ export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
                   min="1"
                   className={styles.input}
                   value={rollId}
-                  onChange={e => setRollId(e.target.value)}
+                  onChange={(e) => {
+                    setRollId(e.target.value)
+                    setIsManuallyEdited(true)
+                    setError('')
+                  }}
                   required
                 />
                 <span className={styles.unit}>Roll #</span>
@@ -82,7 +157,7 @@ export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
                   placeholder="Contoh: 110.5"
                   className={styles.input}
                   value={length}
-                  onChange={e => {
+                  onChange={(e) => {
                     setLength(e.target.value)
                     setError('')
                   }}
@@ -106,7 +181,7 @@ export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
                   placeholder="0"
                   className={styles.input}
                   value={bsQty}
-                  onChange={e => {
+                  onChange={(e) => {
                     setBsQty(e.target.value)
                     setError('')
                   }}
@@ -127,6 +202,7 @@ export default function ManualRollModal({ defaultRollId, onSave, onClose }) {
             <button
               type="submit"
               className="btn btn-primary btn-sm"
+              disabled={loadingDb}
             >
               💾 Simpan Roll
             </button>

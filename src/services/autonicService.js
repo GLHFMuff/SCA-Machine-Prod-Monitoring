@@ -1,3 +1,5 @@
+import { pullAndClearMachineData } from './api.js';
+
 /**
  * Service untuk komunikasi ke External API / Webhook Autonic
  * Base URL: http://192.168.23.61:5678
@@ -10,7 +12,7 @@ export const AUTONIC_CONFIG = {
 
 export const AUTONIC_ENDPOINTS = {
   GET_DATA: '/webhook/getdataautonic',
-  // Endpoint eksternal lainnya dapat ditambahkan di sini secara terpusat
+  FLUSH_DATA: '/webhook/deletedataautonic',
 };
 
 /**
@@ -50,11 +52,25 @@ async function autonicRequest(endpoint, options = {}) {
 }
 
 /**
- * Mengambil data mesin terkini dari Autonic webhook
+ * Mengambil data mesin terkini dari Autonic dan otomatis menghapus record dari DB
  * @param {number|string} machineId - ID mesin (dari user login kolom machine_id)
  * @returns {Promise<{ DateTimeCreated: string, Length: string }>}
  */
 export async function getAutonicData(machineId) {
+  try {
+    // 1. Tarik data via backend API yang otomatis menghapus data dari PostgreSQL database
+    const serverData = await pullAndClearMachineData(machineId);
+    if (serverData && (serverData.Length !== undefined || serverData.DateTimeCreated)) {
+      return {
+        DateTimeCreated: serverData.DateTimeCreated,
+        Length: String(serverData.Length),
+      };
+    }
+  } catch (err) {
+    console.warn('[getAutonicData] Backend API get-and-delete failed, falling back to direct webhook:', err.message);
+  }
+
+  // 2. Fallback request ke webhook langsung jika backend API tidak merespons
   const payload = {
     nomesin: Number(machineId) || 1,
   };
@@ -69,7 +85,7 @@ export async function flushAutonicData(machineId) {
   const payload = {
     nomesin: Number(machineId) || 1,
   };
-  return autonicRequest(AUTONIC_ENDPOINTS.GET_DATA, {
+  return autonicRequest(AUTONIC_ENDPOINTS.FLUSH_DATA, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

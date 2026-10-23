@@ -6,10 +6,24 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
   const [list, setList] = useState(initDefects || [])
   const [yard, setYard] = useState('')
   const [code, setCode] = useState(DEFECT_CODES[0])
+  const [error, setError] = useState('')
 
   function addDefect() {
-    if (!yard) return
-    setList(prev => [...prev, { id: Date.now(), yard: parseFloat(yard), code }])
+    if (!yard) {
+      setError('Masukkan posisi cacat dalam yard.')
+      return
+    }
+    const parsedYard = parseFloat(yard)
+    if (isNaN(parsedYard) || parsedYard <= 0) {
+      setError('Posisi cacat harus berupa angka lebih dari 0.')
+      return
+    }
+    if (parsedYard >= roll.length) {
+      setError(`Posisi cacat (${parsedYard} yd) harus di bawah panjang roll (${roll.length} yd).`)
+      return
+    }
+    setError('')
+    setList(prev => [...prev, { id: Date.now(), yard: parsedYard, code }])
     setYard('')
   }
 
@@ -58,6 +72,7 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
           {/* Add new defect form */}
           <div className={styles.addForm}>
             <div className={styles.addFormLabel}>+ Tambah Titik Cacat</div>
+            {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
             <div className={styles.formRow}>
               <div>
                 <label className={styles.fieldLabel}>Posisi (Yard)</label>
@@ -66,10 +81,13 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
                   type="number"
                   placeholder="mis. 45.5"
                   value={yard}
-                  min="0"
-                  max={roll.length}
+                  min="0.1"
+                  max={Math.max(0, roll.length - 0.1)}
                   step="0.1"
-                  onChange={e => setYard(e.target.value)}
+                  onChange={e => {
+                    setYard(e.target.value)
+                    setError('')
+                  }}
                 />
               </div>
               <div>
