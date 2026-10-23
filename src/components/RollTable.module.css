@@ -57,6 +57,27 @@
   cursor: not-allowed;
 }
 
+.addRollBtn {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+}
+
+.addRollBtn:hover {
+  background: var(--border);
+  border-color: var(--muted);
+}
+
 .spin {
   display: inline-block;
   animation: spinAnim 0.8s linear infinite;
@@ -114,7 +135,7 @@
 }
 
 .table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--row-hover);
 }
 
 .table tbody td {
@@ -150,6 +171,101 @@
 
 .lengthUnit {
   font-size: 12px;
+  color: var(--muted);
+}
+
+.bsCell {
+  cursor: pointer;
+  user-select: none;
+}
+
+.bsDisplayWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background-color 0.15s;
+}
+
+.bsDisplayWrap:hover {
+  background: var(--surface2);
+}
+
+.editHintIcon {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.35;
+  transition: all 0.15s;
+}
+
+.bsDisplayWrap:hover .editHintIcon {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.inlineEditWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inlineInput {
+  width: 68px;
+  padding: 4px 8px;
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.inlineUnit {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.inlineSaveBtn {
+  background: var(--success);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.inlineSaveBtn:hover {
+  opacity: 0.85;
+}
+
+.bsValWarn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--warning);
+}
+
+.bsValZero {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bsUnit {
+  font-size: 11px;
+  font-weight: normal;
   color: var(--muted);
 }
 

@@ -2,14 +2,16 @@ import styles from './SendModal.module.css'
 
 export default function SendModal({ data, onConfirm, onClose }) {
   const totalLength = data.rolls.reduce((sum, r) => sum + r.length, 0)
+  const totalBsQty = data.rolls.reduce((sum, r) => sum + (r.bsQty || 0), 0)
   const totalDefects = Object.values(data.defects).reduce((sum, arr) => sum + arr.length, 0)
 
   const rows = [
-    ['No. Produksi', data.seqmentNumber],
+    ['No. Produksi', data.seqmentNumber || data.prodNumber],
     ['Operator', data.operator],
     ['Mesin', data.machine],
     ['Total Roll', `${data.rolls.length} roll`],
     ['Total Panjang', `${totalLength.toFixed(1)} yard`],
+    ['Total BS Qty', `${totalBsQty.toFixed(1)} yard`],
     ['Total Cacat', `${totalDefects} titik`],
   ]
 

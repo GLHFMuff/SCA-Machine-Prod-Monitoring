@@ -1,0 +1,15 @@
+{
+  "name": "machine-production-monitoring-server",
+  "version": "1.0.0",
+  "description": "Backend API for Machine Production Monitoring",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test-db": "node test-db.js"
+  },
+  "keywords": ["api", "postgresql", "monitoring"],
+  "author": "",
+  "license": "ISC"
+}

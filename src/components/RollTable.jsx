@@ -1,12 +1,26 @@
 import { useState, useRef, useEffect } from 'react'
 import ConfirmDeleteModal from './ConfirmDeleteModal.jsx'
+import ManualRollModal from './ManualRollModal.jsx'
 import styles from './RollTable.module.css'
 
-export default function RollTable({ rolls, defects, onCatatCacat, onGetData, onDeleteRoll }) {
+export default function RollTable({
+  rolls,
+  defects,
+  onCatatCacat,
+  onGetData,
+  onDeleteRoll,
+  onAddRoll,
+  onUpdateBsQty,
+}) {
   const [loading, setLoading] = useState(false)
   const [rollToDelete, setRollToDelete] = useState(null)
+  const [showManualModal, setShowManualModal] = useState(false)
+  const [editingBsId, setEditingBsId] = useState(null)
+  const [editBsValue, setEditBsValue] = useState('')
   const containerRef = useRef(null)
   const prevCountRef = useRef(rolls.length)
+
+  const nextRollId = rolls.length > 0 ? Math.max(...rolls.map(r => r.id)) + 1 : 1
 
   useEffect(() => {
     if (rolls.length > prevCountRef.current && containerRef.current) {
@@ -17,6 +31,29 @@ export default function RollTable({ rolls, defects, onCatatCacat, onGetData, onD
     }
     prevCountRef.current = rolls.length
   }, [rolls.length])
+
+  function startEditingBs(roll) {
+    setEditingBsId(roll.id)
+    setEditBsValue(roll.bsQty !== undefined && roll.bsQty !== null ? String(roll.bsQty) : '0')
+  }
+
+  function handleSaveBs(rollId) {
+    if (editingBsId === null) return
+    const parsed = parseFloat(editBsValue)
+    const val = isNaN(parsed) || parsed < 0 ? 0 : parsed
+    if (onUpdateBsQty) {
+      onUpdateBsQty(rollId, val)
+    }
+    setEditingBsId(null)
+  }
+
+  function handleKeyDownBs(e, rollId) {
+    if (e.key === 'Enter') {
+      handleSaveBs(rollId)
+    } else if (e.key === 'Escape') {
+      setEditingBsId(null)
+    }
+  }
 
   async function handleGetData() {
     setLoading(true)
@@ -52,6 +89,15 @@ export default function RollTable({ rolls, defects, onCatatCacat, onGetData, onD
             <span className={loading ? styles.spin : ''}>🔄</span>
             <span>{loading ? 'Mengambil...' : 'Get Data'}</span>
           </button>
+          <button
+            type="button"
+            className={styles.addRollBtn}
+            onClick={() => setShowManualModal(true)}
+            title="Input Roll Manual"
+          >
+            <span>➕</span>
+            <span>Input Roll</span>
+          </button>
         </div>
         <span className={styles.badge}>{rolls.length} Roll</span>
       </div>
@@ -62,6 +108,7 @@ export default function RollTable({ rolls, defects, onCatatCacat, onGetData, onD
             <tr>
               <th style={{ width: '64px' }}>Roll</th>
               <th>Panjang</th>
+              <th>BS Qty</th>
               <th>Status</th>
               <th>Cacat</th>
               <th className={styles.center} style={{ width: '160px' }}>Aksi</th>
@@ -70,8 +117,8 @@ export default function RollTable({ rolls, defects, onCatatCacat, onGetData, onD
           <tbody>
             {rolls.length === 0 ? (
               <tr>
-                <td colSpan="5" className={styles.emptyState}>
-                  Tidak ada data roll. Klik <strong>Get Data</strong> untuk mengambil roll.
+                <td colSpan="6" className={styles.emptyState}>
+                  Tidak ada data roll. Klik <strong>Get Data</strong> atau <strong>Input Roll</strong> untuk menambahkan roll.
                 </td>
               </tr>
             ) : (
@@ -87,6 +134,51 @@ export default function RollTable({ rolls, defects, onCatatCacat, onGetData, onD
                     <td>
                       <span className={styles.lengthVal}>{roll.length}</span>
                       {' '}<span className={styles.lengthUnit}>yard</span>
+                    </td>
+                    <td
+                      className={styles.bsCell}
+                      onDoubleClick={() => startEditingBs(roll)}
+                      title="Double click untuk edit BS QTY"
+                    >
+                      {editingBsId === roll.id ? (
+                        <div className={styles.inlineEditWrap}>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            className={styles.inlineInput}
+                            value={editBsValue}
+                            onChange={e => setEditBsValue(e.target.value)}
+                            onKeyDown={e => handleKeyDownBs(e, roll.id)}
+                            onBlur={() => handleSaveBs(roll.id)}
+                            autoFocus
+                            onFocus={e => e.target.select()}
+                          />
+                          <span className={styles.inlineUnit}>yd</span>
+                          <button
+                            type="button"
+                            className={styles.inlineSaveBtn}
+                            onMouseDown={e => {
+                              e.preventDefault()
+                              handleSaveBs(roll.id)
+                            }}
+                            title="Simpan"
+                          >
+                            ✓
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={styles.bsDisplayWrap}>
+                          {roll.bsQty && roll.bsQty > 0 ? (
+                            <span className={styles.bsValWarn}>
+                              {roll.bsQty} <span className={styles.bsUnit}>yd</span>
+                            </span>
+                          ) : (
+                            <span className={styles.bsValZero}>0</span>
+                          )}
+                          <span className={styles.editHintIcon} title="Double click untuk edit">✎</span>
+                        </div>
+                      )}
                     </td>
                     <td>
                       {hasDefect ? (
@@ -140,6 +232,17 @@ export default function RollTable({ rolls, defects, onCatatCacat, onGetData, onD
           defectCount={(defects[rollToDelete.id] || []).length}
           onConfirm={handleConfirmDelete}
           onCancel={() => setRollToDelete(null)}
+        />
+      )}
+
+      {showManualModal && (
+        <ManualRollModal
+          defaultRollId={nextRollId}
+          onSave={newRoll => {
+            if (onAddRoll) onAddRoll(newRoll)
+            setShowManualModal(false)
+          }}
+          onClose={() => setShowManualModal(false)}
         />
       )}
     </div>

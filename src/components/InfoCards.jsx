@@ -16,7 +16,18 @@ export default function InfoCards({ data, user, totalDefects, rollsCount }) {
       {/* Banner Nomor Produksi */}
       <div className={styles.bannerCard}>
         <div className={styles.bannerLeft}>
-          <span className={styles.bannerLabel}>Nomor Produksi</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className={styles.bannerLabel}>Nomor Produksi</span>
+            {data.isFromDb ? (
+              <span className="chip" style={{ fontSize: '11px', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--success)' }}>
+                ✓ Dari Database
+              </span>
+            ) : (
+              <span className="chip" style={{ fontSize: '11px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent)' }}>
+                ✨ Data Baru
+              </span>
+            )}
+          </div>
           <span className={styles.bannerProd}>{data.seqmentNum || data.prodNumber}</span>
         </div>
         <div className={styles.bannerRight}>

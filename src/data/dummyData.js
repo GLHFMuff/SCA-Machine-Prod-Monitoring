@@ -16,11 +16,11 @@ export const SCAN_DATA = {
   weight: '185 gsm',
   customer: 'LL / CUST CODE ',
   rolls: [
-    { id: 1, length: 112.5 },
-    { id: 2, length: 108.0 },
-    { id: 3, length: 115.2 },
-    { id: 4, length: 109.8 },
-    { id: 5, length: 98.4 },
+    { id: 1, length: 112.5, bsQty: 0 },
+    { id: 2, length: 108.0, bsQty: 1.5 },
+    { id: 3, length: 115.2, bsQty: 0 },
+    { id: 4, length: 109.8, bsQty: 0.8 },
+    { id: 5, length: 98.4, bsQty: 0 },
   ],
 }
 
