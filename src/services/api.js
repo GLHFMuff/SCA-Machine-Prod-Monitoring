@@ -357,3 +357,92 @@ export async function pullAndClearMachineData(machineId) {
   }
 }
 
+/**
+ * Save / replace defects for a specific roll in CountingKainDefect
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @param {Array<{ yard: number, code: string }>} defects
+ * @returns {Promise<object>}
+ */
+export async function saveRollDefectsApi(prodId, roolNumber, defects = []) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/defects`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ProdId: String(prodId).trim(),
+        RoolNumber: parseInt(roolNumber, 10),
+        defects: defects.map((d, index) => ({
+          yard: parseFloat(d.yard) || 0,
+          code: d.code || '',
+          lineNumber: index + 1,
+        })),
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal menyimpan catatan cacat ke database');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[saveRollDefectsApi] Error for ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Get defects for a production order or roll from CountingKainDefect
+ * @param {string} prodId
+ * @param {number} [roolNumber]
+ * @returns {Promise<object>}
+ */
+export async function getRollDefectsApi(prodId, roolNumber) {
+  if (!prodId) return null;
+  const param = roolNumber ? `?roolNumber=${encodeURIComponent(roolNumber)}` : '';
+  const url = `${API_BASE}/api/counting/defects/${encodeURIComponent(String(prodId).trim())}${param}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.success) {
+      return data;
+    }
+    return null;
+  } catch (err) {
+    console.warn(`[getRollDefectsApi] Error for ${prodId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Delete defects for a specific roll from CountingKainDefect
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @returns {Promise<object>}
+ */
+export async function deleteRollDefectsApi(prodId, roolNumber) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/defects/${encodeURIComponent(String(prodId).trim())}/${encodeURIComponent(roolNumber)}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'DELETE',
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal menghapus cacat roll dari database');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[deleteRollDefectsApi] Error for ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
+

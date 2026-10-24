@@ -26,6 +26,26 @@ function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
   };
 }
 
+function normalizeDefect(item, parentProdId = '', parentRoolNumber = 0, defaultLineNumber = 1) {
+  const rawCode = String(item.Code || item.code || '').trim();
+  const parts = rawCode.split(/\s+[–-]\s+/);
+  let code = parts[0]?.trim() || rawCode || 'DEFECT';
+  let desc = parts.slice(1).join(' - ').trim();
+  if (!desc) {
+    desc = String(item.Description || item.description || code).trim();
+  }
+
+  return {
+    ProdId: String(item.ProdId || item.prodId || item.prod_id || parentProdId || '').trim(),
+    RoolNumber: parseInt(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? parentRoolNumber ?? 0, 10),
+    LengthPoint: parseFloat(item.LengthPoint ?? item.lengthPoint ?? item.yard ?? item.length ?? 0),
+    Code: code,
+    Description: desc,
+    IsExecuted: Boolean(item.IsExecuted ?? item.isExecuted ?? true),
+    LineNumber: parseInt(item.LineNumber ?? item.lineNumber ?? defaultLineNumber, 10),
+  };
+}
+
 /**
  * Upsert single header logic
  */
@@ -247,15 +267,26 @@ router.get('/headers/:prodId', async (req, res) => {
       ? allLines.filter((l) => String(l.NoMesin || '').trim() === targetMachine)
       : allLines;
 
+    // Ambil seluruh titik cacat kain untuk ProdId ini
+    const defectsRes = await pool.query(
+      `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber"
+       FROM "CountingKainDefect"
+       WHERE "ProdId" = $1
+       ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
+      [prodId]
+    );
+
     return res.status(200).json({
       success: true,
       data: {
         ...header,
         lines,
         allLines,
+        defects: defectsRes.rows,
         targetMachine: targetMachine || null,
         machineLinesCount: lines.length,
         totalLinesCount: allLines.length,
+        totalDefectsCount: defectsRes.rows.length,
       },
     });
   } catch (err) {
@@ -306,6 +337,7 @@ router.delete('/headers/:prodId', async (req, res) => {
 
   try {
     await client.query('BEGIN');
+    await client.query('DELETE FROM "CountingKainDefect" WHERE "ProdId" = $1', [prodId]);
     await client.query('DELETE FROM "CountingKainLines" WHERE "ProdId" = $1', [prodId]);
     const deleteRes = await client.query(
       'DELETE FROM "CountingKainHeader" WHERE "ProdId" = $1 RETURNING "ProdId"',
@@ -472,30 +504,46 @@ router.post('/lines', async (req, res) => {
  * DELETE /api/counting/lines/:prodId/:roolNumber
  */
 router.delete('/lines/:prodId/:roolNumber', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { prodId, roolNumber } = req.params;
+    const rollNum = parseInt(roolNumber, 10);
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    // Hapus titik cacat terkait roll ini terlebih dahulu
+    await client.query(
+      'DELETE FROM "CountingKainDefect" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
+      [prodId, rollNum]
+    );
+
+    const result = await client.query(
       `DELETE FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
        RETURNING "ProdId", "RoolNumber"`,
-      [prodId, parseInt(roolNumber, 10)]
+      [prodId, rollNum]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({
         success: false,
         error: `Line with ProdId '${prodId}' and RoolNumber '${roolNumber}' not found.`,
       });
     }
 
+    await client.query('COMMIT');
+
     return res.status(200).json({
       success: true,
-      message: `Line #${roolNumber} of ProdId '${prodId}' deleted successfully.`,
+      message: `Line #${roolNumber} of ProdId '${prodId}' and associated defects deleted successfully.`,
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('[Delete Line Error]:', err);
     return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -529,6 +577,150 @@ router.patch('/lines/:prodId/:roolNumber/print', async (req, res) => {
     });
   } catch (err) {
     console.error('[Update isPrinted Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// 4. COUNTING KAIN DEFECTS CRUD
+// ============================================================
+
+/**
+ * GET /api/counting/defects/:prodId
+ * Query params: ?roolNumber=...
+ * Returns list of defects for a production order or a specific roll
+ */
+router.get('/defects/:prodId', async (req, res) => {
+  try {
+    const { prodId } = req.params;
+    const { roolNumber, rollNumber } = req.query;
+    const targetRoll = parseInt(roolNumber || rollNumber || 0, 10);
+
+    let query = `
+      SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber"
+      FROM "CountingKainDefect"
+      WHERE "ProdId" = $1
+    `;
+    const params = [prodId];
+
+    if (targetRoll > 0) {
+      params.push(targetRoll);
+      query += ` AND "RoolNumber" = $${params.length}`;
+    }
+
+    query += ' ORDER BY "RoolNumber" ASC, "LineNumber" ASC';
+
+    const result = await pool.query(query, params);
+
+    // Group defects by RoolNumber for easy frontend consumption
+    const grouped = {};
+    for (const d of result.rows) {
+      if (!grouped[d.RoolNumber]) grouped[d.RoolNumber] = [];
+      grouped[d.RoolNumber].push(d);
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: result.rows.length,
+      data: result.rows,
+      grouped,
+    });
+  } catch (err) {
+    console.error('[Get Defects Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/counting/defects
+ * Body: { ProdId, RoolNumber, defects: [ { yard / LengthPoint, code / Code, Description, ... } ] }
+ * Replaces all defects for the specified roll with the provided list (atomic transaction)
+ */
+router.post('/defects', async (req, res) => {
+  const prodId = String(req.body.ProdId || req.body.prodId || '').trim();
+  const roolNumber = parseInt(req.body.RoolNumber ?? req.body.roolNumber ?? req.body.rollNumber ?? 0, 10);
+  const rawDefects = Array.isArray(req.body.defects) ? req.body.defects : [];
+
+  if (!prodId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Bad Request',
+      message: 'ProdId is required.',
+    });
+  }
+
+  if (roolNumber <= 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Bad Request',
+      message: 'Valid RoolNumber (> 0) is required.',
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Hapus titik cacat lama untuk roll ini (overwrite)
+    await client.query(
+      'DELETE FROM "CountingKainDefect" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
+      [prodId, roolNumber]
+    );
+
+    // 2. Insert titik cacat baru
+    const inserted = [];
+    for (let i = 0; i < rawDefects.length; i++) {
+      const norm = normalizeDefect(rawDefects[i], prodId, roolNumber, i + 1);
+      const insRes = await client.query(
+        `INSERT INTO "CountingKainDefect" 
+         ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber")
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber"`,
+        [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, norm.IsExecuted, norm.LineNumber]
+      );
+      inserted.push(insRes.rows[0]);
+    }
+
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      success: true,
+      message: `Berhasil menyimpan ${inserted.length} titik cacat untuk Roll #${roolNumber}.`,
+      count: inserted.length,
+      data: inserted,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[Save Defects Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * DELETE /api/counting/defects/:prodId/:roolNumber
+ * Delete all defects for a specific roll
+ */
+router.delete('/defects/:prodId/:roolNumber', async (req, res) => {
+  try {
+    const { prodId, roolNumber } = req.params;
+    const rollNum = parseInt(roolNumber, 10);
+
+    const result = await pool.query(
+      `DELETE FROM "CountingKainDefect"
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       RETURNING "ProdId", "RoolNumber"`,
+      [prodId, rollNum]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Deleted ${result.rows.length} defect(s) for Roll #${rollNum} of ProdId '${prodId}'.`,
+      deletedCount: result.rows.length,
+    });
+  } catch (err) {
+    console.error('[Delete Defects Error]:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -671,30 +863,30 @@ router.post('/autonic/get-and-delete', async (req, res) => {
     const dt = reading?.DateTimeCreated;
 
     // 3. Hapus data otomatis langsung dari database agar tidak terbaca ulang
-    await client.query('BEGIN');
-    let deletedCount = 0;
+    // await client.query('BEGIN');
+    // let deletedCount = 0;
 
-    if (dt) {
-      const delTbl = await client.query(
-        `DELETE FROM "${tableName}" WHERE createdatetime <= $1 RETURNING createdatetime`,
-        [dt]
-      );
-      deletedCount += delTbl.rows.length;
+    // if (dt) {
+    //   const delTbl = await client.query(
+    //     `DELETE FROM "${tableName}" WHERE createdatetime <= $1 RETURNING createdatetime`,
+    //     [dt]
+    //   );
+    //   deletedCount += delTbl.rows.length;
 
-      // Juga bersihkan dari tabel gabungan autonicmachine jika ada
-      await client.query(
-        `DELETE FROM "autonicmachine" WHERE createdatetime <= $1`,
-        [dt]
-      );
-    } else {
-      // Hapus row terbaru jika tidak ada timestamp pasti
-      const delLatest = await client.query(
-        `DELETE FROM "${tableName}" WHERE ctid IN (SELECT ctid FROM "${tableName}" ORDER BY createdatetime DESC LIMIT 1) RETURNING createdatetime`
-      );
-      deletedCount += delLatest.rows.length;
-    }
+    //   // Juga bersihkan dari tabel gabungan autonicmachine jika ada
+    //   await client.query(
+    //     `DELETE FROM "autonicmachine" WHERE createdatetime <= $1`,
+    //     [dt]
+    //   );
+    // } else {
+    //   // Hapus row terbaru jika tidak ada timestamp pasti
+    //   const delLatest = await client.query(
+    //     `DELETE FROM "${tableName}" WHERE ctid IN (SELECT ctid FROM "${tableName}" ORDER BY createdatetime DESC LIMIT 1) RETURNING createdatetime`
+    //   );
+    //   deletedCount += delLatest.rows.length;
+    // }
 
-    await client.query('COMMIT');
+    // await client.query('COMMIT');
 
     return res.status(200).json({
       success: true,

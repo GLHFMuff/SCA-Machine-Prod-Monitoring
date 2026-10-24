@@ -1,53 +1,221 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import styles from './ScanModal.module.css'
 
-const SAMPLE_BARCODES = [
-  { id: 'OP.022026.000674', label: 'OP.022026.000674 (Ada di DB)' },
-  { id: 'OP.012026.001113', label: 'OP.012026.001113 (Ada di DB)' },
-  { id: 'OP.102026.000999', label: 'OP.102026.000999 (Data Baru)' },
+export const SAMPLE_QR_CODES = [
+  {
+    label: 'OP.012026.001113 (Ada di DB)',
+    value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52 Putih Reguler',
+  },
+  {
+    label: 'OP.022026.000674 (Ada di DB)',
+    value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis Navy',
+  },
+  {
+    label: 'OP.102026.000999 (Data Baru)',
+    value: 'OP.102026.000999;SPM.2026.DES.020;CUST-NEW;Cotton Combed 24s Hitam Reaktif',
+  },
 ]
 
-export default function ScanModal({ initialProdId, onDone, onCancel }) {
-  // Status scan: 'scanning' | 'failed' | 'success'
-  // Sesuai permintaan user: "sekarang buat jadi gagal dulu aja"
-  const [scanStatus, setScanStatus] = useState('scanning')
-  const [barcode, setBarcode] = useState(initialProdId || '')
-  const [error, setError] = useState('')
+/**
+ * Helper to parse QR content with format:
+ * ProdId;SeqmentNum;KodeCust;Design(item name)
+ */
+export function parseQrContent(rawString) {
+  if (!rawString) return null
+  const text = String(rawString).trim()
+  if (!text) return null
 
-  // Simulasi proses scanning kamera/barcode reader
-  useEffect(() => {
-    let t
-    if (scanStatus === 'scanning') {
-      t = setTimeout(() => {
-        // Default hasil scan diatur GAGAL terlebih dahulu
-        setScanStatus('failed')
-      }, 1800)
+  if (text.includes(';')) {
+    const parts = text.split(';').map((p) => p.trim())
+    return {
+      raw: text,
+      prodId: parts[0] || '',
+      seqmentNum: parts[1] || parts[0] || '',
+      customer: parts[2] || '',
+      design: parts[3] || '',
+      isQrBundle: true,
     }
-    return () => clearTimeout(t)
-  }, [scanStatus])
-
-  function handleRetryScan(forceStatus = 'failed') {
-    setError('')
-    setScanStatus('scanning')
-    // Setelah scanning selesai, arahkan ke status yang diinginkan
-    setTimeout(() => {
-      setScanStatus(forceStatus)
-    }, 1800)
   }
 
-  function handleSelectSample(val) {
-    setBarcode(val)
-    setError('')
+  // Single ProdId fallback
+  return {
+    raw: text,
+    prodId: text,
+    seqmentNum: text,
+    customer: '',
+    design: '',
+    isQrBundle: false,
+  }
+}
+
+export default function ScanModal({ initialProdId, onDone, onCancel }) {
+  // Tabs: 'camera' | 'file' | 'manual'
+  const [activeTab, setActiveTab] = useState('camera')
+  const [scannedResult, setScannedResult] = useState(null) // parsed object
+  const [manualInput, setManualInput] = useState(initialProdId || '')
+  const [cameraError, setCameraError] = useState('')
+  const [cameraLoading, setCameraLoading] = useState(true)
+  const [isProcessingFile, setIsProcessingFile] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const qrReaderRef = useRef(null)
+  const scannerInstanceRef = useRef(null)
+  const fileInputRef = useRef(null)
+
+  // Start live camera scanning
+  useEffect(() => {
+    let isMounted = true
+
+    if (activeTab === 'camera' && !scannedResult) {
+      setCameraLoading(true)
+      setCameraError('')
+
+      const elementId = 'html5qr-reader'
+      const html5QrCode = new Html5Qrcode(elementId, {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+        ],
+        verbose: false,
+      })
+
+      scannerInstanceRef.current = html5QrCode
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      }
+
+      // Gunakan kamera belakang (environment) secara default untuk HP
+      html5QrCode
+        .start(
+          { facingMode: 'environment' },
+          config,
+          (decodedText) => {
+            if (!isMounted) return
+            try {
+              if (navigator.vibrate) navigator.vibrate(100)
+            } catch {
+              // ignore vibration error
+            }
+
+            const parsed = parseQrContent(decodedText)
+            setScannedResult(parsed)
+            // Stop scanning once detected
+            if (html5QrCode.isScanning) {
+              html5QrCode.stop().catch(() => {})
+            }
+          },
+          () => {
+            // Frame parse progress, ignore
+          }
+        )
+        .then(() => {
+          if (isMounted) setCameraLoading(false)
+        })
+        .catch((err) => {
+          if (!isMounted) return
+          console.warn('[Camera Start Warning]:', err)
+          setCameraLoading(false)
+          let msg = 'Kamera tidak dapat diakses.'
+          if (err?.name === 'NotAllowedError') {
+            msg = 'Izin kamera ditolak. Berikan izin kamera di browser Anda.'
+          } else if (err?.name === 'NotFoundError') {
+            msg = 'Tidak ada perangkat kamera yang terdeteksi.'
+          } else if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+            msg = 'Browser HP mewajibkan HTTPS untuk akses kamera langsung. Silakan gunakan tab "Ambil Foto" atau buka via HTTPS.'
+          } else {
+            msg = `Kamera gagal aktif (${err.message || 'Error'}). Silakan coba tab "Ambil Foto" atau "Input Manual".`
+          }
+          setCameraError(msg)
+        })
+    }
+
+    return () => {
+      isMounted = false
+      if (scannerInstanceRef.current) {
+        if (scannerInstanceRef.current.isScanning) {
+          scannerInstanceRef.current.stop().catch(() => {}).finally(() => {
+            scannerInstanceRef.current?.clear?.()
+          })
+        } else {
+          try {
+            scannerInstanceRef.current.clear?.()
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+  }, [activeTab, scannedResult])
+
+  // Handle Scan from Image File or Native Camera Photo
+  async function handleFileScan(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsProcessingFile(true)
+    setErrorMsg('')
+
+    try {
+      const html5QrCode = new Html5Qrcode('html5qr-file-runner', {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+        ],
+        verbose: false,
+      })
+
+      const decodedText = await html5QrCode.scanFile(file, true)
+      try {
+        if (navigator.vibrate) navigator.vibrate(100)
+      } catch {
+        // ignore
+      }
+
+      const parsed = parseQrContent(decodedText)
+      setScannedResult(parsed)
+    } catch (err) {
+      console.warn('File scan failed:', err)
+      setErrorMsg('QR Code / Barcode tidak terdeteksi pada gambar. Pastikan gambar jelas dan tidak buram.')
+    } finally {
+      setIsProcessingFile(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
-  function handleSubmit(e) {
+  // Handle Manual Form Submit
+  function handleManualSubmit(e) {
     if (e) e.preventDefault()
-    const trimmed = barcode.trim()
+    const trimmed = manualInput.trim()
     if (!trimmed) {
-      setError('Nomor order produksi wajib diisi.')
+      setErrorMsg('Nomor Order Produksi atau isi QR wajib diisi.')
       return
     }
-    onDone(trimmed)
+
+    const parsed = parseQrContent(trimmed)
+    setScannedResult(parsed)
+  }
+
+  // Confirm and proceed to MainPage
+  function handleConfirm() {
+    if (!scannedResult || !scannedResult.prodId) {
+      setErrorMsg('Data hasil scan tidak valid.')
+      return
+    }
+    onDone(scannedResult)
+  }
+
+  // Reset to scan again
+  function handleReset() {
+    setScannedResult(null)
+    setErrorMsg('')
+    setCameraError('')
   }
 
   return (
@@ -56,152 +224,50 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
         {/* Header Modal */}
         <div className={styles.head}>
           <div className={styles.headTitle}>
-            <span>📷 Pemindai Barcode Order</span>
-            {scanStatus === 'scanning' && <span className={styles.badgeScanning}>Sedang Memindai…</span>}
-            {scanStatus === 'failed' && <span className={styles.badgeFailed}>Scan Gagal</span>}
-            {scanStatus === 'success' && <span className={styles.badgeSuccess}>Scan Berhasil</span>}
+            <span>📷 Pemindai Barcode / QR Order</span>
+            {scannedResult ? (
+              <span className={styles.badgeSuccess}>✓ Terdeteksi</span>
+            ) : (
+              <span className={styles.badgeScanning}>Siap Scan</span>
+            )}
           </div>
-          <button
-            type="button"
-            className={styles.closeBtn}
-            onClick={onCancel}
-            aria-label="Tutup"
-          >
+          <button type="button" className={styles.closeBtn} onClick={onCancel} aria-label="Tutup">
             ✕
           </button>
         </div>
 
-        {/* ── 1. KONDISI: SEDANG SCANNING ── */}
-        {scanStatus === 'scanning' && (
-          <div className={styles.body}>
-            <div className={styles.scanViewport}>
-              <div className={styles.scanLaser} />
-              <div className={styles.scanCameraIcon}>📷</div>
-            </div>
-
-            <div className={styles.titleText}>Mendeteksi Barcode Order…</div>
-            <div className={styles.subText}>
-              Arahkan barcode kain ke kamera pemindai
-            </div>
-
-            <div className={styles.progressTrack}>
-              <div className={styles.progressBar} />
-            </div>
-
-            <button
-              type="button"
-              className="btn btn-outline"
-              style={{ width: '100%', marginTop: '12px' }}
-              onClick={onCancel}
-            >
-              Batal
-            </button>
-          </div>
-        )}
-
-        {/* ── 2. KONDISI: SCAN GAGAL (INPUT MANUAL) ── */}
-        {scanStatus === 'failed' && (
-          <form onSubmit={handleSubmit} className={styles.body}>
-            <div className={styles.failedIconWrap}>
-              <div className={styles.failedIcon}>❌</div>
-            </div>
-
-            <div className={styles.statusBannerFailed}>
-              <div className={styles.statusTitle}>Scan Barcode Gagal Terbaca</div>
-              <div className={styles.statusDesc}>
-                Barcode tidak terdeteksi atau label barcode rusak. Silakan masukkan nomor order produksi secara manual di bawah ini:
-              </div>
-            </div>
-
-            {error && <div className={styles.errorAlert}>⚠️ {error}</div>}
-
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
-                Nomor Order Produksi (OP)
-                <span className={styles.req}>*Wajib diisi</span>
-              </label>
-
-              <div className={styles.inputWrap}>
-                <span className={styles.inputIcon}>📝</span>
-                <input
-                  type="text"
-                  className={styles.manualInput}
-                  placeholder="Contoh: OP.022026.000674"
-                  value={barcode}
-                  onChange={(e) => {
-                    setBarcode(e.target.value)
-                    setError('')
-                  }}
-                  autoFocus
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Quick Sample Selector */}
-            {/* <div className={styles.sampleSection}>
-              <div className={styles.sampleLabel}>Pilih Cepat / Sampel Barcode:</div>
-              <div className={styles.sampleGrid}>
-                {SAMPLE_BARCODES.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={`${styles.sampleChip} ${barcode === s.id ? styles.sampleChipActive : ''}`}
-                    onClick={() => handleSelectSample(s.id)}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div> */}
-
-            <div className={styles.actionButtons}>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '13px', fontSize: '15px' }}
-              >
-                💾 Simpan ke Header & Lanjut →
-              </button>
-
-              <div className={styles.secondaryRow}>
-                <button
-                  type="button"
-                  className={styles.retryBtn}
-                  onClick={() => handleRetryScan('failed')}
-                >
-                  🔄 Coba Scan Ulang
-                </button>
-                <button
-                  type="button"
-                  className={styles.testSuccessBtn}
-                  onClick={() => handleRetryScan('success')}
-                  title="Uji coba jika scan berhasil"
-                >
-                  ⚡ Tes Scan Berhasil
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
-
-        {/* ── 3. KONDISI: SCAN BERHASIL ── */}
-        {scanStatus === 'success' && (
+        {/* ── JIKA QR SUDAH TERDETEKSI / SELESAI DIPROSES ── */}
+        {scannedResult ? (
           <div className={styles.body}>
             <div className={styles.successIconWrap}>
               <div className={styles.successIcon}>✅</div>
             </div>
 
             <div className={styles.statusBannerSuccess}>
-              <div className={styles.statusSuccessTitle}>Scan Barcode Berhasil!</div>
+              <div className={styles.statusSuccessTitle}>QR Code Berhasil Terbaca!</div>
               <div className={styles.statusDesc}>
-                Nomor Order Produksi berhasil terdeteksi dari barcode:
+                Data order produksi berhasil diurai dari QR Code:
               </div>
             </div>
 
-            <div className={styles.detectedCard}>
-              <div className={styles.detectedLabel}>Nomor Terbaca:</div>
-              <div className={styles.detectedValue}>{barcode || 'OP.022026.000674'}</div>
+            {/* Preview Field Cards */}
+            <div className={styles.parsedCard}>
+              <div className={styles.parsedRow}>
+                <span className={styles.parsedKey}>ProdId (Nomor OP):</span>
+                <span className={styles.parsedValHighlight}>{scannedResult.prodId}</span>
+              </div>
+              <div className={styles.parsedRow}>
+                <span className={styles.parsedKey}>SeqmentNum / SPK:</span>
+                <span className={styles.parsedVal}>{scannedResult.seqmentNum || '-'}</span>
+              </div>
+              <div className={styles.parsedRow}>
+                <span className={styles.parsedKey}>Kode Customer:</span>
+                <span className={styles.parsedVal}>{scannedResult.customer || '-'}</span>
+              </div>
+              <div className={styles.parsedRow}>
+                <span className={styles.parsedKey}>Design (Nama Kain):</span>
+                <span className={styles.parsedVal}>{scannedResult.design || '-'}</span>
+              </div>
             </div>
 
             <div className={styles.actionButtons}>
@@ -209,7 +275,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
                 type="button"
                 className="btn btn-success"
                 style={{ width: '100%', padding: '13px', fontSize: '15px' }}
-                onClick={handleSubmit}
+                onClick={handleConfirm}
               >
                 💾 Simpan ke Header & Muat Data →
               </button>
@@ -217,11 +283,207 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
               <button
                 type="button"
                 className={styles.retryBtn}
-                onClick={() => handleRetryScan('failed')}
+                onClick={handleReset}
               >
-                ↩ Uji Scan Gagal (Input Manual)
+                🔄 Scan Ulang QR Lain
               </button>
             </div>
+          </div>
+        ) : (
+          /* ── AREA SELECTION TABS & SCANNER ── */
+          <div className={styles.body}>
+            {/* Navigasi Tab */}
+            <div className={styles.tabNav}>
+              <button
+                type="button"
+                className={`${styles.tabBtn} ${activeTab === 'camera' ? styles.tabBtnActive : ''}`}
+                onClick={() => {
+                  setActiveTab('camera')
+                  setErrorMsg('')
+                }}
+              >
+                📹 Kamera Langsung
+              </button>
+              <button
+                type="button"
+                className={`${styles.tabBtn} ${activeTab === 'file' ? styles.tabBtnActive : ''}`}
+                onClick={() => {
+                  setActiveTab('file')
+                  setErrorMsg('')
+                }}
+              >
+                📸 Ambil Foto / Upload
+              </button>
+              <button
+                type="button"
+                className={`${styles.tabBtn} ${activeTab === 'manual' ? styles.tabBtnActive : ''}`}
+                onClick={() => {
+                  setActiveTab('manual')
+                  setErrorMsg('')
+                }}
+              >
+                ⌨️ Input / Barcode Gun
+              </button>
+            </div>
+
+            {errorMsg && <div className={styles.errorAlert}>⚠️ {errorMsg}</div>}
+
+            {/* TAB 1: LIVE CAMERA */}
+            {activeTab === 'camera' && (
+              <div className={styles.cameraTabArea}>
+                <div className={styles.cameraFrameWrapper}>
+                  {/* Container HTML5-QRCode */}
+                  <div id="html5qr-reader" ref={qrReaderRef} className={styles.readerElement} />
+
+                  {cameraLoading && (
+                    <div className={styles.cameraOverlayLoading}>
+                      <div className={styles.spinner} />
+                      <span>Menghubungkan ke kamera HP…</span>
+                    </div>
+                  )}
+
+                  {!cameraLoading && !cameraError && (
+                    <div className={styles.laserOverlay}>
+                      <div className={styles.scanLaser} />
+                      <div className={styles.targetReticle} />
+                    </div>
+                  )}
+                </div>
+
+                {cameraError ? (
+                  <div className={styles.cameraErrorBox}>
+                    <div className={styles.cameraErrorTitle}>⚠️ Akses Kamera Tidak Tersedia</div>
+                    <div className={styles.cameraErrorText}>{cameraError}</div>
+                    <div className={styles.cameraErrorActions}>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setActiveTab('file')}
+                      >
+                        📸 Buka Kamera via "Ambil Foto"
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setActiveTab('manual')}
+                      >
+                        ⌨️ Masukkan Nomor Manual
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.helperText}>
+                    Arahkan kamera ke QR Code bertuliskan <code>ProdId;SeqmentNum;...</code>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: AMBIL FOTO / FILE SCAN */}
+            {activeTab === 'file' && (
+              <div className={styles.fileTabArea}>
+                <div id="html5qr-file-runner" style={{ display: 'none' }} />
+                
+                <div className={styles.fileBox}>
+                  <div className={styles.fileIcon}>📸</div>
+                  <div className={styles.fileTitle}>Ambil Foto QR Code dengan HP</div>
+                  <div className={styles.fileDesc}>
+                    Buka kamera bawaan HP untuk memotret label barcode/QR kain, atau pilih file gambar dari galeri:
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={handleFileScan}
+                  />
+
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ width: '100%', padding: '12px', marginTop: '12px' }}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessingFile}
+                  >
+                    {isProcessingFile ? '⏳ Memproses Gambar…' : '📷 Buka Kamera / Pilih Foto'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: INPUT MANUAL / SCANNER GUN */}
+            {activeTab === 'manual' && (
+              <form onSubmit={handleManualSubmit} className={styles.manualTabArea}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>
+                    Isi QR Code atau Nomor Order Produksi
+                    <span className={styles.req}>*Wajib</span>
+                  </label>
+                  <div className={styles.inputWrap}>
+                    <span className={styles.inputIcon}>📝</span>
+                    <input
+                      type="text"
+                      className={styles.manualInput}
+                      placeholder="Format: ProdId;SeqmentNum;KodeCust;Design"
+                      value={manualInput}
+                      onChange={(e) => {
+                        setManualInput(e.target.value)
+                        setErrorMsg('')
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                  <div className={styles.inputHint}>
+                    Mendukung tembakan barcode scanner gun atau paste format lengkap:
+                    <br />
+                    <code>ProdId;SeqmentNum;KodeCust;Design(item name)</code>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '12px', marginBottom: '14px' }}
+                >
+                  ⚡ Proses Barcode / QR →
+                </button>
+
+                {/* Sample QR Selector */}
+                <div className={styles.sampleSection}>
+                  <div className={styles.sampleLabel}>Pilih Cepat Sampel QR Lengkap:</div>
+                  <div className={styles.sampleGrid}>
+                    {SAMPLE_QR_CODES.map((s, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`${styles.sampleChip} ${manualInput === s.value ? styles.sampleChipActive : ''}`}
+                        onClick={() => {
+                          setManualInput(s.value)
+                          setErrorMsg('')
+                        }}
+                      >
+                        <div style={{ fontWeight: 700 }}>{s.label}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', wordBreak: 'break-all' }}>
+                          {s.value}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* Tombol Tutup / Batal */}
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ width: '100%', marginTop: '16px' }}
+              onClick={onCancel}
+            >
+              Batal
+            </button>
           </div>
         )}
       </div>

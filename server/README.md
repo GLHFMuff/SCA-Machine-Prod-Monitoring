@@ -198,6 +198,30 @@ Mengirimkan header beserta array baris roll dalam satu transaksi database atomik
 
 ---
 
+### 4. Defects CRUD (`CountingKainDefect`)
+* **List Cacat Order / Roll**: `GET /api/counting/defects/:prodId?roolNumber=1`
+* **Simpan / Update Cacat Roll (Overwrite)**: `POST /api/counting/defects`
+  ```json
+  {
+    "ProdId": "OP.012026.001113",
+    "RoolNumber": 1,
+    "defects": [
+      {
+        "yard": 45.5,
+        "code": "BB01 – Benang Bintik"
+      },
+      {
+        "yard": 82.0,
+        "code": "HP04 – Hole/Lubang"
+      }
+    ]
+  }
+  ```
+* **Hapus Semua Cacat pada Roll**: `DELETE /api/counting/defects/:prodId/:roolNumber`
+*(Catatan: Saat baris roll atau header dihapus, catatan cacat terkait otomatis ikut dibersihkan dari database)*
+
+---
+
 ## 🛠️ Perintah CLI Tersedia
 
 ```bash

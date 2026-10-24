@@ -2,12 +2,12 @@
   position: fixed;
   inset: 0;
   z-index: 1100;
-  background: rgba(15, 23, 42, 0.78);
-  backdrop-filter: blur(6px);
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 12px;
   animation: fadeIn 0.2s ease;
 }
 
@@ -19,12 +19,15 @@
 .box {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 18px);
+  border-radius: var(--radius-lg, 20px);
   width: 100%;
-  max-width: 460px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  max-width: 480px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
   overflow: hidden;
   animation: scaleUp 0.2s ease;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes scaleUp {
@@ -36,9 +39,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
+  flex-shrink: 0;
 }
 
 .headTitle {
@@ -56,16 +60,6 @@
   border: 1px solid rgba(14, 165, 233, 0.3);
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.badgeFailed {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  font-size: 11px;
-  font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
 }
@@ -97,136 +91,230 @@
 }
 
 .body {
-  padding: 28px 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
-/* ── Scanning Viewport ── */
-.scanViewport {
+/* ── Tab Navigation ── */
+.tabNav {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.tabBtn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 8px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tabBtn:hover {
+  color: var(--text);
+}
+
+.tabBtnActive {
+  background: var(--surface2);
+  color: var(--primary, #0ea5e9);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  font-weight: 700;
+}
+
+/* ── Camera Area ── */
+.cameraTabArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cameraFrameWrapper {
   position: relative;
-  width: 140px;
-  height: 140px;
-  margin: 0 auto 20px;
-  border: 2px dashed rgba(14, 165, 233, 0.5);
-  border-radius: 16px;
-  background: rgba(14, 165, 233, 0.05);
+  width: 100%;
+  max-width: 320px;
+  height: 280px;
+  background: #090d16;
+  border: 2px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
 }
 
-.scanCameraIcon {
-  font-size: 48px;
-  opacity: 0.8;
+.readerElement {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+}
+
+.readerElement video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 16px;
+}
+
+.cameraOverlayLoading {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 13, 22, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  z-index: 5;
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(14, 165, 233, 0.25);
+  border-top-color: var(--primary, #0ea5e9);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.laserOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.targetReticle {
+  width: 200px;
+  height: 200px;
+  border: 2px dashed rgba(14, 165, 233, 0.65);
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
 }
 
 .scanLaser {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 15%;
+  right: 15%;
   height: 3px;
-  background: linear-gradient(90deg, transparent, #ef4444, #f87171, transparent);
-  box-shadow: 0 0 12px #ef4444;
-  animation: laserSweep 1.6s ease-in-out infinite alternate;
+  background: linear-gradient(90deg, transparent, #0ea5e9, #38bdf8, transparent);
+  box-shadow: 0 0 14px #0ea5e9;
+  animation: laserSweep 1.8s ease-in-out infinite alternate;
 }
 
 @keyframes laserSweep {
-  0% { top: 10%; }
-  100% { top: 90%; }
+  0% { top: 20%; }
+  100% { top: 80%; }
 }
 
-.titleText {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
+.helperText {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
   text-align: center;
+}
+
+.helperText code {
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--primary, #0ea5e9);
+  font-size: 11px;
+}
+
+.cameraErrorBox {
+  margin-top: 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  width: 100%;
+}
+
+.cameraErrorTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ef4444;
   margin-bottom: 6px;
 }
 
-.subText {
-  font-size: 13px;
-  color: var(--muted);
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.progressTrack {
-  height: 6px;
-  background: var(--border);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-
-.progressBar {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--primary, #0ea5e9), #38bdf8);
-  animation: progFill 1.8s ease forwards;
-}
-
-@keyframes progFill {
-  0% { width: 0%; }
-  100% { width: 100%; }
-}
-
-/* ── Failed State ── */
-.failedIconWrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 12px;
-}
-
-.failedIcon {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-}
-
-.statusBannerFailed {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 18px;
-  text-align: center;
-}
-
-.statusTitle {
-  font-size: 15px;
-  font-weight: 700;
-  color: #ef4444;
-  margin-bottom: 4px;
-}
-
-.statusDesc {
+.cameraErrorText {
   font-size: 12px;
   color: var(--text);
   line-height: 1.45;
+  margin-bottom: 12px;
 }
 
-.errorAlert {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #ef4444;
-  padding: 8px 12px;
-  border-radius: 8px;
+.cameraErrorActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── File Tab ── */
+.fileTabArea {
+  display: flex;
+  flex-direction: column;
+}
+
+.fileBox {
+  background: var(--bg);
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 28px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.fileIcon {
+  font-size: 44px;
+  margin-bottom: 10px;
+}
+
+.fileTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.fileDesc {
   font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 300px;
+}
+
+/* ── Manual Input Tab ── */
+.manualTabArea {
+  display: flex;
+  flex-direction: column;
 }
 
 .formGroup {
-  margin-bottom: 16px;
-  text-align: left;
+  margin-bottom: 14px;
 }
 
 .label {
@@ -253,7 +341,7 @@
   align-items: center;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
@@ -274,15 +362,29 @@
   background: transparent;
   border: none;
   padding: 12px 14px 12px 0;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text);
   outline: none;
 }
 
+.inputHint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.inputHint code {
+  color: var(--primary, #0ea5e9);
+  background: var(--bg);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
 .sampleSection {
-  margin-bottom: 20px;
+  margin-top: 10px;
+  margin-bottom: 8px;
 }
 
 .sampleLabel {
@@ -297,20 +399,18 @@
 .sampleGrid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .sampleChip {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 12px;
-  padding: 7px 12px;
-  border-radius: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
   cursor: pointer;
   text-align: left;
   transition: all 0.15s ease;
-  font-weight: 500;
 }
 
 .sampleChip:hover {
@@ -322,55 +422,20 @@
   background: rgba(14, 165, 233, 0.15) !important;
   color: var(--primary, #0ea5e9) !important;
   border-color: var(--primary, #0ea5e9) !important;
-  font-weight: 700 !important;
 }
 
-.actionButtons {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.secondaryRow {
-  display: flex;
-  gap: 8px;
-}
-
-.retryBtn {
-  flex: 1;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
+.errorAlert {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  padding: 8px 12px;
+  border-radius: 8px;
   font-size: 12px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  font-weight: 600;
+  margin-bottom: 14px;
 }
 
-.retryBtn:hover {
-  background: var(--surface2);
-  color: var(--text);
-}
-
-.testSuccessBtn {
-  background: transparent;
-  border: 1px dashed var(--border);
-  color: var(--muted);
-  font-size: 12px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.testSuccessBtn:hover {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  border-color: rgba(16, 185, 129, 0.3);
-}
-
-/* ── Success State ── */
+/* ── Success / Parsed Card ── */
 .successIconWrap {
   display: flex;
   justify-content: center;
@@ -378,8 +443,8 @@
 }
 
 .successIcon {
-  width: 56px;
-  height: 56px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background: rgba(16, 185, 129, 0.12);
   border: 1px solid rgba(16, 185, 129, 0.3);
@@ -393,8 +458,8 @@
   background: rgba(16, 185, 129, 0.08);
   border: 1px solid rgba(16, 185, 129, 0.25);
   border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 18px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
   text-align: center;
 }
 
@@ -402,28 +467,78 @@
   font-size: 15px;
   font-weight: 700;
   color: #10b981;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
-.detectedCard {
+.statusDesc {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.parsedCard {
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
-  text-align: center;
-  margin-bottom: 20px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.detectedLabel {
+.parsedRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding-bottom: 6px;
+}
+
+.parsedRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.parsedKey {
   font-size: 11px;
   color: var(--muted);
   text-transform: uppercase;
-  margin-bottom: 4px;
+  letter-spacing: 0.4px;
+  font-weight: 600;
 }
 
-.detectedValue {
-  font-size: 18px;
-  font-weight: 800;
+.parsedVal {
+  font-size: 13px;
   color: var(--text);
-  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.parsedValHighlight {
+  font-size: 16px;
+  color: var(--primary, #0ea5e9);
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.actionButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.retryBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 600;
+}
+
+.retryBtn:hover {
+  background: var(--surface2);
+  color: var(--text);
 }

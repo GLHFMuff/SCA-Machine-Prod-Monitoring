@@ -17,6 +17,7 @@ import {
   markRollTicketPrinted,
   getNextRollInfo,
   deleteRollApi,
+  saveRollDefectsApi,
 } from '../services/api.js'
 import styles from './MainPage.module.css'
 
@@ -74,11 +75,38 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
    * 2. Ambil info lines & multi-mesin yang sudah ada
    * 3. Siapkan nomor roll lanjutan yang unik (bebas duplikat)
    */
-  async function handleScanComplete(scannedBarcode) {
+  async function handleScanComplete(scannedInput) {
     setShowScan(false)
     setLoadingScan(true)
 
-    const targetProdId = (scannedBarcode || SCAN_DATA.prodNumber).trim()
+    // Parsing input: mendukung objek hasil ScanModal atau string "ProdId;SeqmentNum;KodeCust;Design"
+    let parsed
+    if (typeof scannedInput === 'object' && scannedInput !== null) {
+      parsed = scannedInput
+    } else {
+      const raw = String(scannedInput || SCAN_DATA.prodNumber).trim()
+      if (raw.includes(';')) {
+        const parts = raw.split(';').map((p) => p.trim())
+        parsed = {
+          prodId: parts[0] || '',
+          seqmentNum: parts[1] || parts[0] || '',
+          customer: parts[2] || '',
+          design: parts[3] || '',
+        }
+      } else {
+        parsed = {
+          prodId: raw,
+          seqmentNum: raw,
+          customer: '',
+          design: '',
+        }
+      }
+    }
+
+    const targetProdId = (parsed.prodId || SCAN_DATA.prodNumber).trim()
+    const targetSeqment = (parsed.seqmentNum || targetProdId).trim()
+    const targetCustomer = (parsed.customer || '').trim()
+    const targetDesign = (parsed.design || '').trim()
     const machineId = String(user?.machine_id || user?.machineId || '1')
     const userId = user?.username || user?.name || 'operator'
 
@@ -117,7 +145,9 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         setProdData({
           ...SCAN_DATA,
           prodNumber: dbRecord.ProdId || targetProdId,
-          seqmentNum: dbRecord.ProdId || targetProdId,
+          seqmentNum: targetSeqment || dbRecord.ProdId || targetProdId,
+          customer: targetCustomer || SCAN_DATA.customer,
+          fabricType: targetDesign || SCAN_DATA.fabricType,
           noMesin: machineId,
           userId: dbRecord.UserId || userId,
           isFromDb: true,
@@ -134,8 +164,27 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           isExecute: Boolean(l.IsExecute),
         }))
 
+        // Map titik cacat dari tabel CountingKainDefect
+        const loadedDefects = {}
+        if (Array.isArray(dbRecord.defects)) {
+          for (const d of dbRecord.defects) {
+            const rId = d.RoolNumber
+            if (!loadedDefects[rId]) loadedDefects[rId] = []
+            const displayCode = d.Description && d.Description !== d.Code
+              ? `${d.Code} – ${d.Description}`
+              : d.Code
+            loadedDefects[rId].push({
+              id: d.LineNumber || Date.now() + Math.random(),
+              yard: parseFloat(d.LengthPoint) || 0,
+              code: displayCode,
+              isExecuted: Boolean(d.IsExecuted),
+              lineNumber: d.LineNumber,
+            })
+          }
+        }
+
         setRolls(loadedRolls)
-        setDefects({})
+        setDefects(loadedDefects)
         setScanned(true)
 
         // SYARAT KHUSUS: Jika order sudah ada datanya di DB (allDbLines > 0)
@@ -161,7 +210,11 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         setProdData({
           ...SCAN_DATA,
           prodNumber: targetProdId,
-          seqmentNum: targetProdId,
+          seqmentNum: targetSeqment || targetProdId,
+          customer: targetCustomer || SCAN_DATA.customer,
+          fabricType: targetDesign || SCAN_DATA.fabricType,
+          noMesin: machineId,
+          userId: userId,
           isFromDb: true,
         })
 
@@ -175,7 +228,9 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       setProdData({
         ...SCAN_DATA,
         prodNumber: targetProdId,
-        seqmentNum: targetProdId,
+        seqmentNum: targetSeqment || targetProdId,
+        customer: targetCustomer || SCAN_DATA.customer,
+        fabricType: targetDesign || SCAN_DATA.fabricType,
         isFromDb: false,
       })
       setRolls([])
@@ -308,6 +363,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         setStartRollNumber(nextId + 1)
       }
       await refreshMultiMachineStats(prodId)
+      //flush data via api
       await flushAutonicData(machineId)
       showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) ditarik ke Roll #${nextId} & otomatis tersimpan di DB.`)
     } catch (err) {
@@ -427,9 +483,20 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     showToast(`BS Qty Roll #${rollId} diubah menjadi ${newBsQty} yard`)
   }
 
-  function saveDefects(rollId, list) {
+  async function saveDefects(rollId, list) {
     setDefects((prev) => ({ ...prev, [rollId]: list }))
     setDefectModal(null)
+
+    const prodId = prodData.prodNumber
+    if (!prodId) return
+
+    try {
+      await saveRollDefectsApi(prodId, rollId, list)
+      showToast(`✓ Catatan cacat Roll #${rollId} (${list.length} titik) berhasil disimpan di database.`)
+    } catch (err) {
+      console.error('Error saat menyimpan cacat ke DB:', err)
+      showToast(`Cacat Roll #${rollId} tersimpan lokal (Gagal simpan ke DB: ${err.message})`)
+    }
   }
 
   function handleResetScan() {
