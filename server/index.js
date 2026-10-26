@@ -1,9 +1,16 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 import { dbConfig, checkDatabaseConnection } from './config/db.js';
 import authRouter from './routes/auth.js';
 import countingRouter from './routes/counting.js';
 import { authenticateKey } from './middleware/auth.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, '../dist');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,8 +31,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Root route: API overview
-app.get('/', (req, res) => {
+// Serve frontend static files if dist folder exists
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
+
+// API Overview route
+app.get('/api', (req, res) => {
   res.json({
     name: 'Machine Production Monitoring API',
     description: 'Backend API for Machine Production Monitoring System',
@@ -103,7 +115,18 @@ app.use('/api/auth', authRouter);
 app.use('/api/counting', countingRouter);
 app.use('/api/counting-kain', countingRouter);
 
-// 404 handler for unknown routes
+// SPA fallback for frontend routes (non-API GET requests)
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    const indexPath = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
+    }
+  }
+  next();
+});
+
+// 404 handler for unknown routes (API or missing static assets)
 app.use((req, res) => {
   res.status(404).json({
     status: 404,
@@ -125,9 +148,11 @@ app.use((err, req, res, next) => {
 // Start listening
 const server = app.listen(PORT, () => {
   console.log('='.repeat(60));
-  console.log(` Machine Production Monitoring API Server`);
-  console.log(` Server running on: http://localhost:${PORT}`);
+  console.log(` Machine Production Monitoring Server (Fullstack)`);
+  console.log(` Web Frontend URL : http://localhost:${PORT}`);
+  console.log(` API Endpoint URL : http://localhost:${PORT}/api`);
   console.log(` Health check URL : http://localhost:${PORT}/api/health`);
+  console.log(` Static Dist Path : ${distPath} (${fs.existsSync(distPath) ? 'Found' : 'Not Found'})`);
   console.log(` Configured DB Host: ${dbConfig.host}:${dbConfig.port}`);
   console.log(` Configured DB Name: ${dbConfig.database}`);
   console.log(` Configured DB User: ${dbConfig.user}`);
