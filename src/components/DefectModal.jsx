@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { DEFECT_CODES } from '../data/dummyData.js'
 import styles from './DefectModal.module.css'
 
-export default function DefectModal({ roll, initDefects, onSave, onClose }) {
+export default function DefectModal({ roll, isPreRoll = false, initDefects, onSave, onClose }) {
   const [list, setList] = useState(initDefects || [])
   const [yard, setYard] = useState('')
   const [code, setCode] = useState(DEFECT_CODES[0])
@@ -18,12 +18,12 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
       setError('Posisi cacat harus berupa angka lebih dari 0.')
       return
     }
-    if (parsedYard >= roll.length) {
+    if (!isPreRoll && roll?.length && parsedYard >= roll.length) {
       setError(`Posisi cacat (${parsedYard} yd) harus di bawah panjang roll (${roll.length} yd).`)
       return
     }
     setError('')
-    setList(prev => [...prev, { id: Date.now(), yard: parsedYard, code }])
+    setList(prev => [...prev, { id: Date.now() + Math.random(), yard: parsedYard, code }])
     setYard('')
   }
 
@@ -38,8 +38,16 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
         {/* Header */}
         <div className={styles.head}>
           <div>
-            <div className={styles.title}>Catat Cacat — Roll #{roll.id}</div>
-            <div className={styles.headSub}>Panjang: {roll.length} yard</div>
+            <div className={styles.title}>
+              {isPreRoll
+                ? 'Catat Cacat — Roll Belum Terbentuk'
+                : `Catat Cacat — Roll #${roll?.id}`}
+            </div>
+            <div className={styles.headSub}>
+              {isPreRoll
+                ? `Target Roll #${roll?.id || 'Berikutnya'} • Disimpan otomatis saat Get Data`
+                : `Panjang: ${roll?.length} yard`}
+            </div>
           </div>
           <button className={styles.close} onClick={onClose} aria-label="Tutup">✕</button>
         </div>
@@ -48,7 +56,11 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
         <div className={styles.body}>
           {/* Existing defect list */}
           {list.length === 0 ? (
-            <p className={styles.empty}>Belum ada catatan cacat pada roll ini</p>
+            <p className={styles.empty}>
+              {isPreRoll
+                ? 'Belum ada catatan cacat sementara pada roll yang sedang berjalan'
+                : 'Belum ada catatan cacat pada roll ini'}
+            </p>
           ) : (
             <div className={styles.defectList}>
               {list.map(d => (
@@ -82,7 +94,7 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
                   placeholder="mis. 45.5"
                   value={yard}
                   min="0.1"
-                  max={Math.max(0, roll.length - 0.1)}
+                  {...(!isPreRoll && roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
                   step="0.1"
                   onChange={e => {
                     setYard(e.target.value)
@@ -102,7 +114,7 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
               </div>
             </div>
             <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addDefect}>
-              ＋ Tambah
+              ＋ Tambah Titik Cacat
             </button>
           </div>
         </div>
@@ -110,7 +122,9 @@ export default function DefectModal({ roll, initDefects, onSave, onClose }) {
         {/* Footer */}
         <div className={styles.footer}>
           <button className="btn btn-outline btn-sm" onClick={onClose}>Batal</button>
-          <button className="btn btn-primary btn-sm" onClick={() => onSave(list)}>💾 Simpan</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onSave(list)}>
+            {isPreRoll ? '💾 Simpan Catatan Sementara' : '💾 Simpan'}
+          </button>
         </div>
 
       </div>

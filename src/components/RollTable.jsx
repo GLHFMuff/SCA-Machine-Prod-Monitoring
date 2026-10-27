@@ -9,6 +9,7 @@ import styles from './RollTable.module.css'
 export default function RollTable({
   rolls,
   defects,
+  pendingDefects = [],
   prodData,
   user,
   startRollNumber,
@@ -17,6 +18,7 @@ export default function RollTable({
   maxRollNumber = 0,
   maxOtherRollNumber = 0,
   onCatatCacat,
+  onCatatCacatPreRoll,
   onGetData,
   onDeleteRoll,
   onAddRoll,
@@ -159,6 +161,28 @@ export default function RollTable({
             <span>{loadingGetData ? 'Memproses...' : 'Get Data'}</span>
           </button>
 
+          {/* Tombol Catat Cacat Sebelum Doffing / Roll Belum Terbentuk */}
+          <button
+            type="button"
+            className={`${styles.tempDefectBtn} ${pendingDefects.length > 0 ? styles.tempDefectActive : ''}`}
+            onClick={() => {
+              if (onCatatCacatPreRoll) {
+                onCatatCacatPreRoll(nextRollId)
+              } else if (onCatatCacat) {
+                onCatatCacat({ isPreRoll: true, id: nextRollId })
+              }
+            }}
+            title="Catat titik cacat saat roll belum terbentuk (otomatis tersimpan ke tabel saat Get Data)"
+          >
+            <span>⚠️</span>
+            <span>
+              {pendingDefects.length > 0
+                ? `Cacat Berjalan (${pendingDefects.length})`
+                : '+ Cacat (Roll Berjalan)'}
+            </span>
+            {pendingDefects.length > 0 && <span className={styles.tempDefectBadgePulse} />}
+          </button>
+
           {/* Tombol Input Roll Manual */}
           <button
             type="button"
@@ -184,6 +208,32 @@ export default function RollTable({
 
         <span className={styles.badge}>{rolls.length} Roll Terinput</span>
       </div>
+
+      {/* Banner Cacat Sementara jika ada cacat yang dicatat saat roll belum terbentuk */}
+      {pendingDefects.length > 0 && (
+        <div className={styles.pendingDefectsBanner}>
+          <div className={styles.pendingDefectsContent}>
+            <span className={styles.pendingDefectsIcon}>⚠️</span>
+            <div className={styles.pendingDefectsText}>
+              <strong>{pendingDefects.length} catatan cacat sementara</strong> telah dicatat untuk Roll berjalan (<strong>#{nextRollId}</strong>). Catatan ini akan otomatis masuk ke tabel saat Anda klik <strong>Get Data</strong>.
+            </div>
+          </div>
+          <button
+            type="button"
+            className={styles.pendingDefectsBtn}
+            onClick={() => {
+              if (onCatatCacatPreRoll) {
+                onCatatCacatPreRoll(nextRollId)
+              } else if (onCatatCacat) {
+                onCatatCacat({ isPreRoll: true, id: nextRollId })
+              }
+            }}
+            title="Lihat atau edit catatan cacat sementara"
+          >
+            ✏️ Kelola Cacat
+          </button>
+        </div>
+      )}
 
       {/* Table Data */}
       <div className={styles.tableContainer} ref={containerRef}>
@@ -352,6 +402,7 @@ export default function RollTable({
           machineId={user?.machine_id || '1'}
           targetRollId={nextRollId}
           prodNumber={prodData?.prodNumber}
+          pendingDefectsCount={pendingDefects.length}
           loading={loadingGetData}
           onConfirm={handleConfirmGetData}
           onClose={() => setShowGetDataConfirm(false)}

@@ -4,6 +4,7 @@ export default function GetDataConfirmModal({
   machineId,
   targetRollId,
   prodNumber,
+  pendingDefectsCount = 0,
   onConfirm,
   onClose,
   loading = false,
@@ -44,7 +45,22 @@ export default function GetDataConfirmModal({
               <span className={styles.infoLabel}>Target Nomor Roll</span>
               <span className={styles.infoValBadge}>Roll #{targetRollId}</span>
             </div>
+            {pendingDefectsCount > 0 && (
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Catatan Cacat Sementara</span>
+                <span className={styles.infoValWarn}>⚠️ {pendingDefectsCount} Titik Cacat</span>
+              </div>
+            )}
           </div>
+
+          {pendingDefectsCount > 0 && (
+            <div className={styles.pendingDefectBox}>
+              <div className={styles.pendingDefectIcon}>📝</div>
+              <div className={styles.pendingDefectText}>
+                <strong>{pendingDefectsCount} titik cacat sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{targetRollId}</strong> dan tersimpan ke tabel database.
+              </div>
+            </div>
+          )}
 
           <div className={styles.alertBox}>
             <div className={styles.alertIcon}>⚠️</div>

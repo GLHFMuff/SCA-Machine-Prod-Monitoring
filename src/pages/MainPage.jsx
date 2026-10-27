@@ -33,6 +33,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   const [rolls, setRolls] = useState([])
   const [defectModal, setDefectModal] = useState(null) // roll object | null
   const [defects, setDefects] = useState({}) // { rollId: [{id, yard, code}] }
+  const [pendingDefects, setPendingDefects] = useState([]) // Catatan cacat sementara saat roll belum terbentuk
   const [toastMsg, setToastMsg] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -43,6 +44,23 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   const [maxRollNumber, setMaxRollNumber] = useState(0)
   const [maxOtherRollNumber, setMaxOtherRollNumber] = useState(0)
   const [mandatoryReserveModal, setMandatoryReserveModal] = useState(null)
+
+  const currentMachineId = String(user?.machine_id || user?.machineId || '1')
+
+  const updatePendingDefects = useCallback((list) => {
+    setPendingDefects(list)
+    if (!prodData?.prodNumber) return
+    try {
+      const storageKey = `pending_defects_${prodData.prodNumber}_${currentMachineId}`
+      if (list && list.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(list))
+      } else {
+        localStorage.removeItem(storageKey)
+      }
+    } catch (e) {
+      console.warn('Gagal sync pendingDefects ke localStorage:', e)
+    }
+  }, [prodData?.prodNumber, currentMachineId])
 
   const totalDefects = Object.values(defects).reduce((sum, arr) => sum + arr.length, 0)
 
@@ -237,6 +255,18 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       setScanned(true)
       showToast(`Nomor '${targetProdId}' disiapkan sebagai order baru.`)
     } finally {
+      // Muat catatan cacat sementara untuk order ini jika pernah tersimpan di browser
+      try {
+        const savedPending = localStorage.getItem(`pending_defects_${targetProdId}_${machineId}`)
+        if (savedPending) {
+          const parsed = JSON.parse(savedPending)
+          setPendingDefects(Array.isArray(parsed) ? parsed : [])
+        } else {
+          setPendingDefects([])
+        }
+      } catch {
+        setPendingDefects([])
+      }
       setLoadingScan(false)
     }
   }
@@ -362,10 +392,48 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       if (startRollNumber !== null && nextId >= startRollNumber) {
         setStartRollNumber(nextId + 1)
       }
+
+      // 4. Hubungkan catatan cacat sementara (saat roll belum terbentuk) ke roll baru
+      if (pendingDefects.length > 0) {
+        const defectsToSave = pendingDefects.map((d, idx) => ({
+          id: d.id || Date.now() + idx,
+          yard: parseFloat(d.yard) || 0,
+          code: d.code,
+          isExecuted: false,
+          lineNumber: idx + 1,
+        }))
+
+        try {
+          // Simpan ke database table CountingKainDefect
+          await saveRollDefectsApi(prodId, nextId, defectsToSave)
+
+          // Masukkan ke state defects frontend agar tampil di table
+          setDefects((prev) => ({
+            ...prev,
+            [nextId]: defectsToSave,
+          }))
+
+          // Catatan sementara hilang
+          updatePendingDefects([])
+
+          showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) ditarik ke Roll #${nextId} & ${defectsToSave.length} titik cacat tersimpan di DB.`)
+        } catch (errDefect) {
+          console.error('Error saat menyimpan cacat sementara ke DB:', errDefect)
+          // Tetap tampil di state lokal jika DB bermasalah
+          setDefects((prev) => ({
+            ...prev,
+            [nextId]: defectsToSave,
+          }))
+          updatePendingDefects([])
+          showToast(`Roll #${nextId} tersimpan. Cacat tersimpan lokal (Gagal simpan ke DB: ${errDefect.message})`)
+        }
+      } else {
+        showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) ditarik ke Roll #${nextId} & otomatis tersimpan di DB.`)
+      }
+
       await refreshMultiMachineStats(prodId)
       //flush data via api
       await flushAutonicData(machineId)
-      showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) ditarik ke Roll #${nextId} & otomatis tersimpan di DB.`)
     } catch (err) {
       console.error('Error saat mengambil data mesin:', err)
       showToast(`Gagal menarik data mesin: ${err.message}`)
@@ -467,8 +535,39 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       if (startRollNumber !== null && fullRoll.id >= startRollNumber) {
         setStartRollNumber(fullRoll.id + 1)
       }
+
+      // Jika ada catatan cacat sementara saat roll belum terbentuk, simpan ke roll manual ini
+      if (pendingDefects.length > 0) {
+        const defectsToSave = pendingDefects.map((d, idx) => ({
+          id: d.id || Date.now() + idx,
+          yard: parseFloat(d.yard) || 0,
+          code: d.code,
+          isExecuted: false,
+          lineNumber: idx + 1,
+        }))
+
+        try {
+          await saveRollDefectsApi(prodId, fullRoll.id, defectsToSave)
+          setDefects((prev) => ({
+            ...prev,
+            [fullRoll.id]: defectsToSave,
+          }))
+          updatePendingDefects([])
+          showToast(`✓ Roll #${fullRoll.id} (${fullRoll.length} yd) & ${defectsToSave.length} titik cacat berhasil ditambahkan & tersimpan di DB!`)
+        } catch (errDefect) {
+          console.error('Error saat simpan cacat ke DB:', errDefect)
+          setDefects((prev) => ({
+            ...prev,
+            [fullRoll.id]: defectsToSave,
+          }))
+          updatePendingDefects([])
+          showToast(`Roll #${fullRoll.id} ditambahkan. Cacat tersimpan lokal (${errDefect.message})`)
+        }
+      } else {
+        showToast(`✓ Roll #${fullRoll.id} (${fullRoll.length} yard) berhasil ditambahkan ke Mesin #${machineId} & tersimpan di DB!`)
+      }
+
       await refreshMultiMachineStats(prodId)
-      showToast(`✓ Roll #${fullRoll.id} (${fullRoll.length} yard) berhasil ditambahkan ke Mesin #${machineId} & tersimpan di DB!`)
     } catch (err) {
       console.error('Error saat simpan roll manual:', err)
       setRolls((prev) => [...prev, fullRoll])
@@ -503,6 +602,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     setScanned(false)
     setDefects({})
     setRolls([])
+    updatePendingDefects([])
     setStartRollNumber(null)
     setExistingDbRolls([])
     setRollsByMachine({})
@@ -546,12 +646,14 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               data={prodData}
               user={user}
               totalDefects={totalDefects}
+              pendingDefectsCount={pendingDefects.length}
               rollsCount={rolls.length}
             />
 
             <RollTable
               rolls={rolls}
               defects={defects}
+              pendingDefects={pendingDefects}
               prodData={prodData}
               user={user}
               startRollNumber={startRollNumber}
@@ -560,6 +662,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               maxRollNumber={maxRollNumber}
               maxOtherRollNumber={maxOtherRollNumber}
               onCatatCacat={(roll) => setDefectModal(roll)}
+              onCatatCacatPreRoll={(targetId) => setDefectModal({ isPreRoll: true, id: targetId })}
               onGetData={handleGetData}
               onDeleteRoll={handleDeleteRoll}
               onAddRoll={handleAddManualRoll}
@@ -607,8 +710,21 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       {defectModal && (
         <DefectModal
           roll={defectModal}
-          initDefects={defects[defectModal.id]}
-          onSave={(list) => saveDefects(defectModal.id, list)}
+          isPreRoll={Boolean(defectModal.isPreRoll)}
+          initDefects={defectModal.isPreRoll ? pendingDefects : (defects[defectModal.id] || [])}
+          onSave={(list) => {
+            if (defectModal.isPreRoll) {
+              updatePendingDefects(list)
+              setDefectModal(null)
+              showToast(
+                list.length > 0
+                  ? `✓ Catatan sementara (${list.length} titik cacat) tersimpan. Akan otomatis masuk ke tabel saat Get Data.`
+                  : 'Catatan cacat sementara telah dikosongkan.'
+              )
+            } else {
+              saveDefects(defectModal.id, list)
+            }
+          }}
           onClose={() => setDefectModal(null)}
         />
       )}

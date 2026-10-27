@@ -10,7 +10,7 @@ function Card({ label, value, sub, accent }) {
   )
 }
 
-export default function InfoCards({ data, user, totalDefects, rollsCount }) {
+export default function InfoCards({ data, user, totalDefects, pendingDefectsCount = 0, rollsCount }) {
   return (
     <div className={styles.container}>
       {/* Banner Nomor Produksi */}
@@ -54,11 +54,20 @@ export default function InfoCards({ data, user, totalDefects, rollsCount }) {
         <Card
           label="Total Cacat Tercatat"
           value={
-            <span style={{ color: totalDefects > 0 ? 'var(--warning)' : 'var(--success)' }}>
+            <span style={{ color: (totalDefects > 0 || pendingDefectsCount > 0) ? 'var(--warning)' : 'var(--success)' }}>
               {totalDefects} titik
+              {pendingDefectsCount > 0 && (
+                <span style={{ fontSize: '12px', fontWeight: '500', marginLeft: '6px', opacity: 0.9 }}>
+                  (+{pendingDefectsCount} berjalan)
+                </span>
+              )}
             </span>
           }
-          sub={`${rollsCount ?? data.rolls.length} roll terdaftar`}
+          sub={
+            pendingDefectsCount > 0
+              ? `${rollsCount ?? data.rolls.length} roll • ${pendingDefectsCount} sementara`
+              : `${rollsCount ?? data.rolls.length} roll terdaftar`
+          }
           accent="amber"
         />
       </div>
