@@ -1,7 +1,9 @@
+/* ETicketModal.module.css - Rayon Cunda Standard Label Printing */
+
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(15, 23, 42, 0.82);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -17,14 +19,15 @@
 }
 
 .container {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--surface, #1e293b);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: var(--radius-lg, 16px);
   width: 100%;
-  max-width: 520px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  max-width: 580px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
   display: flex;
   flex-direction: column;
+  max-height: 94vh;
   overflow: hidden;
   animation: scaleUp 0.2s ease;
 }
@@ -38,18 +41,18 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: var(--bg, #0f172a);
 }
 
 .topTitle {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--text, #f8fafc);
 }
 
 .alreadyPrintedBadge {
@@ -65,7 +68,7 @@
 .closeBtn {
   background: transparent;
   border: none;
-  color: var(--muted);
+  color: var(--muted, #94a3b8);
   font-size: 18px;
   cursor: pointer;
   padding: 4px 8px;
@@ -74,260 +77,487 @@
 }
 
 .closeBtn:hover {
-  background: var(--border);
-  color: var(--text);
+  background: var(--border, rgba(255, 255, 255, 0.1));
+  color: var(--text, #ffffff);
 }
 
+/* Scrollable Ticket Preview Area */
 .ticketArea {
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.15);
-  display: flex;
-  justify-content: center;
-  overflow-y: auto;
-  max-height: 70vh;
-}
-
-/* Thermal style printable ticket card */
-.ticketCard {
-  width: 100%;
-  max-width: 440px;
-  background: #ffffff;
-  color: #111827;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-  border: 2px dashed #94a3b8;
-  padding: 24px 20px;
-  font-family: 'Courier New', Courier, monospace, system-ui;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.ticketHeader {
-  text-align: center;
-}
-
-.brandTitle {
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 1.5px;
-  color: #0f172a;
-}
-
-.ticketSubtitle {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: #64748b;
-  margin-top: 2px;
-}
-
-.ticketDivider {
-  height: 2px;
-  background: #0f172a;
-  margin-top: 10px;
-}
-
-.barcodeSection {
+  padding: 20px;
+  background: #090d16;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px 0;
-  border-bottom: 1px dashed #cbd5e1;
+  overflow-y: auto;
+  gap: 14px;
 }
 
-.barcodeSvgWrap {
+/* Info pill above the preview card */
+.previewNotice {
   width: 100%;
-  max-width: 260px;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-.barcodeSvg {
+.toggleEditBtn {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggleEditBtn:hover {
+  background: rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+/* Edit Drawer */
+.editDrawer {
   width: 100%;
-  height: 45px;
-}
-
-.barcodeCode {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: #0f172a;
-}
-
-.ticketGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
-}
-
-.gridItem {
+  max-width: 480px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 12px;
+  animation: fadeIn 0.2s ease;
 }
 
-.lbl {
-  font-size: 10px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.editGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
-.val {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.valStrong {
-  font-size: 15px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.valRollHighlight {
-  font-size: 20px;
-  font-weight: 900;
-  color: #0284c7;
-}
-
-.valYard {
-  font-size: 17px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.valBsWarn {
-  font-size: 14px;
-  font-weight: 700;
-  color: #dc2626;
-}
-
-.valNet {
-  font-size: 16px;
-  font-weight: 800;
-  color: #16a34a;
-}
-
-.statusBadgeOk {
-  display: inline-block;
-  background: #dcfce7;
-  color: #15803d;
-  font-weight: 800;
-  font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  width: fit-content;
-}
-
-.statusBadgeWarn {
-  display: inline-block;
-  background: #fee2e2;
-  color: #b91c1c;
-  font-weight: 800;
-  font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  width: fit-content;
-}
-
-.defectDetailBox {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 8px 10px;
+.editGroup {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.defectTitle {
+.editGroupFull {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.editInput {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.editInput:focus {
+  border-color: #3b82f6;
+}
+
+.editHint {
   font-size: 10px;
-  font-weight: 700;
   color: #64748b;
+  line-height: 1.25;
+}
+
+.resetBtn {
+  align-self: flex-end;
+  background: transparent;
+  border: 1px solid #475569;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.resetBtn:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   THE RAYON CUNDA LABEL CARD (Printable)
+   Exact match to the reference sticker image
+───────────────────────────────────────────────────────────── */
+.labelCard {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  color: #000000;
+  padding: 20px 22px 16px 22px;
+  box-sizing: border-box;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 1. Top Header ── */
+.labelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logoCunda {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: block;
+}
+
+.companyInfo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.companyName {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+  color: #000000;
+  margin: 0 0 3px 0;
+}
+
+.companyAddress {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #000000;
+  line-height: 1.25;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.logoHalal {
+  height: 62px;
+  width: auto;
+  max-width: 60px;
+  object-fit: contain;
+  display: block;
+}
+
+.logoTkdn {
+  height: 62px;
+  width: auto;
+  max-width: 68px;
+  object-fit: contain;
+  display: block;
+}
+
+/* ── 2. Center Rounded Box ── */
+.mainBox {
+  border: 3.5px solid #000000;
+  border-radius: 22px;
+  padding: 16px 18px 18px 18px;
+  background: #ffffff;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.boxTitles {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.boxTitleCode {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1.15;
+  color: #000000;
+}
+
+.boxTitleMotif {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1.15;
+  color: #000000;
+  margin-top: 4px;
+}
+
+.boxBody {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Left QR column */
+.qrColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.qrWrapper {
+  width: 130px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.qrImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+.qrLinkText {
+  font-family: Arial, Helvetica, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #000000;
+  text-align: center;
+  margin-top: 6px;
+  word-break: break-all;
+}
+
+/* Right Details Column */
+.detailsColumn {
+  flex: 1;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: max-content auto 1fr;
+  row-gap: 8px;
+  align-items: baseline;
+}
+
+.labelCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.colonCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 18px;
+  font-weight: 900;
+  color: #000000;
+  padding: 0 10px;
+  text-align: center;
+}
+
+.valueCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.valueCellDesign {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: #000000;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+.qtyContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.breakdownText {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+  color: #000000;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+/* ── 3. Bottom Section ── */
+.bottomSection {
+  text-align: center;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.k3lTitle {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #000000;
   text-transform: uppercase;
 }
 
-.defectTags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.defectTag {
-  background: #fef3c7;
-  color: #92400e;
+.k3lNumber {
+  font-family: 'Times New Roman', Times, Georgia, serif;
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
+  letter-spacing: 0.4px;
+  color: #000000;
+  margin-top: 2px;
 }
 
-.ticketFooter {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px dashed #cbd5e1;
-  padding-top: 10px;
-  font-size: 10px;
-  color: #94a3b8;
-  font-weight: 600;
-}
-
+/* Modal Footer Bar */
 .footerBar {
-  padding: 16px 20px;
-  border-top: 1px solid var(--border);
-  background: var(--bg);
+  padding: 14px 20px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: var(--bg, #0f172a);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
 }
 
-/* Print Specific Rules */
+/* ─────────────────────────────────────────────────────────────
+   PRINT MEDIA RULES
+   Guarantees 100% clean, high-contrast, perfectly-centered printout
+───────────────────────────────────────────────────────────── */
 @media print {
+  @page {
+    size: auto;
+    margin: 4mm;
+  }
+
+  /* Hide everything on the page except the printable ticket card */
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .overlay {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
+    position: static !important;
     background: transparent !important;
-    padding: 0;
-    margin: 0;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    display: block !important;
   }
 
   .container {
     box-shadow: none !important;
     border: none !important;
-    max-width: 100% !important;
+    background: transparent !important;
     width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
   }
 
   .topBar,
-  .footerBar {
+  .footerBar,
+  .previewNotice,
+  .editDrawer {
     display: none !important;
   }
 
   .ticketArea {
     background: transparent !important;
     padding: 0 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    display: block !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Make label card and all its children visible */
+  .labelCard,
+  .labelCard * {
     visibility: visible !important;
   }
 
-  .ticketCard,
-  .ticketCard * {
-    visibility: visible !important;
-  }
-
-  .ticketCard {
+  .labelCard {
     box-shadow: none !important;
-    border: 1px solid #000000 !important;
-    margin: 0 auto;
-    page-break-inside: avoid;
+    border: none !important;
+    width: 100% !important;
+    max-width: 460px !important;
+    margin: 0 auto !important;
+    padding: 10px 14px !important;
+    page-break-inside: avoid !important;
+    background: #ffffff !important;
+  }
+
+  .mainBox {
+    border: 3.5px solid #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .qrImage {
+    image-rendering: pixelated !important;
   }
 }
