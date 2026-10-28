@@ -5,21 +5,21 @@ import styles from './ScanModal.module.css'
 export const SAMPLE_QR_CODES = [
   {
     label: 'OP.012026.001113 (Ada di DB)',
-    value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52 Putih Reguler',
+    value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52;Putih Reguler',
   },
   {
     label: 'OP.022026.000674 (Ada di DB)',
-    value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis Navy',
+    value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis;Navy',
   },
   {
     label: 'OP.102026.000999 (Data Baru)',
-    value: 'OP.102026.000999;SPM.2026.DES.020;CUST-NEW;Cotton Combed 24s Hitam Reaktif',
+    value: 'OP.102026.000999;SPM.2026.DES.020;CUST-NEW;Cotton Combed 24s;Hitam Reaktif',
   },
 ]
 
 /**
  * Helper to parse QR content with format:
- * ProdId;SeqmentNum;KodeCust;Design(item name)
+ * ProdId;NoWO(seqment);cust code;design code;color
  */
 export function parseQrContent(rawString) {
   if (!rawString) return null
@@ -32,8 +32,12 @@ export function parseQrContent(rawString) {
       raw: text,
       prodId: parts[0] || '',
       seqmentNum: parts[1] || parts[0] || '',
+      noWo: parts[1] || parts[0] || '',
       customer: parts[2] || '',
+      custCode: parts[2] || '',
       design: parts[3] || '',
+      designCode: parts[3] || '',
+      color: parts[4] || '',
       isQrBundle: true,
     }
   }
@@ -43,8 +47,12 @@ export function parseQrContent(rawString) {
     raw: text,
     prodId: text,
     seqmentNum: text,
+    noWo: text,
     customer: '',
+    custCode: '',
     design: '',
+    designCode: '',
+    color: '',
     isQrBundle: false,
   }
 }
@@ -107,7 +115,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
             setScannedResult(parsed)
             // Stop scanning once detected
             if (html5QrCode.isScanning) {
-              html5QrCode.stop().catch(() => {})
+              html5QrCode.stop().catch(() => { })
             }
           },
           () => {
@@ -139,7 +147,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
       isMounted = false
       if (scannerInstanceRef.current) {
         if (scannerInstanceRef.current.isScanning) {
-          scannerInstanceRef.current.stop().catch(() => {}).finally(() => {
+          scannerInstanceRef.current.stop().catch(() => { }).finally(() => {
             scannerInstanceRef.current?.clear?.()
           })
         } else {
@@ -253,20 +261,24 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
             {/* Preview Field Cards */}
             <div className={styles.parsedCard}>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>ProdId (Nomor OP):</span>
+                <span className={styles.parsedKey}>OP Number:</span>
                 <span className={styles.parsedValHighlight}>{scannedResult.prodId}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>SeqmentNum / SPK:</span>
-                <span className={styles.parsedVal}>{scannedResult.seqmentNum || '-'}</span>
+                <span className={styles.parsedKey}>DO Number (Seqment):</span>
+                <span className={styles.parsedVal}>{scannedResult.noWo || scannedResult.seqmentNum || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>Kode Customer:</span>
-                <span className={styles.parsedVal}>{scannedResult.customer || '-'}</span>
+                <span className={styles.parsedKey}>Cust Code:</span>
+                <span className={styles.parsedVal}>{scannedResult.custCode || scannedResult.customer || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>Design (Nama Kain):</span>
-                <span className={styles.parsedVal}>{scannedResult.design || '-'}</span>
+                <span className={styles.parsedKey}>Design Code:</span>
+                <span className={styles.parsedVal}>{scannedResult.designCode || scannedResult.design || '-'}</span>
+              </div>
+              <div className={styles.parsedRow}>
+                <span className={styles.parsedKey}>Color:</span>
+                <span className={styles.parsedValHighlight}>{scannedResult.color || '-'}</span>
               </div>
             </div>
 
@@ -373,7 +385,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
                   </div>
                 ) : (
                   <div className={styles.helperText}>
-                    Arahkan kamera ke QR Code bertuliskan <code>ProdId;SeqmentNum;...</code>
+                    Arahkan kamera ke QR Code bertuliskan <code>ProdId;NoDO(seqment);cust code;design code;color</code>
                   </div>
                 )}
               </div>
@@ -383,7 +395,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
             {activeTab === 'file' && (
               <div className={styles.fileTabArea}>
                 <div id="html5qr-file-runner" style={{ display: 'none' }} />
-                
+
                 <div className={styles.fileBox}>
                   <div className={styles.fileIcon}>📸</div>
                   <div className={styles.fileTitle}>Ambil Foto QR Code dengan HP</div>
@@ -426,7 +438,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
                     <input
                       type="text"
                       className={styles.manualInput}
-                      placeholder="Format: ProdId;SeqmentNum;KodeCust;Design"
+                      placeholder="Format: ProdId;NoDO(SeqmentNum);cust code;design code;color"
                       value={manualInput}
                       onChange={(e) => {
                         setManualInput(e.target.value)
@@ -438,7 +450,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
                   <div className={styles.inputHint}>
                     Mendukung tembakan barcode scanner gun atau paste format lengkap:
                     <br />
-                    <code>ProdId;SeqmentNum;KodeCust;Design(item name)</code>
+                    <code>ProdId;NoDO(SeqmentNum);cust code;design code;color</code>
                   </div>
                 </div>
 

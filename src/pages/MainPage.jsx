@@ -97,7 +97,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     setShowScan(false)
     setLoadingScan(true)
 
-    // Parsing input: mendukung objek hasil ScanModal atau string "ProdId;SeqmentNum;KodeCust;Design"
+    // Parsing input: mendukung objek hasil ScanModal atau string "ProdId;NoWO(seqment);cust code;design code;color"
     let parsed
     if (typeof scannedInput === 'object' && scannedInput !== null) {
       parsed = scannedInput
@@ -108,23 +108,32 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         parsed = {
           prodId: parts[0] || '',
           seqmentNum: parts[1] || parts[0] || '',
+          noWo: parts[1] || parts[0] || '',
           customer: parts[2] || '',
+          custCode: parts[2] || '',
           design: parts[3] || '',
+          designCode: parts[3] || '',
+          color: parts[4] || '',
         }
       } else {
         parsed = {
           prodId: raw,
           seqmentNum: raw,
+          noWo: raw,
           customer: '',
+          custCode: '',
           design: '',
+          designCode: '',
+          color: '',
         }
       }
     }
 
     const targetProdId = (parsed.prodId || SCAN_DATA.prodNumber).trim()
-    const targetSeqment = (parsed.seqmentNum || targetProdId).trim()
-    const targetCustomer = (parsed.customer || '').trim()
-    const targetDesign = (parsed.design || '').trim()
+    const targetSeqment = (parsed.noWo || parsed.seqmentNum || targetProdId).trim()
+    const targetCustomer = (parsed.custCode || parsed.customer || '').trim()
+    const targetDesign = (parsed.designCode || parsed.design || '').trim()
+    const targetColor = (parsed.color || '').trim()
     const machineId = String(user?.machine_id || user?.machineId || '1')
     const userId = user?.username || user?.name || 'operator'
 
@@ -166,6 +175,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           seqmentNum: targetSeqment || dbRecord.ProdId || targetProdId,
           customer: targetCustomer || SCAN_DATA.customer,
           fabricType: targetDesign || SCAN_DATA.fabricType,
+          color: targetColor || SCAN_DATA.color,
           noMesin: machineId,
           userId: dbRecord.UserId || userId,
           isFromDb: true,
@@ -231,6 +241,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           seqmentNum: targetSeqment || targetProdId,
           customer: targetCustomer || SCAN_DATA.customer,
           fabricType: targetDesign || SCAN_DATA.fabricType,
+          color: targetColor || SCAN_DATA.color,
           noMesin: machineId,
           userId: userId,
           isFromDb: true,
@@ -249,6 +260,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         seqmentNum: targetSeqment || targetProdId,
         customer: targetCustomer || SCAN_DATA.customer,
         fabricType: targetDesign || SCAN_DATA.fabricType,
+        color: targetColor || SCAN_DATA.color,
         isFromDb: false,
       })
       setRolls([])
