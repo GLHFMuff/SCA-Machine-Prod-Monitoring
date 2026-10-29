@@ -776,7 +776,7 @@ router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
     if (checkRes.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: `Baris Roll #${rollNum} untuk Order '${prodId}' tidak ditemukan di database.`,
+        error: `Baris Roll #${rollNum} untuk Order '${prodId}' tidak ditemukan.`,
       });
     }
 
@@ -852,7 +852,7 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
     if (checkRes.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: `Baris Roll #${rollNum} untuk Order '${prodId}' tidak ditemukan di database.`,
+        error: `Baris Roll #${rollNum} untuk Order '${prodId}' tidak ditemukan.`,
       });
     }
 

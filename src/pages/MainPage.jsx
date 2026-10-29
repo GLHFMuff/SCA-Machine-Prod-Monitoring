@@ -368,7 +368,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         } else {
           showToast(isRestoring
             ? `✓ Sesi order '${targetProdId}' dipulihkan. Siap produksi!`
-            : `✓ Order '${targetProdId}' tersimpan di Header database. Siap produksi!`
+            : `✓ Order '${targetProdId}' siap diproduksi!`
           )
         }
       } else {
@@ -397,7 +397,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         setScanned(true)
         showToast(isRestoring
           ? `✓ Sesi order '${targetProdId}' dipulihkan. Siap produksi!`
-          : `✓ Nomor '${targetProdId}' tersimpan di Header database. Siap produksi!`
+          : `✓ Nomor '${targetProdId}' siap diproduksi!`
         )
       }
     } catch (err) {
@@ -486,7 +486,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       setProdData((prev) => ({ ...prev, isFromDb: true }))
       await refreshMultiMachineStats(prodId)
 
-      showToast(`✓ Data berhasil disimpan ke database (${result.data?.linesCount || rolls.length} roll)!`)
+      showToast(`✓ Data berhasil disimpan (${result.data?.linesCount || rolls.length} roll)!`)
     } catch (err) {
       console.error('Error saat menyimpan data counting:', err)
       showToast(`Gagal menyimpan: ${err.message}`)
@@ -625,7 +625,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         showToast(`Roll #${nextId} tersimpan. Cacat tersimpan lokal (Gagal simpan: ${errDefect.message})`)
       }
     } else {
-      showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) berhasil disimpan di Roll #${nextId} (CountingKainLines).`)
+      showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) berhasil disimpan di Roll #${nextId}.`)
     }
 
     // 3. SETELAH data berhasil tersimpan di tabel tadi, baru jalankan flush!
@@ -665,7 +665,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       })
 
       await refreshMultiMachineStats(prodId)
-      showToast(`✓ Roll #${rollId} berhasil dihapus langsung dari database.`)
+      showToast(`✓ Roll #${rollId} berhasil dihapus.`)
     } catch (err) {
       console.error('Error saat menghapus roll:', err)
       // Fallback update frontend jika belum ada di
@@ -687,7 +687,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         prev.map((r) => (r.id === roll.id ? { ...r, isPrinted: true } : r))
       )
 
-      showToast(`✓ E-Ticket Roll #${roll.id} dicetak. Status isPrinted telah diupdate di database.`)
+      showToast(`✓ E-Ticket Roll #${roll.id} berhasil dicetak.`)
     } catch (err) {
       console.error('Error saat update status cetak di database:', err)
       showToast(`E-Ticket dicetak (namun status gagal diperbarui: ${err.message})`)
@@ -707,7 +707,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     ])
 
     if (allUsedRolls.has(newRoll.id)) {
-      showToast(`⚠️ Nomor Roll #${newRoll.id} sudah ada dalam database / daftar order ini!`)
+      showToast(`⚠️ Nomor Roll #${newRoll.id} sudah ada dalam daftar order ini!`)
       return
     }
 
@@ -916,7 +916,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
     try {
       await saveRollDefectsApi(prodId, rollId, list)
-      showToast(`✓ Catatan cacat Roll #${rollId} (${list.length} titik) berhasil disimpan di database.`)
+      showToast(`✓ Catatan cacat Roll #${rollId} (${list.length} titik) berhasil disimpan.`)
     } catch (err) {
       console.error('Error saat menyimpan cacat :', err)
       showToast(`Cacat Roll #${rollId} tersimpan lokal (Gagal simpan: ${err.message})`)
@@ -969,10 +969,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
                 🔄
               </div>
               <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text)' }}>
-                Memeriksa data produksi di database…
+                Memuat data produksi…
               </div>
               <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
-                Mengecek CountingKainHeader & Lines
+                Menyiapkan informasi order & roll
               </div>
             </div>
           </div>
@@ -1033,7 +1033,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
                 style={{ padding: '13px 32px', fontSize: '15px' }}
                 onClick={handleSave}
                 disabled={saving}
-                title="Simpan perubahan roll & BS Qty ke database"
+                title="Simpan perubahan roll & BS Qty"
               >
                 {saving ? '⏳ Menyimpan…' : '💾 Simpan Data'}
               </button>
@@ -1062,7 +1062,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               setDefectModal(null)
               showToast(
                 list.length > 0
-                  ? `✓ Catatan sementara (${list.length} titik cacat) tersimpan. Akan otomatis masuk ke tabel saat Get Data.`
+                  ? `✓ Catatan sementara (${list.length} titik cacat) tersimpan. Akan otomatis masuk saat Get Data.`
                   : 'Catatan cacat sementara telah dikosongkan.'
               )
             } else {

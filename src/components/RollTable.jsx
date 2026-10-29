@@ -254,7 +254,7 @@ export default function RollTable({
                 onCatatCacat({ isPreRoll: true, id: nextRollId })
               }
             }}
-            title="Catat titik cacat saat roll belum terbentuk (otomatis tersimpan ke tabel saat Get Data)"
+            title="Catat titik cacat saat roll belum terbentuk (otomatis tersimpan saat Get Data)"
           >
             <span>⚠️</span>
             <span>
@@ -297,7 +297,7 @@ export default function RollTable({
           <div className={styles.pendingDefectsContent}>
             <span className={styles.pendingDefectsIcon}>⚠️</span>
             <div className={styles.pendingDefectsText}>
-              <strong>{pendingDefects.length} catatan cacat sementara</strong> telah dicatat untuk Roll berjalan (<strong>#{nextRollId}</strong>). Catatan ini akan otomatis masuk ke tabel saat Anda klik <strong>Get Data</strong>.
+              <strong>{pendingDefects.length} catatan cacat sementara</strong> telah dicatat untuk Roll berjalan (<strong>#{nextRollId}</strong>). Catatan ini akan otomatis masuk ke daftar roll saat Anda klik <strong>Get Data</strong>.
             </div>
           </div>
           <button

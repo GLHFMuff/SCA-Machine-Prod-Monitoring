@@ -64,7 +64,7 @@ export default function GetDataConfirmModal({
             <div className={styles.pendingDefectBox}>
               <div className={styles.pendingDefectIcon}>📝</div>
               <div className={styles.pendingDefectText}>
-                <strong>{pendingDefectsCount} titik cacat sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{targetRollId}</strong> dan tersimpan ke tabel database.
+                <strong>{pendingDefectsCount} titik cacat sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{targetRollId}</strong> dan tersimpan ke sistem.
               </div>
             </div>
           )}
@@ -73,7 +73,7 @@ export default function GetDataConfirmModal({
             <div className={styles.alertIcon}>⚠️</div>
             <div className={styles.alertText}>
               <strong>Perhatian:</strong> Data meter/yard mesin yang ditarik akan{' '}
-              <strong>otomatis langsung dihapus dari database antrian mesin</strong> agar tidak ditarik ulang.
+              <strong>otomatis direset dari antrean mesin</strong> agar tidak ditarik ulang.
               <strong>Pastikan doffing / gulungan roll pada mesin telah selesai.</strong>
             </div>
           </div>
@@ -97,7 +97,7 @@ export default function GetDataConfirmModal({
           >
             {loading ? (
               <>
-                <span className={styles.spin}>🔄</span> Menarik & Memproses DB…
+                <span className={styles.spin}>🔄</span> Menarik & Memproses data…
               </>
             ) : (
               '✓ Ambil data'

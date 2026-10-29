@@ -136,7 +136,7 @@ export default function ManualRollModal({
               <label className={styles.label}>
                 Nomor Roll {machineId ? `(Mesin #${machineId})` : ''}
                 <span className={styles.req}>
-                  {loadingDb ? '🔄 Mengambil dari DB…' : '*Sesuai urutan mesin & prodId'}
+                  {loadingDb ? '🔄 Memeriksa nomor roll…' : '*Sesuai urutan mesin & prodId'}
                 </span>
               </label>
               <div className={styles.inputWrap}>

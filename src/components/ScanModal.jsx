@@ -4,11 +4,11 @@ import styles from './ScanModal.module.css'
 
 export const SAMPLE_QR_CODES = [
   {
-    label: 'OP.012026.001113 (Ada di DB)',
+    label: 'OP.012026.001113 (Order Terdaftar)',
     value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52;Putih Reguler;REC-PRD-001;REC-SLS-001;REC-ITM-001;5,000.50;2,500.00;',
   },
   {
-    label: 'OP.022026.000674 (Ada di DB)',
+    label: 'OP.022026.000674 (Order Terdaftar)',
     value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis;Navy;REC-PRD-002;REC-SLS-002;REC-ITM-002;3,500.00;1,200.75;',
   },
   {

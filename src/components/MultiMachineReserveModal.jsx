@@ -45,7 +45,7 @@ export default function MultiMachineReserveModal({
     if (existingSet.has(val)) {
       const match = existingRolls.find((r) => Number(r.RoolNumber || r.id) === val)
       const usedBy = match?.NoMesin ? `Mesin ${match.NoMesin}` : 'mesin lain'
-      setError(`Roll #${val} sudah terdaftar di database untuk ${usedBy}. Nomor roll tidak boleh duplikat!`)
+      setError(`Roll #${val} sudah terdaftar untuk ${usedBy}. Nomor roll tidak boleh duplikat!`)
       return
     }
 
@@ -136,7 +136,7 @@ export default function MultiMachineReserveModal({
 
             {machineList.length === 0 ? (
               <div className={styles.emptyMachine}>
-                Belum ada roll yang tersimpan di database untuk OP ini.
+                Belum ada roll yang tercatat untuk OP ini.
               </div>
             ) : (
               <div className={styles.machineCards}>

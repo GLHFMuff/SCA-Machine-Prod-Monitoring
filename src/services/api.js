@@ -318,7 +318,7 @@ export async function deleteRollApi(prodId, roolNumber) {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.message || data?.error || 'Gagal menghapus roll dari database');
+      throw new Error(data?.message || data?.error || 'Gagal menghapus roll');
     }
     return data;
   } catch (err) {
@@ -348,7 +348,7 @@ export async function updateRollLineApi(prodId, roolNumber, payload) {
 
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.message || data?.error || 'Gagal mengupdate roll di database');
+      throw new Error(data?.message || data?.error || 'Gagal mengupdate roll');
     }
     return data;
   } catch (err) {
@@ -417,7 +417,7 @@ export async function saveRollDefectsApi(prodId, roolNumber, defects = []) {
 
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.message || data?.error || 'Gagal menyimpan catatan cacat ke database');
+      throw new Error(data?.message || data?.error || 'Gagal menyimpan catatan cacat');
     }
     return data;
   } catch (err) {
@@ -466,7 +466,7 @@ export async function deleteRollDefectsApi(prodId, roolNumber) {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.message || data?.error || 'Gagal menghapus cacat roll dari database');
+      throw new Error(data?.message || data?.error || 'Gagal menghapus cacat roll');
     }
     return data;
   } catch (err) {

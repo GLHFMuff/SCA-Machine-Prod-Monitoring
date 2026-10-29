@@ -136,7 +136,7 @@ export default function LoginPage({ onLogin, theme, onToggleTheme }) {
         </form>
 
         <div className={styles.hint}>
-          💡 Akun terdaftar di database: <strong>mesin1</strong>, <strong>mesin2</strong>, atau <strong>mesin3</strong> (Password sama dengan username).
+          💡 Akun operator: <strong>mesin1</strong>, <strong>mesin2</strong>, atau <strong>mesin3</strong> (Password sama dengan username).
         </div>
       </div>
     </div>
