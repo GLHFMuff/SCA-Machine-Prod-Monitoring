@@ -4,6 +4,7 @@ export default function GetDataConfirmModal({
   machineId,
   targetRollId,
   prodNumber,
+  length,
   pendingDefectsCount = 0,
   onConfirm,
   onClose,
@@ -45,6 +46,12 @@ export default function GetDataConfirmModal({
               <span className={styles.infoLabel}>Target Nomor Roll</span>
               <span className={styles.infoValBadge}>Roll #{targetRollId}</span>
             </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Panjang Hasil Sensor</span>
+              <span className={styles.infoValHighlight} style={{ color: 'var(--success)', fontSize: '16px', fontWeight: '700' }}>
+                {length !== undefined && length !== null ? `${length} yard` : '-'}
+              </span>
+            </div>
             {pendingDefectsCount > 0 && (
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Catatan Cacat Sementara</span>
@@ -67,7 +74,7 @@ export default function GetDataConfirmModal({
             <div className={styles.alertText}>
               <strong>Perhatian:</strong> Data meter/yard mesin yang ditarik akan{' '}
               <strong>otomatis langsung dihapus dari database antrian mesin</strong> agar tidak ditarik ulang.
-              Pastikan doffing / gulungan roll pada mesin telah selesai.
+              <strong>Pastikan doffing / gulungan roll pada mesin telah selesai.</strong>
             </div>
           </div>
         </div>
@@ -93,7 +100,7 @@ export default function GetDataConfirmModal({
                 <span className={styles.spin}>🔄</span> Menarik & Memproses DB…
               </>
             ) : (
-              '✓ Ya, Ambil Data Sekarang'
+              '✓ Ambil data'
             )}
           </button>
         </div>

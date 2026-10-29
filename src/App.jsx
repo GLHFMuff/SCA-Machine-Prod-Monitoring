@@ -12,7 +12,7 @@ export default function App() {
   const [checkingSession, setCheckingSession] = useState(true)
 
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'dark'
+    return localStorage.getItem('theme') || 'light'
   })
 
   useEffect(() => {

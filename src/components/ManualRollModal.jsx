@@ -15,6 +15,8 @@ export default function ManualRollModal({
   const [isManuallyEdited, setIsManuallyEdited] = useState(false)
   const [length, setLength] = useState('')
   const [bsQty, setBsQty] = useState('0')
+  const [isStock, setIsStock] = useState(false)
+  const [stockInfo, setStockInfo] = useState(null)
   const [error, setError] = useState('')
 
   // Sinkronisasi otomatis roll number sesuai mesin & prodId dari database CountingKainLines
@@ -48,6 +50,15 @@ export default function ManualRollModal({
           } else if (stats.machineNextRoll) {
             setRollId(stats.machineNextRoll)
           }
+        }
+
+        // 3. Deteksi otomatis kuota OrderQty vs total produksi
+        if (stats.isOrderExceeded) {
+          setIsStock(true)
+          setStockInfo({
+            orderQty: stats.orderQty,
+            accumulated: stats.accumulatedSalesLength,
+          })
         }
       } catch (err) {
         console.warn('Gagal sinkronisasi nomor roll dari database:', err)
@@ -93,6 +104,7 @@ export default function ManualRollModal({
       id: parsedRollId,
       length: parsedLength,
       bsQty: parsedBs,
+      isStock: Boolean(isStock),
     })
   }
 
@@ -188,6 +200,27 @@ export default function ManualRollModal({
                 />
                 <span className={styles.unit}>Yard</span>
               </div>
+            </div>
+
+            <div className={styles.checkboxGroup}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={isStock}
+                  onChange={(e) => setIsStock(e.target.checked)}
+                  className={styles.checkboxInput}
+                />
+                <span>Tandai sebagai Kain Stock (isStock)</span>
+              </label>
+              {stockInfo ? (
+                <div className={styles.stockNotice}>
+                  ⚡ Kuota Order ({stockInfo.orderQty} yd) telah terpenuhi (Total: {stockInfo.accumulated} yd). Roll ini otomatis ditandai sebagai Kain Stock.
+                </div>
+              ) : (
+                <span className={styles.checkboxHint}>
+                  Format QrNum: <strong>QR.S.MMYY.xxxxxxxx</strong>
+                </span>
+              )}
             </div>
           </div>
 

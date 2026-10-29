@@ -3,10 +3,12 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import https from 'https';
 import { dbConfig, checkDatabaseConnection } from './config/db.js';
 import authRouter from './routes/auth.js';
 import countingRouter from './routes/counting.js';
 import { authenticateKey } from './middleware/auth.js';
+import { ensureSequenceTable } from './services/sequence.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +19,19 @@ const PORT = process.env.PORT || 5000;
 
 // Enable CORS for frontend clients
 app.use(cors());
+
+// Enable trust proxy untuk membaca header reverse proxy (Nginx, Traefik, Cloudflare, dll)
+app.enable('trust proxy');
+
+// Force HTTPS redirect middleware jika FORCE_HTTPS diaktifkan di .env atau via reverse proxy
+app.use((req, res, next) => {
+  const forceHttps = process.env.FORCE_HTTPS === 'true';
+  const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  if (forceHttps && !isHttps && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1') {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
 
 // Enable JSON body parsing
 app.use(express.json());
@@ -145,18 +160,57 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start listening
-const server = app.listen(PORT, () => {
-  console.log('='.repeat(60));
-  console.log(` Machine Production Monitoring Server (Fullstack)`);
-  console.log(` Web Frontend URL : http://localhost:${PORT}`);
-  console.log(` API Endpoint URL : http://localhost:${PORT}/api`);
-  console.log(` Health check URL : http://localhost:${PORT}/api/health`);
-  console.log(` Static Dist Path : ${distPath} (${fs.existsSync(distPath) ? 'Found' : 'Not Found'})`);
-  console.log(` Configured DB Host: ${dbConfig.host}:${dbConfig.port}`);
-  console.log(` Configured DB Name: ${dbConfig.database}`);
-  console.log(` Configured DB User: ${dbConfig.user}`);
-  console.log('='.repeat(60));
+// Check SSL files for native HTTPS server support
+const sslKeyPath = process.env.SSL_KEY_PATH || path.resolve(__dirname, 'ssl/server.key');
+const sslCertPath = process.env.SSL_CERT_PATH || path.resolve(__dirname, 'ssl/server.crt');
+const hasSslFiles = fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
+
+let server;
+
+if (hasSslFiles || process.env.ENABLE_HTTPS === 'true') {
+  try {
+    const sslOptions = {
+      key: fs.readFileSync(sslKeyPath),
+      cert: fs.readFileSync(sslCertPath),
+    };
+    server = https.createServer(sslOptions, app).listen(PORT, () => {
+      console.log('='.repeat(60));
+      console.log(` Machine Production Monitoring Server (HTTPS SECURE)`);
+      console.log(` Web Frontend URL : https://localhost:${PORT}`);
+      console.log(` API Endpoint URL : https://localhost:${PORT}/api`);
+      console.log(` Health check URL : https://localhost:${PORT}/api/health`);
+      console.log(` SSL Key File     : ${sslKeyPath}`);
+      console.log(` SSL Cert File    : ${sslCertPath}`);
+      console.log(` Static Dist Path : ${distPath} (${fs.existsSync(distPath) ? 'Found' : 'Not Found'})`);
+      console.log(` Configured DB Host: ${dbConfig.host}:${dbConfig.port}`);
+      console.log(` Configured DB Name: ${dbConfig.database}`);
+      console.log(` Configured DB User: ${dbConfig.user}`);
+      console.log('='.repeat(60));
+    });
+  } catch (sslErr) {
+    console.warn(`[SSL Warning] Gagal mengaktifkan HTTPS (${sslErr.message}). Fallback ke HTTP biasa.`);
+  }
+}
+
+if (!server) {
+  server = app.listen(PORT, () => {
+    console.log('='.repeat(60));
+    console.log(` Machine Production Monitoring Server (HTTP Fullstack)`);
+    console.log(` Web Frontend URL : http://localhost:${PORT}`);
+    console.log(` API Endpoint URL : http://localhost:${PORT}/api`);
+    console.log(` Health check URL : http://localhost:${PORT}/api/health`);
+    console.log(` Static Dist Path : ${distPath} (${fs.existsSync(distPath) ? 'Found' : 'Not Found'})`);
+    console.log(` Configured DB Host: ${dbConfig.host}:${dbConfig.port}`);
+    console.log(` Configured DB Name: ${dbConfig.database}`);
+    console.log(` Configured DB User: ${dbConfig.user}`);
+    console.log(` HTTPS Status     : OFF (Atur FORCE_HTTPS=true atau sediakan server/ssl/server.key & .crt)`);
+    console.log('='.repeat(60));
+  });
+}
+
+// Pastikan tabel NumberSequences siap digunakan
+ensureSequenceTable().catch((err) => {
+  console.warn('[Sequence Table Warning]:', err.message);
 });
 
 export { app, authenticateKey };

@@ -3,7 +3,10 @@ import ConfirmDeleteModal from './ConfirmDeleteModal.jsx'
 import ManualRollModal from './ManualRollModal.jsx'
 import GetDataConfirmModal from './GetDataConfirmModal.jsx'
 import ETicketModal from './ETicketModal.jsx'
+import RollLabelModal from './RollLabelModal.jsx'
 import MultiMachineReserveModal from './MultiMachineReserveModal.jsx'
+import EditRollModal from './EditRollModal.jsx'
+import { getAutonicData } from '../services/autonicService.js'
 import styles from './RollTable.module.css'
 
 export default function RollTable({
@@ -19,19 +22,34 @@ export default function RollTable({
   maxOtherRollNumber = 0,
   onCatatCacat,
   onCatatCacatPreRoll,
+  onFetchSensor,
+  onSaveRollFromSensor,
   onGetData,
   onDeleteRoll,
   onAddRoll,
+  onEditRoll,
   onUpdateBsQty,
+  onToggleStock,
   onPrintRoll,
   onSetStartRoll,
   showToast,
 }) {
   const [loadingGetData, setLoadingGetData] = useState(false)
+
+  function handleToggleStock(roll, checked) {
+    if (onToggleStock) {
+      onToggleStock(roll.id, checked)
+    }
+  }
+  const [isFetchingSensor, setIsFetchingSensor] = useState(false)
+  const [pendingSensorData, setPendingSensorData] = useState(null)
   const [showGetDataConfirm, setShowGetDataConfirm] = useState(false)
   const [rollToDelete, setRollToDelete] = useState(null)
+  const [rollToEdit, setRollToEdit] = useState(null)
+  const [savingEdit, setSavingEdit] = useState(false)
   const [showManualModal, setShowManualModal] = useState(false)
   const [ticketModalRoll, setTicketModalRoll] = useState(null)
+  const [labelModalRoll, setLabelModalRoll] = useState(null)
   const [showReserveModal, setShowReserveModal] = useState(false)
   const [editingBsId, setEditingBsId] = useState(null)
   const [editBsValue, setEditBsValue] = useState('')
@@ -46,14 +64,14 @@ export default function RollTable({
   const currentMachineRolls = rolls.filter(
     (r) => String(r.noMesin || currentMachineId) === currentMachineId
   )
-  const localMachineMax = currentMachineRolls.length > 0 
-    ? Math.max(...currentMachineRolls.map((r) => r.id)) 
+  const localMachineMax = currentMachineRolls.length > 0
+    ? Math.max(...currentMachineRolls.map((r) => r.id))
     : 0
 
   // 2. Dari database CountingKainLines untuk mesin ini (rollsByMachine)
   const dbMachineRolls = rollsByMachine[currentMachineId]?.rolls || []
-  const dbMachineMax = dbMachineRolls.length > 0 
-    ? Math.max(...dbMachineRolls) 
+  const dbMachineMax = dbMachineRolls.length > 0
+    ? Math.max(...dbMachineRolls)
     : 0
 
   // Max roll yang sudah tercatat untuk mesin ini
@@ -89,6 +107,26 @@ export default function RollTable({
     setEditBsValue(roll.bsQty !== undefined && roll.bsQty !== null ? String(roll.bsQty) : '0')
   }
 
+  async function handleSaveEdit(editValues) {
+    if (!rollToEdit) return
+    setSavingEdit(true)
+    try {
+      if (onEditRoll) {
+        await onEditRoll(rollToEdit.id, editValues)
+      } else if (onUpdateBsQty) {
+        onUpdateBsQty(rollToEdit.id, editValues.bsQty)
+      }
+      setRollToEdit(null)
+    } catch (err) {
+      console.error('Error saat simpan edit roll:', err)
+      if (showToast) {
+        showToast(`⚠️ Gagal menyimpan perubahan roll: ${err.message}`)
+      }
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   function handleSaveBs(roll) {
     if (editingBsId === null) return
     const parsed = parseFloat(editBsValue)
@@ -103,7 +141,9 @@ export default function RollTable({
       return
     }
 
-    if (onUpdateBsQty) {
+    if (onEditRoll) {
+      onEditRoll(roll.id, { length: roll.length, bsQty: val })
+    } else if (onUpdateBsQty) {
       onUpdateBsQty(roll.id, val)
     }
     setEditingBsId(null)
@@ -117,13 +157,55 @@ export default function RollTable({
     }
   }
 
+  // Step 1: Tarik data dari sensor saat tombol 'Get Data' diklik
+  async function handleGetDataClick() {
+    setIsFetchingSensor(true)
+    try {
+      let sensorResult
+      if (onFetchSensor) {
+        sensorResult = await onFetchSensor(currentMachineId)
+      } else {
+        sensorResult = await getAutonicData(currentMachineId)
+      }
+
+      const lengthVal = parseFloat(sensorResult?.Length ?? sensorResult?.length)
+      if (isNaN(lengthVal)) {
+        throw new Error('Data panjang dari sensor mesin tidak ditemukan / tidak valid.')
+      }
+
+      // Sukses: simpan data sensor dan buka modal konfirmasi
+      setPendingSensorData({ ...sensorResult, length: lengthVal })
+      setShowGetDataConfirm(true)
+    } catch (err) {
+      console.error('Error saat menarik data sensor:', err)
+      if (showToast) {
+        showToast(`⚠️ Gagal mengambil data mesin: ${err.message || 'Sensor tidak merespons'}`)
+      }
+      // PENTING: Jika ada error API, JANGAN membuka modal!
+      setShowGetDataConfirm(false)
+      setPendingSensorData(null)
+    } finally {
+      setIsFetchingSensor(false)
+    }
+  }
+
+  // Step 2: Konfirmasi Ambil Data -> Simpan ke tabel countinglines dan flush antrean
   async function handleConfirmGetData() {
+    if (!pendingSensorData) return
     setLoadingGetData(true)
     try {
-      if (onGetData) {
-        await onGetData()
+      if (onSaveRollFromSensor) {
+        await onSaveRollFromSensor(pendingSensorData, nextRollId)
+      } else if (onGetData) {
+        await onGetData(pendingSensorData, nextRollId)
       }
       setShowGetDataConfirm(false)
+      setPendingSensorData(null)
+    } catch (err) {
+      console.error('Error saat menyimpan roll dari sensor:', err)
+      if (showToast) {
+        showToast(`⚠️ Gagal menyimpan roll: ${err.message}`)
+      }
     } finally {
       setLoadingGetData(false)
     }
@@ -149,16 +231,16 @@ export default function RollTable({
         <div className={styles.titleGroup}>
           <div className={styles.title}>📋 Data Roll Produksi</div>
 
-          {/* Tombol Get Data dengan konfirmasi */}
+          {/* Tombol Get Data */}
           <button
             type="button"
             className={styles.getDataBtn}
-            onClick={() => setShowGetDataConfirm(true)}
-            disabled={loadingGetData}
-            title="Tarik data otomatis dari mesin autonic (dengan konfirmasi)"
+            onClick={handleGetDataClick}
+            disabled={loadingGetData || isFetchingSensor}
+            title="Tarik data otomatis dari mesin autonic"
           >
-            <span className={loadingGetData ? styles.spin : ''}>🔄</span>
-            <span>{loadingGetData ? 'Memproses...' : 'Get Data'}</span>
+            <span className={(loadingGetData || isFetchingSensor) ? styles.spin : ''}>🔄</span>
+            <span>{isFetchingSensor ? 'Menarik Sensor…' : (loadingGetData ? 'Menyimpan…' : 'Get Data')}</span>
           </button>
 
           {/* Tombol Catat Cacat Sebelum Doffing / Roll Belum Terbentuk */}
@@ -240,13 +322,13 @@ export default function RollTable({
         <table className={styles.table}>
           <thead>
             <tr>
-              <th style={{ width: '70px' }}>Roll</th>
+              <th style={{ width: '85px' }}>No. Roll</th>
               <th style={{ width: '80px' }}>Mesin</th>
               <th>Panjang</th>
               <th>BS Qty</th>
+              <th style={{ width: '80px' }}>Stock</th>
               <th>Status</th>
-              <th>E-Ticket</th>
-              <th className={styles.center} style={{ width: '210px' }}>
+              <th className={styles.center} style={{ width: '320px' }}>
                 Aksi
               </th>
             </tr>
@@ -332,6 +414,21 @@ export default function RollTable({
                       )}
                     </td>
 
+                    {/* Kolom Stock (isStock checkbox & indikator) */}
+                    <td className={styles.stockCell}>
+                      <label
+                        className={styles.stockLabel}
+                        title={roll.isStock ? 'Kain Stock (Format S)' : 'Order Non-Stock (Format O)'}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(roll.isStock)}
+                          onChange={(e) => handleToggleStock(roll, e.target.checked)}
+                          className={styles.stockCheckbox}
+                        />
+                      </label>
+                    </td>
+
                     {/* Kolom Status (mewakili ada/tidaknya cacat & jumlah titik) */}
                     <td>
                       {hasDefect ? (
@@ -345,46 +442,58 @@ export default function RollTable({
                       )}
                     </td>
 
-                    {/* Kolom E-Ticket Status */}
-                    <td>
-                      {roll.isPrinted ? (
-                        <span className={styles.ticketPrintedBadge} title="E-Ticket sudah dicetak">
-                          ✓ Dicetak
-                        </span>
-                      ) : (
-                        <span className={styles.ticketNotPrintedBadge}>Belum Cetak</span>
-                      )}
-                    </td>
-
                     {/* Kolom Aksi */}
                     <td className={styles.center}>
                       <div className={styles.actionGroup}>
                         <button
                           type="button"
-                          className={`btn btn-outline btn-sm ${styles.actionBtn}`}
+                          className={styles.editRowBtn}
+                          onClick={() => setRollToEdit(roll)}
+                          title={`Edit Panjang & BS Qty Roll #${roll.id}`}
+                        >
+                          <span className={styles.btnIcon}>✏️</span>
+                          <span className={styles.btnLabel}>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`${styles.defectBtn} ${hasDefect ? styles.defectBtnActive : ''}`}
                           onClick={() => onCatatCacat(roll)}
                           title="Catat titik cacat kain"
                         >
-                          {hasDefect ? '✏️ Cacat' : '+ Cacat'}
+                          <span className={styles.btnIcon}>{hasDefect ? '✏️' : '➕'}</span>
+                          <span className={styles.btnLabel}>Cacat</span>
                         </button>
 
                         <button
                           type="button"
                           className={styles.printTicketBtn}
                           onClick={() => setTicketModalRoll(roll)}
-                          title="Cetak E-Ticket per roll (update isPrinted di DB)"
+                          title="Cetak E-Ticket per roll"
                         >
-                          🖨️ Cetak
+                          <span className={styles.btnIcon}>🖨️</span>
+                          <span className={styles.btnLabel}>Cetak</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={styles.printLabelBtn}
+                          onClick={() => setLabelModalRoll(roll)}
+                          title="Cetak Label Roll 11x7 cm"
+                        >
+                          <span className={styles.btnIcon}>🏷️</span>
+                          <span className={styles.btnLabel}>Label</span>
                         </button>
 
                         <button
                           type="button"
                           className={styles.deleteRowBtn}
                           onClick={() => setRollToDelete(roll)}
-                          title={`Hapus Roll #${roll.id} (otomatis langsung DB)`}
+                          title={`Hapus Roll #${roll.id} `}
                           aria-label={`Hapus Roll #${roll.id}`}
                         >
-                          🗑️
+                          <span className={styles.btnIcon}>🗑️</span>
+                          <span className={styles.btnLabel}>Hapus</span>
                         </button>
                       </div>
                     </td>
@@ -402,10 +511,14 @@ export default function RollTable({
           machineId={user?.machine_id || '1'}
           targetRollId={nextRollId}
           prodNumber={prodData?.prodNumber}
+          length={pendingSensorData?.length}
           pendingDefectsCount={pendingDefects.length}
           loading={loadingGetData}
           onConfirm={handleConfirmGetData}
-          onClose={() => setShowGetDataConfirm(false)}
+          onClose={() => {
+            setShowGetDataConfirm(false)
+            setPendingSensorData(null)
+          }}
         />
       )}
 
@@ -446,6 +559,17 @@ export default function RollTable({
         />
       )}
 
+      {/* ── Modal Cetak Label Roll 11x7 cm ── */}
+      {labelModalRoll && (
+        <RollLabelModal
+          roll={labelModalRoll}
+          prodData={prodData}
+          user={user}
+          onPrint={handlePrintTicket}
+          onClose={() => setLabelModalRoll(null)}
+        />
+      )}
+
       {/* ── Modal Multi-Mesin & Roll Reserve ── */}
       {showReserveModal && (
         <MultiMachineReserveModal
@@ -464,6 +588,18 @@ export default function RollTable({
             }
           }}
           onClose={() => setShowReserveModal(false)}
+        />
+      )}
+
+      {/* ── Modal Edit Line Roll ── */}
+      {rollToEdit && (
+        <EditRollModal
+          roll={rollToEdit}
+          prodId={prodData?.prodNumber}
+          machineId={currentMachineId}
+          loading={savingEdit}
+          onSave={handleSaveEdit}
+          onClose={() => setRollToEdit(null)}
         />
       )}
     </div>

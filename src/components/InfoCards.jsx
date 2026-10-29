@@ -18,30 +18,30 @@ export default function InfoCards({ data, user, totalDefects, pendingDefectsCoun
         <div className={styles.bannerLeft}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className={styles.bannerLabel}>Nomor Produksi</span>
-            {data.isFromDb ? (
-              <span className="chip" style={{ fontSize: '11px', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--success)' }}>
-                ✓ Dari Database
-              </span>
-            ) : (
-              <span className="chip" style={{ fontSize: '11px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent)' }}>
-                ✨ Data Baru
-              </span>
-            )}
           </div>
           <span className={styles.bannerProd}>{data.seqmentNum || data.prodNumber}</span>
         </div>
         <div className={styles.bannerRight}>
-          <div className={styles.bannerCustomer}>{data.customer}</div>
-          <div className={styles.bannerSub}>Ref: {data.prodNumber}</div>
+          <div className={styles.bannerCustomer}>{data.customer || data.custCode}</div>
+          <div className={styles.bannerSub}>
+            Ref: {data.prodNumber}
+          </div>
         </div>
       </div>
 
       {/* Grid: Kolom Kiri Jenis Kain (rowspan 2), Kolom Kanan Mesin & Total Cacat */}
       <div className={styles.grid}>
         <div className={`${styles.card} ${styles.fabricCard}`}>
-          <div className={styles.label}>Jenis Kain</div>
-          <div className={styles.fabricValue}>{data.fabricType}</div>
-          <div className={styles.sub}>Warna: {data.color}</div>
+          <div className={styles.label}>Jenis Kain (Design)</div>
+          <div className={styles.fabricValue}>{data.fabricType || data.designCode}</div>
+          <div className={styles.sub}>
+            Warna: <strong>{data.color || '-'}</strong>
+            {(data.orderQty > 0 || data.stockQty > 0) && (
+              <span style={{ marginLeft: '10px' }}>
+                · Order: <strong>{data.orderQty}</strong> yd · Stock: <strong>{data.stockQty}</strong> yd
+              </span>
+            )}
+          </div>
         </div>
 
         <Card

@@ -243,7 +243,7 @@
 }
 
 .table tbody td {
-  padding: 11px 14px;
+  padding: 12px 14px;
   font-size: 14px;
   font-weight: 500;
   vertical-align: middle;
@@ -257,14 +257,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 6px;
+  border-radius: 8px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   color: var(--text);
+  box-sizing: border-box;
 }
 
 .lengthVal {
@@ -408,33 +410,112 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
-.actionBtn {
-  font-size: 13px !important;
-  padding: 8px 14px !important;
-  border-radius: 6px !important;
-}
-
+.editRowBtn,
+.defectBtn,
+.printTicketBtn,
+.printLabelBtn,
 .deleteRowBtn {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--danger);
-  border-radius: 6px;
-  width: 34px;
-  height: 34px;
+  min-width: 54px;
+  height: 48px;
+  padding: 4px 6px;
+  font-size: 11px;
+  border-radius: 7px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.btnIcon {
+  font-size: 16px;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
-  cursor: pointer;
-  transition: all .15s;
+}
+
+.btnLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
+}
+
+.editRowBtn {
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: var(--primary, #0ea5e9);
+}
+
+.editRowBtn:hover {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: var(--primary, #0ea5e9);
+}
+
+.defectBtn {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #d97706;
+}
+
+.defectBtn:hover {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: #d97706;
+}
+
+.defectBtnActive {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #dc2626;
+}
+
+.defectBtnActive:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #dc2626;
+}
+
+.printTicketBtn {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #6366f1;
+}
+
+.printTicketBtn:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: #6366f1;
+}
+
+.printLabelBtn {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.32);
+  color: #10b981;
+}
+
+.printLabelBtn:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+}
+
+.deleteRowBtn {
+  min-width: 48px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  color: #ef4444;
 }
 
 .deleteRowBtn:hover {
   background: rgba(239, 68, 68, 0.25);
-  border-color: var(--danger);
+  border-color: #ef4444;
 }
 
 .emptyState {
@@ -476,25 +557,6 @@
   font-weight: 700;
 }
 
-.printTicketBtn {
-  background: rgba(16, 185, 129, 0.12);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all .15s;
-}
-
-.printTicketBtn:hover {
-  background: rgba(16, 185, 129, 0.25);
-  border-color: #10b981;
-}
 
 .ticketPrintedBadge {
   display: inline-block;
@@ -513,4 +575,71 @@
   font-size: 11px;
   font-weight: 500;
 }
+
+/* ── Roll ID & QR Number Badge ── */
+.rollIdGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.qrBadge {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--accent, #38bdf8);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* ── Stock Toggle Cell ── */
+.stockCell {
+  vertical-align: middle;
+}
+
+.stockLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stockCheckbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #10b981;
+}
+
+.stockBadgeActive {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 99px;
+  padding: 2px 8px;
+}
+
+.stockBadgeInactive {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted, #94a3b8);
+  background: var(--surface2, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 99px;
+  padding: 2px 8px;
+}
+
 

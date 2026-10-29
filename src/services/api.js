@@ -328,6 +328,36 @@ export async function deleteRollApi(prodId, roolNumber) {
 }
 
 /**
+ * Update single roll line in CountingKainLines (length, bsQty, etc.)
+ * Catatan: Jika isExecute = true, server akan mereset menjadi false.
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @param {object} payload { length, bsQty, description, noMesin, isPrinted, isExecute }
+ * @returns {Promise<object>}
+ */
+export async function updateRollLineApi(prodId, roolNumber, payload) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(prodId.trim())}/${roolNumber}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal mengupdate roll di database');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[updateRollLineApi] Error updating ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
+/**
  * Pull machine data and automatically delete the record from PostgreSQL database
  * @param {number|string} machineId
  * @returns {Promise<{ Length: number, DateTimeCreated: string }>}
@@ -444,5 +474,38 @@ export async function deleteRollDefectsApi(prodId, roolNumber) {
     throw err;
   }
 }
+
+/**
+ * Update status isStock = true / false untuk roll tertentu
+ * Format QrNum tetap konsisten (QR.S...)
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @param {boolean} isStock
+ * @returns {Promise<object>}
+ */
+export async function updateRollStockApi(prodId, roolNumber, isStock) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(String(prodId).trim())}/${encodeURIComponent(roolNumber)}/stock`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ isStock: Boolean(isStock) }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal memperbarui status stock roll');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[updateRollStockApi] Error for ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
 
 

@@ -52,44 +52,74 @@ async function autonicRequest(endpoint, options = {}) {
 }
 
 /**
- * Mengambil data mesin terkini dari Autonic dan otomatis menghapus record dari DB
+ * Mengambil data mesin terkini dari Autonic (tanpa menghapus record)
  * @param {number|string} machineId - ID mesin (dari user login kolom machine_id)
  * @returns {Promise<{ DateTimeCreated: string, Length: string }>}
  */
 export async function getAutonicData(machineId) {
+  let result = null;
+
   try {
-    // 1. Tarik data via backend API yang otomatis menghapus data dari PostgreSQL database
+    // 1. Tarik data via backend API
     const serverData = await pullAndClearMachineData(machineId);
     if (serverData && (serverData.Length !== undefined || serverData.DateTimeCreated)) {
-      return {
+      result = {
         DateTimeCreated: serverData.DateTimeCreated,
         Length: String(serverData.Length),
       };
     }
   } catch (err) {
-    console.warn('[getAutonicData] Backend API get-and-delete failed, falling back to direct webhook:', err.message);
+    console.warn('[getAutonicData] Backend API call failed, falling back to direct webhook:', err.message);
   }
 
   // 2. Fallback request ke webhook langsung jika backend API tidak merespons
-  const payload = {
-    nomesin: Number(machineId) || 1,
-  };
+  if (!result) {
+    const payload = {
+      nomesin: Number(machineId) || 1,
+    };
 
-  return autonicRequest(AUTONIC_ENDPOINTS.GET_DATA, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+    result = await autonicRequest(AUTONIC_ENDPOINTS.GET_DATA, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  const lengthNum = parseFloat(result?.Length ?? result?.length);
+  if (result === null || result === undefined || isNaN(lengthNum)) {
+    throw new Error('Data panjang kain dari sensor mesin tidak ditemukan / kosong.');
+  }
+
+  return {
+    ...result,
+    Length: String(lengthNum),
+  };
 }
 
 export async function flushAutonicData(machineId) {
   const payload = {
     nomesin: Number(machineId) || 1,
   };
-  return autonicRequest(AUTONIC_ENDPOINTS.FLUSH_DATA, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+
+  try {
+    return await autonicRequest(AUTONIC_ENDPOINTS.FLUSH_DATA, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.warn('[flushAutonicData] Direct webhook failed, calling backend flush endpoint:', err.message);
+    const res = await fetch('/api/counting/autonic/flush', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ machineId: Number(machineId) || 1 }),
+    }).catch(() => null);
+
+    if (res && res.ok) {
+      return await res.json();
+    }
+    throw err;
+  }
 }
+
 
 export default {
   AUTONIC_CONFIG,

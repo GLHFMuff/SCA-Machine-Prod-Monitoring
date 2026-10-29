@@ -1,5 +1,6 @@
 import express from 'express';
 import { pool } from '../config/db.js';
+import { generateNextQrNum } from '../services/sequence.js';
 
 const router = express.Router();
 
@@ -7,10 +8,32 @@ const router = express.Router();
  * Normalizer helper to extract field values regardless of casing
  */
 function normalizeHeader(body, user) {
+  const parseQty = (val) => {
+    if (val === undefined || val === null || val === '') return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    const cleanStr = String(val).replace(/,/g, '').trim();
+    const n = parseFloat(cleanStr);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const clean = (val, maxLen) => {
+    const s = String(val || '').trim();
+    return maxLen ? s.slice(0, maxLen) : s;
+  };
+
   return {
-    ProdId: (body.ProdId || body.prodId || body.prod_id || '').trim(),
-    NoMesin: String(body.NoMesin || body.noMesin || body.no_mesin || body.machine_id || user?.machine_id || '').trim(),
-    UserId: String(body.UserId || body.userId || body.user_id || user?.username || user?.id || '').trim(),
+    ProdId: clean(body.ProdId || body.prodId || body.prod_id, 50),
+    NoMesin: clean(body.NoMesin || body.noMesin || body.no_mesin || body.machine_id || user?.machine_id, 50),
+    UserId: clean(body.UserId || body.userId || body.user_id || user?.username || user?.id, 50),
+    SeqmentNum: clean(body.SeqmentNum || body.seqmentNum || body.seqment_num || body.noWo || body.NoWo, 50),
+    CustCode: clean(body.CustCode || body.custCode || body.cust_code || body.customer, 10),
+    DesignCode: clean(body.DesignCode || body.designCode || body.design_code || body.design || body.fabricType, 10),
+    Color: clean(body.Color || body.color, 20),
+    RecidProdId: clean(body.RecidProdId || body.recidProdId || body.recid_prod_id, 30),
+    RecidSalesId: clean(body.RecidSalesId || body.recidSalesId || body.recid_sales_id, 30),
+    RecidItemId: clean(body.RecidItemId || body.recidItemId || body.recid_item_id, 30),
+    OrderQty: parseQty(body.OrderQty ?? body.orderQty),
+    StockQty: parseQty(body.StockQty ?? body.stockQty),
   };
 }
 
@@ -23,6 +46,8 @@ function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
     IsExecute: Boolean(item.IsExecute ?? item.isExecute ?? item.is_execute ?? false),
     NoMesin: String(item.NoMesin || item.noMesin || item.no_mesin || parentNoMesin || '').trim(),
     isPrinted: Boolean(item.isPrinted ?? item.is_printed ?? false),
+    isStock: item.isStock !== undefined ? Boolean(item.isStock) : (item.is_stock !== undefined ? Boolean(item.is_stock) : false),
+    QrNum: (item.QrNum || item.qrNum || item.qr_num || '').trim() || null,
   };
 }
 
@@ -47,7 +72,7 @@ function normalizeDefect(item, parentProdId = '', parentRoolNumber = 0, defaultL
 }
 
 /**
- * Upsert single header logic
+ * Upsert single header logic with all 12 columns
  */
 async function upsertHeaderQuery(client, header) {
   const check = await client.query(
@@ -58,20 +83,139 @@ async function upsertHeaderQuery(client, header) {
   if (check.rows.length > 0) {
     const res = await client.query(
       `UPDATE "CountingKainHeader"
-       SET "NoMesin" = $2, "UserId" = $3
+       SET "NoMesin" = $2,
+           "UserId" = $3,
+           "SeqmentNum" = COALESCE(NULLIF($4::text, ''), "SeqmentNum"),
+           "CustCode" = COALESCE(NULLIF($5::text, ''), "CustCode"),
+           "DesignCode" = COALESCE(NULLIF($6::text, ''), "DesignCode"),
+           "Color" = COALESCE(NULLIF($7::text, ''), "Color"),
+           "RecidProdId" = COALESCE(NULLIF($8::text, ''), "RecidProdId"),
+           "RecidSalesId" = COALESCE(NULLIF($9::text, ''), "RecidSalesId"),
+           "RecidItemId" = COALESCE(NULLIF($10::text, ''), "RecidItemId"),
+           "OrderQty" = CASE WHEN $11::numeric IS NOT NULL AND $11::numeric > 0 THEN $11::numeric ELSE "OrderQty" END,
+           "StockQty" = CASE WHEN $12::numeric IS NOT NULL AND $12::numeric > 0 THEN $12::numeric ELSE "StockQty" END
        WHERE "ProdId" = $1
-       RETURNING "ProdId", "NoMesin", "UserId"`,
-      [header.ProdId, header.NoMesin, header.UserId]
+       RETURNING "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty"`,
+      [
+        header.ProdId,
+        header.NoMesin,
+        header.UserId,
+        header.SeqmentNum,
+        header.CustCode,
+        header.DesignCode,
+        header.Color,
+        header.RecidProdId,
+        header.RecidSalesId,
+        header.RecidItemId,
+        header.OrderQty,
+        header.StockQty,
+      ]
     );
     return { action: 'updated', data: res.rows[0] };
   } else {
     const res = await client.query(
-      `INSERT INTO "CountingKainHeader" ("ProdId", "NoMesin", "UserId")
-       VALUES ($1, $2, $3)
-       RETURNING "ProdId", "NoMesin", "UserId"`,
-      [header.ProdId, header.NoMesin, header.UserId]
+      `INSERT INTO "CountingKainHeader" (
+         "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode",
+         "DesignCode", "Color", "RecidProdId", "RecidSalesId",
+         "RecidItemId", "OrderQty", "StockQty"
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::numeric, $12::numeric)
+       RETURNING "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty"`,
+      [
+        header.ProdId,
+        header.NoMesin,
+        header.UserId,
+        header.SeqmentNum,
+        header.CustCode,
+        header.DesignCode,
+        header.Color,
+        header.RecidProdId,
+        header.RecidSalesId,
+        header.RecidItemId,
+        header.OrderQty,
+        header.StockQty,
+      ]
     );
     return { action: 'created', data: res.rows[0] };
+  }
+}
+
+/**
+ * Helper untuk memeriksa apakah roll baru yang akan dibuat harus berstatus isStock.
+ * Aturan:
+ * Jika pemanggil secara eksplisit menandai isStock = true, langsung kembalikan true.
+ * Jika tidak, cek header untuk ProdId ini:
+ * - Ambil OrderQty dan RecidSalesId.
+ * - Jika OrderQty > 0:
+ *   Hitung total akumulasi panjang (SUM("Length")) dari seluruh roll pesanan (isStock IS NOT TRUE)
+ *   atas RecidSalesId tersebut (lintas semua ProdId yang berbagi RecidSalesId yang sama).
+ *   Jika total panjang sudah mencapai atau melebihi OrderQty (totalLength >= orderQty),
+ *   maka roll baru yang dibuat otomatis berstatus isStock = true!
+ */
+async function checkShouldBeStock(client, prodId, explicitIsStock = false) {
+  if (explicitIsStock === true) {
+    return true;
+  }
+
+  if (!prodId) {
+    return false;
+  }
+
+  try {
+    // 1. Ambil data header untuk prodId ini
+    const headerRes = await client.query(
+      `SELECT "RecidSalesId", "OrderQty" FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1`,
+      [prodId]
+    );
+
+    if (headerRes.rows.length === 0) {
+      return false;
+    }
+
+    const header = headerRes.rows[0];
+    let orderQty = parseFloat(header.OrderQty) || 0;
+    const recidSalesId = (header.RecidSalesId || '').trim();
+
+    // Fallback: Jika OrderQty di header prodId ini 0 tapi ada RecidSalesId, cari MAX("OrderQty") dari RecidSalesId yang sama
+    if (orderQty <= 0 && recidSalesId) {
+      const salesRes = await client.query(
+        `SELECT MAX("OrderQty") AS max_qty FROM "CountingKainHeader" WHERE "RecidSalesId" = $1`,
+        [recidSalesId]
+      );
+      orderQty = parseFloat(salesRes.rows[0]?.max_qty) || 0;
+    }
+
+    if (orderQty <= 0) {
+      return false;
+    }
+
+    // 2. Hitung total panjang roll non-stock yang sudah ada atas RecidSalesId ini (atau ProdId jika RecidSalesId kosong)
+    let totalLength = 0;
+    if (recidSalesId) {
+      const sumRes = await client.query(
+        `SELECT COALESCE(SUM(l."Length"), 0) AS total_length
+         FROM "CountingKainLines" l
+         JOIN "CountingKainHeader" h ON l."ProdId" = h."ProdId"
+         WHERE h."RecidSalesId" = $1
+           AND (l."isStock" IS FALSE OR l."isStock" IS NULL)`,
+        [recidSalesId]
+      );
+      totalLength = parseFloat(sumRes.rows[0]?.total_length) || 0;
+    } else {
+      const sumRes = await client.query(
+        `SELECT COALESCE(SUM("Length"), 0) AS total_length
+         FROM "CountingKainLines"
+         WHERE "ProdId" = $1
+           AND ("isStock" IS FALSE OR "isStock" IS NULL)`,
+        [prodId]
+      );
+      totalLength = parseFloat(sumRes.rows[0]?.total_length) || 0;
+    }
+
+    return totalLength >= orderQty;
+  } catch (err) {
+    console.error('[checkShouldBeStock Error]:', err);
+    return false;
   }
 }
 
@@ -80,26 +224,54 @@ async function upsertHeaderQuery(client, header) {
  */
 async function upsertLineQuery(client, line) {
   const check = await client.query(
-    `SELECT 1 FROM "CountingKainLines" 
+    `SELECT "IsExecute", "QrNum", "isStock" FROM "CountingKainLines" 
      WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
     [line.ProdId, line.RoolNumber]
   );
 
   if (check.rows.length > 0) {
+    // ATURAN: Ketika update lines jika isExecute = true di update jadi false
+    const existing = check.rows[0];
+    const currentIsExecute = Boolean(existing.IsExecute);
+    let finalIsExecute = line.IsExecute;
+    if (currentIsExecute === true) {
+      finalIsExecute = false;
+    }
+
+    const finalIsStock = line.isStock !== undefined 
+      ? Boolean(line.isStock) 
+      : (existing.isStock !== null ? Boolean(existing.isStock) : false);
+
+    let finalQrNum = line.QrNum || existing.QrNum;
+    if (!finalQrNum) {
+      finalQrNum = await generateNextQrNum(client, finalIsStock);
+    } else if (finalQrNum.startsWith('QR.O.')) {
+      finalQrNum = finalQrNum.replace(/^QR\.O\./, 'QR.S.');
+    }
+
     const res = await client.query(
       `UPDATE "CountingKainLines"
-       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7
+       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted]
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum]
     );
-    return { action: 'updated', data: res.rows[0] };
+    return { action: 'updated', data: res.rows[0], isExecuteReset: currentIsExecute === true };
   } else {
+    // Validasi otomatis isStock saat CREATE:
+    // Jika akumulasi length atas RecidSalesId sudah melebihi/mencapai OrderQty, otomatis tandai sebagai isStock!
+    const isStockVal = await checkShouldBeStock(client, line.ProdId, Boolean(line.isStock));
+
+    let generatedQrNum = line.QrNum || (await generateNextQrNum(client, isStockVal));
+    if (generatedQrNum && generatedQrNum.startsWith('QR.O.')) {
+      generatedQrNum = generatedQrNum.replace(/^QR\.O\./, 'QR.S.');
+    }
+
     const res = await client.query(
-      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted")
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted]
+      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum]
     );
     return { action: 'created', data: res.rows[0] };
   }
@@ -200,7 +372,8 @@ router.get('/headers', async (req, res) => {
     values.push(parseInt(offset, 10) || 0);
 
     const query = `
-      SELECT "ProdId", "NoMesin", "UserId"
+      SELECT "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", 
+             "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty"
       FROM "CountingKainHeader"
       ${whereClause}
       ORDER BY "ProdId" DESC
@@ -230,7 +403,9 @@ router.get('/headers/:prodId', async (req, res) => {
     const targetMachine = String(req.query.noMesin || req.query.machineId || '').trim();
 
     const headerRes = await pool.query(
-      'SELECT "ProdId", "NoMesin", "UserId" FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1',
+      `SELECT "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", 
+              "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty"
+       FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1`,
       [prodId]
     );
 
@@ -246,7 +421,7 @@ router.get('/headers/:prodId', async (req, res) => {
     const headerMachine = String(header.NoMesin || '').trim();
 
     const linesRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1
        ORDER BY "RoolNumber" ASC`,
@@ -396,7 +571,7 @@ router.get('/lines', async (req, res) => {
     values.push(parseInt(offset, 10) || 0);
 
     const query = `
-      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"
+      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
       FROM "CountingKainLines"
       ${whereClause}
       ORDER BY "ProdId" DESC, "RoolNumber" ASC
@@ -424,7 +599,7 @@ router.get('/lines/:prodId/:roolNumber', async (req, res) => {
     const { prodId, roolNumber } = req.params;
 
     const result = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
        LIMIT 1`,
@@ -559,7 +734,7 @@ router.patch('/lines/:prodId/:roolNumber/print', async (req, res) => {
       `UPDATE "CountingKainLines"
        SET "isPrinted" = true
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted"`,
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
       [prodId, parseInt(roolNumber, 10)]
     );
 
@@ -577,6 +752,162 @@ router.patch('/lines/:prodId/:roolNumber/print', async (req, res) => {
     });
   } catch (err) {
     console.error('[Update isPrinted Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/counting/lines/:prodId/:roolNumber/stock
+ * Update isStock = true/false per baris roll dan sesuaikan format QrNum (QR.S... / QR.O...)
+ */
+router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
+  try {
+    const { prodId, roolNumber } = req.params;
+    const rollNum = parseInt(roolNumber, 10);
+    const isStock = Boolean(req.body.isStock);
+
+    const checkRes = await pool.query(
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
+       FROM "CountingKainLines"
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
+      [prodId, rollNum]
+    );
+
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `Baris Roll #${rollNum} untuk Order '${prodId}' tidak ditemukan di database.`,
+      });
+    }
+
+    const existing = checkRes.rows[0];
+    let finalQrNum = existing.QrNum;
+
+    if (!finalQrNum) {
+      finalQrNum = await generateNextQrNum(pool, isStock);
+    } else if (finalQrNum.startsWith('QR.O.')) {
+      finalQrNum = finalQrNum.replace(/^QR\.O\./, 'QR.S.');
+    }
+
+    const updateRes = await pool.query(
+      `UPDATE "CountingKainLines"
+       SET "isStock" = $3, "QrNum" = $4
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
+      [prodId, rollNum, isStock, finalQrNum]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Status stock Roll #${rollNum} berhasil diubah (${isStock ? 'Kain Stock' : 'Order'}).`,
+      data: updateRes.rows[0],
+    });
+  } catch (err) {
+    console.error('[Update isStock Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PUT /api/counting/lines/:prodId/:roolNumber
+ * Update / Edit data baris roll (Length dan BS Qty / Description).
+ * ATURAN: Ketika update lines jika isExecute = true di update jadi false!
+ */
+router.put('/lines/:prodId/:roolNumber', async (req, res) => {
+  try {
+    const { prodId, roolNumber } = req.params;
+    const rollNum = parseInt(roolNumber, 10);
+    const lengthVal = parseFloat(req.body.Length ?? req.body.length);
+    const bsVal = parseFloat(req.body.bsQty ?? req.body.BsQty ?? req.body.bs ?? 0);
+
+    if (isNaN(lengthVal) || lengthVal <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Panjang kain (Length) harus berupa angka lebih dari 0.',
+      });
+    }
+
+    if (isNaN(bsVal) || bsVal < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'BS Qty tidak boleh bernilai negatif.',
+      });
+    }
+
+    if (bsVal >= lengthVal) {
+      return res.status(400).json({
+        success: false,
+        error: `BS Qty (${bsVal} yd) harus di bawah nilai panjang kain (${lengthVal} yd).`,
+      });
+    }
+
+    // 1. Cek baris saat ini di database
+    const checkRes = await pool.query(
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
+       FROM "CountingKainLines"
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
+      [prodId, rollNum]
+    );
+
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `Baris Roll #${rollNum} untuk Order '${prodId}' tidak ditemukan di database.`,
+      });
+    }
+
+    const existing = checkRes.rows[0];
+    const wasExecuted = Boolean(existing.IsExecute);
+
+    // ATURAN WAJIB: Ketika update lines jika isExecute = true di update jadi false!
+    let finalIsExecute = Boolean(req.body.IsExecute ?? req.body.isExecute ?? existing.IsExecute);
+    if (wasExecuted) {
+      finalIsExecute = false;
+    }
+
+    const finalIsStock = req.body.isStock !== undefined 
+      ? Boolean(req.body.isStock) 
+      : (existing.isStock !== null ? Boolean(existing.isStock) : false);
+
+    let finalQrNum = req.body.QrNum || req.body.qrNum || existing.QrNum;
+    if (!finalQrNum) {
+      finalQrNum = await generateNextQrNum(pool, finalIsStock);
+    } else if (finalQrNum.startsWith('QR.O.')) {
+      finalQrNum = finalQrNum.replace(/^QR\.O\./, 'QR.S.');
+    }
+
+    // Susun format Description (sertakan info BS agar awet di DB)
+    let newDescription = req.body.Description || req.body.description;
+    if (!newDescription) {
+      newDescription = bsVal > 0
+        ? `Roll #${rollNum} (${lengthVal} yard) | BS: ${bsVal} yd`
+        : `Roll #${rollNum} (${lengthVal} yard)`;
+    } else if (bsVal > 0 && !newDescription.includes('BS:')) {
+      newDescription = `${newDescription} | BS: ${bsVal} yd`;
+    }
+
+    const noMesin = String(req.body.NoMesin || req.body.noMesin || existing.NoMesin || '').trim();
+    const isPrinted = req.body.isPrinted !== undefined ? Boolean(req.body.isPrinted) : Boolean(existing.isPrinted);
+
+    const updateRes = await pool.query(
+      `UPDATE "CountingKainLines"
+       SET "Length" = $3, "Description" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
+      [prodId, rollNum, lengthVal, newDescription, finalIsExecute, noMesin, isPrinted, finalIsStock, finalQrNum]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Line #${rollNum} berhasil diperbarui.${wasExecuted ? ' (isExecute = true diupdate jadi false)' : ''}`,
+      data: {
+        ...updateRes.rows[0],
+        bsQty: bsVal,
+      },
+      isExecuteReset: wasExecuted,
+    });
+  } catch (err) {
+    console.error('[Update Line Error]:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -740,7 +1071,9 @@ router.get('/next-roll/:prodId', async (req, res) => {
         "NoMesin",
         "Length",
         "isPrinted",
-        "Description"
+        "Description",
+        "isStock",
+        "QrNum"
       FROM "CountingKainLines"
       WHERE "ProdId" = $1
       ORDER BY "RoolNumber" ASC
@@ -793,6 +1126,50 @@ router.get('/next-roll/:prodId', async (req, res) => {
       }
     }
 
+    // Ambil info OrderQty & RecidSalesId untuk verifikasi kuota order
+    let orderQty = 0;
+    let recidSalesId = '';
+    let accumulatedSalesLength = 0;
+    try {
+      const headerRes = await pool.query(
+        `SELECT "RecidSalesId", "OrderQty" FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1`,
+        [prodId]
+      );
+      if (headerRes.rows.length > 0) {
+        orderQty = parseFloat(headerRes.rows[0].OrderQty) || 0;
+        recidSalesId = (headerRes.rows[0].RecidSalesId || '').trim();
+      }
+
+      if (orderQty <= 0 && recidSalesId) {
+        const salesRes = await pool.query(
+          `SELECT MAX("OrderQty") AS max_qty FROM "CountingKainHeader" WHERE "RecidSalesId" = $1`,
+          [recidSalesId]
+        );
+        orderQty = parseFloat(salesRes.rows[0]?.max_qty) || 0;
+      }
+
+      if (recidSalesId) {
+        const sumRes = await pool.query(
+          `SELECT COALESCE(SUM(l."Length"), 0) AS total_length
+           FROM "CountingKainLines" l
+           JOIN "CountingKainHeader" h ON l."ProdId" = h."ProdId"
+           WHERE h."RecidSalesId" = $1
+             AND (l."isStock" IS FALSE OR l."isStock" IS NULL)`,
+          [recidSalesId]
+        );
+        accumulatedSalesLength = parseFloat(sumRes.rows[0]?.total_length) || 0;
+      } else {
+        accumulatedSalesLength = lines
+          .filter((l) => !l.isStock)
+          .reduce((sum, l) => sum + (parseFloat(l.Length) || 0), 0);
+      }
+    } catch (hErr) {
+      console.warn('[next-roll Header Query Warn]:', hErr.message);
+    }
+
+    const isOrderExceeded = orderQty > 0 && accumulatedSalesLength >= orderQty;
+    const remainingOrderQty = orderQty > 0 ? Math.max(0, orderQty - accumulatedSalesLength) : 0;
+
     return res.status(200).json({
       success: true,
       data: {
@@ -807,6 +1184,11 @@ router.get('/next-roll/:prodId', async (req, res) => {
         rollsByMachine,
         existingRollNumbers: lines.map((l) => l.RoolNumber),
         lines,
+        orderQty,
+        recidSalesId,
+        accumulatedSalesLength,
+        isOrderExceeded,
+        remainingOrderQty,
       },
     });
   } catch (err) {
@@ -890,15 +1272,14 @@ router.post('/autonic/get-and-delete', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Data Mesin #${machineId} berhasil ditarik (${lengthVal} yard) dan otomatis dihapus dari database.`,
+      message: `Data Mesin #${machineId} berhasil ditarik (${lengthVal} yard).`,
       data: {
         Length: lengthVal,
         DateTimeCreated: dt || new Date().toISOString(),
-        deletedCount,
+        deletedCount: 0,
       },
     });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('[Autonic Get-and-Delete Error]:', err);
     return res.status(500).json({
       success: false,
@@ -910,4 +1291,53 @@ router.post('/autonic/get-and-delete', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/counting/autonic/flush
+ * Body: { machineId }
+ * Flushes / deletes autonic machine queue data
+ */
+router.post('/autonic/flush', async (req, res) => {
+  const machineId = parseInt(req.body.machineId || req.body.nomesin || 1, 10);
+  const client = await pool.connect();
+
+  try {
+    // 1. Coba panggil webhook delete Autonic eksternal
+    try {
+      await fetch('http://192.168.23.61:5678/webhook/deletedataautonic', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0',
+        },
+        body: JSON.stringify({ nomesin: machineId }),
+      });
+    } catch (whErr) {
+      console.warn('[Autonic Flush Webhook Warning]:', whErr.message);
+    }
+
+    // 2. Bersihkan baris di tabel database autonicmachine_${machineId} jika ada
+    const tableName = `autonicmachine_${machineId}`;
+    try {
+      await client.query(`DELETE FROM "${tableName}"`);
+    } catch {
+      // ignore if table doesn't exist
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Data antrean Mesin #${machineId} berhasil diflush.`,
+    });
+  } catch (err) {
+    console.error('[Autonic Flush Error]:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Gagal flush data mesin',
+      message: err.message,
+    });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;
+

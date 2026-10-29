@@ -5,21 +5,33 @@ import styles from './ScanModal.module.css'
 export const SAMPLE_QR_CODES = [
   {
     label: 'OP.012026.001113 (Ada di DB)',
-    value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52;Putih Reguler',
+    value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52;Putih Reguler;REC-PRD-001;REC-SLS-001;REC-ITM-001;5,000.50;2,500.00;',
   },
   {
     label: 'OP.022026.000674 (Ada di DB)',
-    value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis;Navy',
+    value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis;Navy;REC-PRD-002;REC-SLS-002;REC-ITM-002;3,500.00;1,200.75;',
   },
   {
     label: 'OP.102026.000999 (Data Baru)',
-    value: 'OP.102026.000999;SPM.2026.DES.020;CUST-NEW;Cotton Combed 24s;Hitam Reaktif',
+    value: 'OP.102026.000999;SPM.2026.DES.020;CUST-NEW;Cotton Combed 24s;Hitam Reaktif;REC-PRD-003;REC-SLS-003;REC-ITM-003;4,250.00;0.00;',
   },
 ]
 
 /**
+ * Helper to parse numeric string with comma thousand delimiter and dot decimal
+ * Example: "1,500.50" -> 1500.5
+ */
+export function parseFormattedNumber(val) {
+  if (val === undefined || val === null || val === '') return 0
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  const cleaned = String(val).replace(/,/g, '').trim()
+  const parsed = parseFloat(cleaned)
+  return isNaN(parsed) ? 0 : parsed
+}
+
+/**
  * Helper to parse QR content with format:
- * ProdId;NoWO(seqment);cust code;design code;color
+ * ProdId;SeqmentNum;CustCode;DesignCode;Color;RecidProdId;RecidSalesId;RecidItemId;OrderQty;StockQty;
  */
 export function parseQrContent(rawString) {
   if (!rawString) return null
@@ -28,16 +40,32 @@ export function parseQrContent(rawString) {
 
   if (text.includes(';')) {
     const parts = text.split(';').map((p) => p.trim())
+    const prodId = parts[0] || ''
+    const seqmentNum = parts[1] || prodId
+    const custCode = parts[2] || ''
+    const designCode = parts[3] || ''
+    const color = parts[4] || ''
+    const recidProdId = parts[5] || ''
+    const recidSalesId = parts[6] || ''
+    const recidItemId = parts[7] || ''
+    const orderQty = parseFormattedNumber(parts[8])
+    const stockQty = parseFormattedNumber(parts[9])
+
     return {
       raw: text,
-      prodId: parts[0] || '',
-      seqmentNum: parts[1] || parts[0] || '',
-      noWo: parts[1] || parts[0] || '',
-      customer: parts[2] || '',
-      custCode: parts[2] || '',
-      design: parts[3] || '',
-      designCode: parts[3] || '',
-      color: parts[4] || '',
+      prodId,
+      seqmentNum,
+      noWo: seqmentNum,
+      custCode,
+      customer: custCode,
+      designCode,
+      design: designCode,
+      color,
+      recidProdId,
+      recidSalesId,
+      recidItemId,
+      orderQty,
+      stockQty,
       isQrBundle: true,
     }
   }
@@ -48,11 +76,16 @@ export function parseQrContent(rawString) {
     prodId: text,
     seqmentNum: text,
     noWo: text,
-    customer: '',
     custCode: '',
-    design: '',
+    customer: '',
     designCode: '',
+    design: '',
     color: '',
+    recidProdId: '',
+    recidSalesId: '',
+    recidItemId: '',
+    orderQty: 0,
+    stockQty: 0,
     isQrBundle: false,
   }
 }
@@ -261,25 +294,33 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
             {/* Preview Field Cards */}
             <div className={styles.parsedCard}>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>OP Number:</span>
+                <span className={styles.parsedKey}>ProdId:</span>
                 <span className={styles.parsedValHighlight}>{scannedResult.prodId}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>DO Number (Seqment):</span>
-                <span className={styles.parsedVal}>{scannedResult.noWo || scannedResult.seqmentNum || '-'}</span>
+                <span className={styles.parsedKey}>SeqmentNum:</span>
+                <span className={styles.parsedVal}>{scannedResult.seqmentNum || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>Cust Code:</span>
-                <span className={styles.parsedVal}>{scannedResult.custCode || scannedResult.customer || '-'}</span>
+                <span className={styles.parsedKey}>CustCode:</span>
+                <span className={styles.parsedVal}>{scannedResult.custCode || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>Design Code:</span>
-                <span className={styles.parsedVal}>{scannedResult.designCode || scannedResult.design || '-'}</span>
+                <span className={styles.parsedKey}>DesignCode:</span>
+                <span className={styles.parsedVal}>{scannedResult.designCode || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
                 <span className={styles.parsedKey}>Color:</span>
                 <span className={styles.parsedValHighlight}>{scannedResult.color || '-'}</span>
               </div>
+              {(scannedResult.orderQty > 0 || scannedResult.stockQty > 0) && (
+                <div className={styles.parsedRow}>
+                  <span className={styles.parsedKey}>Order / Stock Qty:</span>
+                  <span className={styles.parsedVal}>
+                    <strong>{scannedResult.orderQty}</strong> / <strong>{scannedResult.stockQty}</strong>
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className={styles.actionButtons}>
@@ -438,7 +479,7 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
                     <input
                       type="text"
                       className={styles.manualInput}
-                      placeholder="Format: ProdId;NoDO(SeqmentNum);cust code;design code;color"
+                      placeholder="Format: ProdId;SeqmentNum;CustCode;DesignCode;Color;RecidProdId;RecidSalesId;RecidItemId;OrderQty;StockQty;"
                       value={manualInput}
                       onChange={(e) => {
                         setManualInput(e.target.value)
@@ -448,9 +489,9 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
                     />
                   </div>
                   <div className={styles.inputHint}>
-                    Mendukung tembakan barcode scanner gun atau paste format lengkap:
+                    Mendukung tembakan qr scanner dengan delimiter ;
                     <br />
-                    <code>ProdId;NoDO(SeqmentNum);cust code;design code;color</code>
+                    {/* <code>ProdId;NoDO(SeqmentNum);cust code;design code;color</code> */}
                   </div>
                 </div>
 
@@ -461,29 +502,6 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
                 >
                   ⚡ Proses Barcode / QR →
                 </button>
-
-                {/* Sample QR Selector */}
-                <div className={styles.sampleSection}>
-                  <div className={styles.sampleLabel}>Pilih Cepat Sampel QR Lengkap:</div>
-                  <div className={styles.sampleGrid}>
-                    {SAMPLE_QR_CODES.map((s, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        className={`${styles.sampleChip} ${manualInput === s.value ? styles.sampleChipActive : ''}`}
-                        onClick={() => {
-                          setManualInput(s.value)
-                          setErrorMsg('')
-                        }}
-                      >
-                        <div style={{ fontWeight: 700 }}>{s.label}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', wordBreak: 'break-all' }}>
-                          {s.value}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </form>
             )}
 
