@@ -160,9 +160,26 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Helper cerdas mencari file SSL dimanapun working directory PM2/Node berada
+function findSslFile(envPath, filename) {
+  const candidates = [
+    envPath,
+    envPath ? path.resolve(process.cwd(), envPath) : null,
+    envPath ? path.resolve(__dirname, envPath) : null,
+    path.resolve(__dirname, 'ssl', filename),
+    path.resolve(process.cwd(), 'server', 'ssl', filename),
+    path.resolve(process.cwd(), 'ssl', filename),
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return path.resolve(__dirname, 'ssl', filename);
+}
+
 // Check SSL files for native HTTPS server support
-const sslKeyPath = process.env.SSL_KEY_PATH || path.resolve(__dirname, 'ssl/server.key');
-const sslCertPath = process.env.SSL_CERT_PATH || path.resolve(__dirname, 'ssl/server.crt');
+const sslKeyPath = findSslFile(process.env.SSL_KEY_PATH, 'server.key');
+const sslCertPath = findSslFile(process.env.SSL_CERT_PATH, 'server.crt');
 const hasSslFiles = fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
 
 let server;
@@ -189,6 +206,18 @@ if (enableHttps && hasSslFiles) {
       console.log(` Configured DB User: ${dbConfig.user}`);
       console.log('='.repeat(60));
     });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌ [ERROR] Port ${PORT} sudah digunakan oleh proses lain di Windows!`);
+        console.error(`   Penyebab: PM2 atau Node.js lain sedang berjalan di port ${PORT}.`);
+        console.error(`   Solusi:`);
+        console.error(`   1. Hentikan proses PM2: pm2 stop all && pm2 delete all`);
+        console.error(`   2. Atau bunuh proses port ${PORT}: npx kill-port ${PORT}\n`);
+      } else {
+        console.error('❌ [Server Error]:', err);
+      }
+    });
   } catch (sslErr) {
     console.warn(`[SSL Warning] Gagal mengaktifkan HTTPS (${sslErr.message}). Fallback ke HTTP biasa.`);
   }
@@ -207,6 +236,16 @@ if (!server) {
     console.log(` Configured DB User: ${dbConfig.user}`);
     console.log(` HTTPS Status     : OFF (Atur FORCE_HTTPS=true atau sediakan server/ssl/server.key & .crt)`);
     console.log('='.repeat(60));
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n❌ [ERROR] Port ${PORT} sudah digunakan oleh proses lain di Windows!`);
+      console.error(`   Penyebab: PM2 atau Node.js lain sedang berjalan di port ${PORT}.`);
+      console.error(`   Solusi: pm2 delete all atau npx kill-port ${PORT}\n`);
+    } else {
+      console.error('❌ [Server Error]:', err);
+    }
   });
 }
 
