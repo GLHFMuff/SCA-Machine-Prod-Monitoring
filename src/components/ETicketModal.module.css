@@ -474,6 +474,43 @@
   gap: 12px;
 }
 
+/* ── Mobile Responsive Preview ── */
+@media screen and (max-width: 640px) {
+  .overlay {
+    padding: 8px;
+  }
+
+  .container {
+    max-height: 96dvh;
+    border-radius: 14px;
+  }
+
+  .topBar {
+    padding: 10px 14px;
+  }
+
+  .ticketArea {
+    padding: 14px 8px;
+  }
+
+  .labelCard {
+    padding: 10px 12px;
+    width: 100%;
+  }
+
+  .footerBar {
+    padding: 10px 14px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .footerBar button {
+    width: 100%;
+    justify-content: center;
+    padding: 11px 16px;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────
    PRINT MEDIA RULES
    Guarantees 100% clean, high-contrast, perfectly-centered printout

@@ -241,6 +241,82 @@
   gap: 12px;
 }
 
+/* ── Mobile Responsive Preview ── */
+@media screen and (max-width: 640px) {
+  .overlay {
+    padding: 8px;
+  }
+
+  .container {
+    max-height: 96dvh;
+    border-radius: 14px;
+  }
+
+  .topBar {
+    padding: 10px 14px;
+  }
+
+  .contentArea {
+    padding: 12px 8px;
+  }
+
+  .labelBorder {
+    padding: 8px 10px;
+    border-width: 2px;
+  }
+
+  .topSection {
+    gap: 8px;
+  }
+
+  .qrWrapper {
+    width: 100px;
+    height: 100px;
+  }
+
+  .infoColumn {
+    height: 100px;
+    padding-left: 2px;
+  }
+
+  .lengthText {
+    font-size: 19px;
+  }
+
+  .metaItem {
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+
+  .rollNumText {
+    font-size: 20px;
+  }
+
+  .bottomSection {
+    padding-top: 4px;
+  }
+
+  .k3lHeading {
+    font-size: 10px;
+  }
+
+  .k3lText {
+    font-size: 8.5px;
+  }
+
+  .footerBar {
+    padding: 10px 14px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .footerBar button {
+    width: 100%;
+    justify-content: center;
+    padding: 11px 16px;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────
    PRINT MEDIA RULES (110mm x 70mm Landscape)
 ───────────────────────────────────────────────────────────── */

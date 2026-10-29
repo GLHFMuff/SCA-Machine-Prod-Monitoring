@@ -34,3 +34,34 @@
   padding-bottom: 4px;
   flex-shrink: 0;
 }
+
+/* ── Mobile Responsive (Tablet & Ponsel) ── */
+@media (max-width: 768px) {
+  .wrapper {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .content {
+    flex: none;
+    min-height: calc(100dvh - 54px);
+    overflow: visible;
+    padding: 10px 12px 20px;
+  }
+
+  .actionBar {
+    flex-direction: column-reverse;
+    gap: 8px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .actionBar button {
+    width: 100%;
+    justify-content: center;
+    padding: 13px 20px !important;
+    font-size: 15px !important;
+  }
+}

@@ -276,3 +276,40 @@
     transform: translateY(0) scale(1);
   }
 }
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
+  .box {
+    max-height: 94dvh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px 16px 8px 8px;
+  }
+
+  .head {
+    padding: 14px 16px;
+  }
+
+  .body {
+    padding: 14px 16px;
+    gap: 14px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .foot {
+    padding: 12px 16px 16px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .btnCancel,
+  .btnSave {
+    width: 100%;
+    justify-content: center;
+  }
+}

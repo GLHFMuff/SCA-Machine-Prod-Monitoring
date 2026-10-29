@@ -542,3 +542,32 @@
   background: var(--surface2);
   color: var(--text);
 }
+
+/* ── Mobile Responsive Scan Modal ── */
+@media (max-width: 640px) {
+  .overlay {
+    padding: 8px;
+  }
+
+  .box {
+    max-height: 96dvh;
+    border-radius: 14px;
+  }
+
+  .head {
+    padding: 12px 14px;
+  }
+
+  .body {
+    padding: 14px;
+  }
+
+  .tabBtn {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .scannerViewport {
+    min-height: 220px;
+  }
+}

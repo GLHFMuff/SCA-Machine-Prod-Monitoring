@@ -27,3 +27,39 @@
 .machineInfo strong {
   color: var(--accent);
 }
+
+@media (max-width: 640px) {
+  .container {
+    padding: 36px 18px;
+    border-radius: 18px;
+    margin: 12px auto;
+    width: 100%;
+  }
+
+  .icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+  }
+
+  .title {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+
+  .sub {
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .scanBtn {
+    width: 100% !important;
+    font-size: 16px !important;
+    padding: 15px 20px !important;
+    border-radius: 10px !important;
+  }
+
+  .machineInfo {
+    margin-top: 20px;
+    font-size: 13.5px;
+  }
+}
