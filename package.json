@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node --watch server/index.js",
+    "server:ssl": "node server/generate-ssl.js",
     "server:test-db": "node server/test-db.js",
     "server:seed": "node server/seed-users.js",
     "server:test-auth": "node server/test-auth.js",

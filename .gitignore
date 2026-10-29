@@ -15,6 +15,11 @@ build/
 .env.production.local
 server/.env
 
+# SSL Certificates (Auto-generated per machine)
+server/ssl/*.key
+server/ssl/*.crt
+server/ssl/*.pem
+
 # Editor & OS files
 .vscode/
 .idea/

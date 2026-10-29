@@ -167,7 +167,9 @@ const hasSslFiles = fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
 
 let server;
 
-if (hasSslFiles || process.env.ENABLE_HTTPS === 'true') {
+const enableHttps = process.env.ENABLE_HTTPS === 'true' || (process.env.ENABLE_HTTPS !== 'false' && hasSslFiles);
+
+if (enableHttps && hasSslFiles) {
   try {
     const sslOptions = {
       key: fs.readFileSync(sslKeyPath),
