@@ -5,6 +5,7 @@ export default function MultiMachineReserveModal({
   prodId,
   currentMachineId,
   currentStartRoll,
+  firstMachineId,
   existingRolls = [],
   rollsByMachine = {},
   maxRollNumber = 0,
@@ -14,11 +15,16 @@ export default function MultiMachineReserveModal({
   onClose,
   onCancelScan,
 }) {
-  // Rekomendasi default: +10 dari roll terakhir mesin lain yang paling tinggi
+  // Rekomendasi default:
+  // 1. Jika ada roll dari mesin lain: +10 dari roll tertinggi mesin lain
+  // 2. Jika belum ada roll tapi dibuka pertama kali oleh mesin lain: alokasikan blok (Mesin 2 -> #51, Mesin 3 -> #101)
+  const fallbackMachineBlock = String(currentMachineId) === '2' ? 51 : (String(currentMachineId) === '3' ? 101 : 51)
+  const isDifferentFirstMachine = Boolean(firstMachineId && String(firstMachineId).trim() !== String(currentMachineId).trim())
+
   const recommendedDefault = currentStartRoll || (
     maxOtherRollNumber > 0
       ? maxOtherRollNumber + 10
-      : (maxRollNumber > 0 ? maxRollNumber + 1 : 1)
+      : (isDifferentFirstMachine ? fallbackMachineBlock : (maxRollNumber > 0 ? maxRollNumber + 1 : 1))
   )
 
   const [startRollInput, setStartRollInput] = useState(recommendedDefault)
@@ -110,10 +116,21 @@ export default function MultiMachineReserveModal({
             {/* Mandatory Alert Banner */}
             {isMandatory && (
               <div className={styles.mandatoryBanner}>
-                ⚠️ <strong>Wajib Mengisi Starting Roll:</strong> Order <strong>{prodId}</strong> sudah
-                memiliki data roll dari mesin lain (Roll tertinggi mesin lain: <strong>#{maxOtherRollNumber || maxRollNumber}</strong>).
-                Mesin #{currentMachineId} wajib menentukan nomor roll awal. Sistem merekomendasikan default{' '}
-                <strong>#{maxOtherRollNumber > 0 ? maxOtherRollNumber + 10 : 1}</strong> (+10 dari roll tertinggi mesin lain).
+                {maxOtherRollNumber > 0 ? (
+                  <>
+                    ⚠️ <strong>Wajib Mengisi Starting Roll:</strong> Order <strong>{prodId}</strong> sudah
+                    memiliki data roll dari mesin lain (Roll tertinggi mesin lain: <strong>#{maxOtherRollNumber || maxRollNumber}</strong>).
+                    Mesin #{currentMachineId} wajib menentukan nomor roll awal. Sistem merekomendasikan default{' '}
+                    <strong>#{recommendedDefault}</strong> (+10 dari roll tertinggi mesin lain).
+                  </>
+                ) : (
+                  <>
+                    ⚠️ <strong>Wajib Mengisi Starting Roll:</strong> Order <strong>{prodId}</strong> dibuka pertama kali oleh{' '}
+                    <strong>Mesin #{firstMachineId || '1'}</strong>.
+                    Mesin #{currentMachineId} wajib menentukan nomor roll awal agar nomor roll tidak bentrok. Sistem merekomendasikan default{' '}
+                    <strong>#{recommendedDefault}</strong>.
+                  </>
+                )}
               </div>
             )}
 
@@ -202,6 +219,16 @@ export default function MultiMachineReserveModal({
                     title={`Rekomendasi default: Roll #${maxOtherRollNumber} (tertinggi mesin lain) + 10`}
                   >
                     ⭐ Rekomendasi: Mesin Lain + 10 (#{maxOtherRollNumber + 10})
+                  </button>
+                )}
+                {maxOtherRollNumber === 0 && isDifferentFirstMachine && (
+                  <button
+                    type="button"
+                    className={`${styles.quickBtn} ${styles.recommendBtn}`}
+                    onClick={() => handleQuickSet(recommendedDefault)}
+                    title={`Rekomendasi blok awal Mesin #${currentMachineId}`}
+                  >
+                    ⭐ Rekomendasi Blok Mesin #{currentMachineId} (#{recommendedDefault})
                   </button>
                 )}
                 <button

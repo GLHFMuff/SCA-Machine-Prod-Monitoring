@@ -83,8 +83,8 @@ async function upsertHeaderQuery(client, header) {
   if (check.rows.length > 0) {
     const res = await client.query(
       `UPDATE "CountingKainHeader"
-       SET "NoMesin" = $2,
-           "UserId" = $3,
+       SET "NoMesin" = COALESCE(NULLIF("NoMesin", ''), $2),
+           "UserId" = COALESCE(NULLIF("UserId", ''), $3),
            "SeqmentNum" = COALESCE(NULLIF($4::text, ''), "SeqmentNum"),
            "CustCode" = COALESCE(NULLIF($5::text, ''), "CustCode"),
            "DesignCode" = COALESCE(NULLIF($6::text, ''), "DesignCode"),

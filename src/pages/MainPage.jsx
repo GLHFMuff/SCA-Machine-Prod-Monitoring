@@ -343,11 +343,25 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         setDefects(loadedDefects)
         setScanned(true)
 
-        // SYARAT KHUSUS: Jika order sudah ada datanya di DB (allDbLines > 0)
-        // namun untuk mesin ini masih kosong (loadedRolls === 0),
-        // WAJIB mengisi starting rollnya (default +10 dari roll terakhir mesin lain yang paling tinggi)
-        if (allDbLines.length > 0 && loadedRolls.length === 0) {
-          const defaultStart = maxOtherRoll > 0 ? maxOtherRoll + 10 : 1
+        // ATURAN MULTI-MESIN:
+        // Cek apakah order ini dibuka pertama kali oleh mesin lain
+        const firstMachineId = String(dbRecord.NoMesin || '').trim()
+        const isOtherMachineOwner = Boolean(firstMachineId && firstMachineId !== String(machineId).trim())
+
+        // WAJIB ISI STARTING ROLL JIKA:
+        // 1. Sudah ada roll dari mesin lain (allDbLines.length > 0) dan untuk mesin ini masih 0
+        // ATAU
+        // 2. Belum ada roll sama sekali, TAPI order ini dibuka pertama kali oleh mesin lain (isOtherMachineOwner === true)!
+        const shouldTriggerMandatoryReserve = loadedRolls.length === 0 && (
+          allDbLines.length > 0 || isOtherMachineOwner
+        )
+
+        if (shouldTriggerMandatoryReserve) {
+          const fallbackMachineBlock = String(machineId).trim() === '2' ? 51 : (String(machineId).trim() === '3' ? 101 : 51)
+          const defaultStart = maxOtherRoll > 0
+            ? maxOtherRoll + 10
+            : (isOtherMachineOwner ? fallbackMachineBlock : 1)
+
           if (parsed.startRollNumber) {
             setStartRollNumber(parsed.startRollNumber)
           } else {
@@ -355,10 +369,15 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             setMandatoryReserveModal({
               prodId: targetProdId,
               currentMachineId: machineId,
+              firstMachineId: firstMachineId,
               suggestedStart: defaultStart,
               maxOtherRoll,
             })
-            showToast(`ℹ️ Order '${targetProdId}' ada. Mesin #${machineId} wajib mengisi starting roll (Rekomendasi: #${defaultStart}).`)
+            showToast(
+              maxOtherRoll > 0
+                ? `ℹ️ Order '${targetProdId}' aktif di mesin lain. Mesin #${machineId} wajib mengisi starting roll (Rekomendasi: #${defaultStart}).`
+                : `ℹ️ Order '${targetProdId}' dibuka pertama kali oleh Mesin #${firstMachineId}. Mesin #${machineId} wajib menentukan starting roll.`
+            )
           }
         } else if (loadedRolls.length > 0) {
           showToast(isRestoring
@@ -1079,6 +1098,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           prodId={mandatoryReserveModal.prodId}
           currentMachineId={mandatoryReserveModal.currentMachineId}
           currentStartRoll={mandatoryReserveModal.suggestedStart}
+          firstMachineId={mandatoryReserveModal.firstMachineId}
           existingRolls={existingDbRolls}
           rollsByMachine={rollsByMachine}
           maxRollNumber={maxRollNumber}
@@ -1087,7 +1107,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           onApplyStartRoll={(startVal) => {
             updateStartRollNumber(startVal)
             setMandatoryReserveModal(null)
-            showToast(`✓ Starting roll Mesin #${mandatoryReserveModal.currentMachineId} disetel ke #${startVal} (+10 dari roll tertinggi mesin lain).`)
+            showToast(`✓ Starting roll Mesin #${mandatoryReserveModal.currentMachineId} disetel ke #${startVal}.`)
           }}
           onClose={() => setMandatoryReserveModal(null)}
           onCancelScan={() => {

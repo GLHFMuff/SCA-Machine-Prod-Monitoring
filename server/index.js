@@ -106,13 +106,13 @@ const handleHealthCheck = async (req, res) => {
       ssl: dbHealth.config.ssl,
       ...(dbHealth.connected
         ? {
-            serverTime: dbHealth.serverTime,
-            version: dbHealth.version,
-          }
+          serverTime: dbHealth.serverTime,
+          version: dbHealth.version,
+        }
         : {
-            error: dbHealth.error,
-            code: dbHealth.code,
-          }),
+          error: dbHealth.error,
+          code: dbHealth.code,
+        }),
     },
   };
 
