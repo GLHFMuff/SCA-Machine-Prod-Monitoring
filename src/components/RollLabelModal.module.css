@@ -318,18 +318,18 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PRINT MEDIA RULES (110mm x 70mm Landscape)
+   PRINT MEDIA RULES (100mm x 47mm Landscape)
 ───────────────────────────────────────────────────────────── */
 @media print {
   @page {
-    size: 110mm 70mm landscape;
+    size: 100mm 47mm landscape;
     margin: 0;
   }
 
   html,
   body {
-    width: 110mm !important;
-    height: 70mm !important;
+    width: 100mm !important;
+    height: 47mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -388,8 +388,8 @@
     position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    width: 110mm !important;
-    height: 70mm !important;
+    width: 100mm !important;
+    height: 47mm !important;
     padding: 2.5mm !important;
     box-shadow: none !important;
     border-radius: 0 !important;
@@ -402,8 +402,8 @@
   }
 
   .labelBorder {
-    width: 105mm !important;
-    height: 65mm !important;
+    width: 97mm !important;
+    height: 45mm !important;
     border: 2.5px solid #000000 !important;
     padding: 3.5mm 4.5mm !important;
     box-sizing: border-box !important;

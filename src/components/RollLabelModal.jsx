@@ -76,7 +76,7 @@ export default function RollLabelModal({
         await onPrint(roll)
       }
 
-      // Iframe print terisolasi agar 100% pas proporsi 110mm x 70mm landscape
+      // Iframe print terisolasi agar 100% pas proporsi 100mm x 47mm landscape
       const iframe = printIframeRef.current
       if (iframe) {
         const doc = iframe.contentWindow.document
@@ -89,7 +89,7 @@ export default function RollLabelModal({
               <title>Label Roll #${rollNum} - 11x7cm</title>
               <style>
                 @page {
-                  size: 110mm 70mm landscape;
+                  size: 100mm 50mm landscape;
                   margin: 0;
                 }
                 * {
@@ -101,8 +101,8 @@ export default function RollLabelModal({
                   print-color-adjust: exact !important;
                 }
                 html, body {
-                  width: 110mm;
-                  height: 70mm;
+                  width: 100mm;
+                  height: 50mm;
                   background: #ffffff;
                   color: #000000;
                   overflow: hidden;
@@ -110,16 +110,16 @@ export default function RollLabelModal({
                   padding: 0;
                 }
                 .labelWrapper {
-                  width: 110mm;
-                  height: 70mm;
+                  width: 100mm;
+                  height: 50mm;
                   padding: 2.5mm;
                   display: flex;
                   justify-content: center;
                   align-items: center;
                 }
                 .labelBorder {
-                  width: 105mm;
-                  height: 65mm;
+                  width: 97mm;
+                  height: 47mm;
                   border: 2.5px solid #000000;
                   padding: 3.5mm 4.5mm;
                   display: flex;
@@ -132,11 +132,11 @@ export default function RollLabelModal({
                   justify-content: space-between;
                   align-items: flex-start;
                   height: 41mm;
-                  gap: 5mm;
+                  gap: 3mm;
                 }
                 .qrWrapper {
-                  width: 41mm;
-                  height: 41mm;
+                  width: 26mm;
+                  height: 26mm;
                   flex-shrink: 0;
                   display: flex;
                   align-items: center;
@@ -150,19 +150,19 @@ export default function RollLabelModal({
                 }
                 .infoColumn {
                   flex: 1;
-                  height: 41mm;
+                  height: 26mm;
                   display: flex;
                   flex-direction: column;
                   justify-content: space-between;
                   padding-left: 2mm;
                 }
                 .lengthText {
-                  font-size: 24pt;
+                  font-size: 18pt;
                   font-weight: 900;
                   line-height: 1.05;
                 }
                 .metaItem {
-                  font-size: 12pt;
+                  font-size: 10pt;
                   font-weight: 700;
                   line-height: 1.25;
                   text-transform: uppercase;
@@ -171,7 +171,7 @@ export default function RollLabelModal({
                   font-weight: 800;
                 }
                 .rollNumText {
-                  font-size: 30pt;
+                  font-size: 15pt;
                   font-weight: 900;
                   line-height: 1;
                 }
@@ -182,12 +182,12 @@ export default function RollLabelModal({
                   padding-top: 1.5mm;
                 }
                 .k3lHeading {
-                  font-size: 11pt;
+                  font-size: 9pt;
                   font-weight: 800;
                   line-height: 1.25;
                 }
                 .k3lText {
-                  font-size: 9.5pt;
+                  font-size: 7.5pt;
                   font-weight: 500;
                   line-height: 1.2;
                 }
@@ -314,11 +314,11 @@ export default function RollLabelModal({
         </div>
       </div>
 
-      {/* Hidden isolated iframe for 100% accurate 110mm x 70mm label printing */}
+      {/* Hidden isolated iframe for 100% accurate 100mm x 47mm label printing */}
       <iframe
         ref={printIframeRef}
         title="Print Label Frame"
-        style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: '110mm', height: '70mm', border: 'none' }}
+        style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: '100mm', height: '47mm', border: 'none' }}
       />
     </div>
   )
