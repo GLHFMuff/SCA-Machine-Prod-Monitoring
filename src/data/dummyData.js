@@ -9,7 +9,7 @@ export const USERS = [
 export const SCAN_DATA = {
   prodNumber: 'OP.122025.001257',
   seqmentNum: 'SPM.2025.DES.018 B',
-  fabricType: '02392',
+  fabricType: '',
   color: 'Putih 08BG',
   construction: '75D x 150D / 92 x 72',
   width: '102 X 52',

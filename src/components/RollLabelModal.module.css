@@ -1,4 +1,4 @@
-/* RollLabelModal.module.css - 9x5 cm Landscape Roll Label Printing */
+/* RollLabelModal.module.css - Rayon Cunda 90x50mm (9x5 cm) Landscape Label Printing */
 
 .overlay {
   position: fixed;
@@ -28,7 +28,7 @@
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: var(--radius-lg, 16px);
   width: 100%;
-  max-width: 660px;
+  max-width: 600px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
   display: flex;
   flex-direction: column;
@@ -93,16 +93,124 @@
   color: var(--text, #ffffff);
 }
 
-/* Content Area - Focused purely on the full label preview */
-.contentArea {
-  padding: 24px 20px;
+/* Scrollable Ticket Area */
+.ticketArea {
+  padding: 20px;
   background: #090d16;
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow-y: auto;
+  gap: 14px;
 }
 
+.previewNotice {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.toggleEditBtn {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggleEditBtn:hover {
+  background: rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+/* Optional In-Place Field Editor */
+.editDrawer {
+  width: 100%;
+  max-width: 480px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.2s ease;
+}
+
+.editGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.editGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editGroupFull {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.editInput {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.editInput:focus {
+  border-color: #3b82f6;
+}
+
+.resetBtn {
+  align-self: flex-end;
+  background: transparent;
+  border: 1px solid #475569;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.resetBtn:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PREVIEW CARD  100mm x 50mm Landscape - Aspect Ratio 9:5)
+───────────────────────────────────────────────────────────── */
 .previewWrapper {
   width: 100%;
   max-width: 480px;
@@ -110,16 +218,14 @@
   justify-content: center;
 }
 
-/* Card representation of 9 x 5 cm Landscape */
 .labelCard {
   width: 100%;
   aspect-ratio: 9 / 5;
   background: #ffffff;
   color: #000000;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-  padding: 8px;
+  padding: 4px;
   box-sizing: border-box;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -129,106 +235,176 @@
 .labelBorder {
   width: 100%;
   height: 100%;
-  border: 2.2px solid #000000;
+  border: 2px solid #000000;
   box-sizing: border-box;
-  padding: 9px 13px;
+  padding: 5px 8px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Times New Roman', Times, Georgia, serif;
 }
 
-/* Top Section: QR Code on Left, Specs on Right */
-.topSection {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  flex: 1;
-}
-
-.qrWrapper {
-  width: 120px;
-  height: 120px;
-  flex-shrink: 0;
+/* 1. Header Area (Centered, No Logos) */
+.headerArea {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+.companyInfo {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.companyName {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1.15;
+  color: #000000;
+  text-align: center;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* 2. Body Area (QR Code + Specifications centered) */
+.bodyArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex: 1;
+  width: 100%;
+  border-top: 1.8px solid #000000;
+  border-bottom: 1.8px solid #000000;
+  padding: 3px 0;
+  box-sizing: border-box;
+}
+
+.qrColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 96px;
+  flex-shrink: 0;
+}
+
+.qrWrapper {
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
 }
 
 .qrImage {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  display: block;
   image-rendering: pixelated;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
-.qrLoading {
-  font-size: 11px;
-  color: #6b7280;
+.qrText {
+  font-family: Arial, Helvetica, system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  color: #000000;
+  text-align: center;
+  margin-top: 2px;
+  word-break: break-all;
+  line-height: 1.15;
 }
 
-.infoColumn {
-  flex: 1;
+.detailsColumn {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding-top: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  height: 120px;
-  padding-left: 4px;
+  justify-content: center;
 }
 
-.lengthText {
-  font-size: 24px;
-  font-weight: 900;
-  color: #000000;
-  line-height: 1.05;
-  letter-spacing: -0.3px;
+.detailsGrid {
+  display: grid;
+  grid-template-columns: max-content auto 1fr;
+  row-gap: 3px;
+  align-items: baseline;
 }
 
-.metaItem {
+.labelCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 900;
+  letter-spacing: 0.2px;
   color: #000000;
-  line-height: 1.25;
-  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.metaLabel {
-  font-weight: 800;
-}
-
-.metaValue {
-  font-weight: 700;
-}
-
-.rollNumText {
-  font-size: 32px;
+.colonCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 12px;
   font-weight: 900;
   color: #000000;
-  line-height: 1;
+  padding: 0 4px;
+  text-align: center;
 }
 
-/* Bottom Section: Registrasi barang K3L & Disclaimers */
-.bottomSection {
+.valueCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.qtyContainer {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding-top: 5px;
+  align-items: flex-start;
 }
 
-.k3lHeading {
-  font-size: 11.5px;
-  font-weight: 800;
-  color: #000000;
-  line-height: 1.25;
-}
-
-.k3lText {
-  font-size: 9.5px;
+.breakdownText {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 9px;
   font-weight: 500;
   color: #000000;
-  line-height: 1.2;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+/* 3. Bottom Registration Area */
+.bottomSection {
+  text-align: center;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.k3lTitle,
+.k3lNumber {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 7.5px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  color: #000000;
+  line-height: 1.15;
+  text-align: center;
+  margin: 0;
 }
 
 /* Modal Footer */
@@ -256,52 +432,50 @@
     padding: 10px 14px;
   }
 
-  .contentArea {
-    padding: 12px 8px;
+  .ticketArea {
+    padding: 14px 8px;
   }
 
   .labelBorder {
-    padding: 6px 8px;
+    padding: 4px 6px;
     border-width: 1.8px;
   }
 
-  .topSection {
-    gap: 8px;
+  .companyName {
+    font-size: 12px;
+  }
+
+  .bodyArea {
+    gap: 10px;
+    padding: 2px 0;
+  }
+
+  .qrColumn {
+    width: 74px;
   }
 
   .qrWrapper {
-    width: 82px;
-    height: 82px;
+    width: 70px;
+    height: 70px;
   }
 
-  .infoColumn {
-    height: 82px;
-    padding-left: 2px;
+  .qrText {
+    font-size: 6.5px;
   }
 
-  .lengthText {
-    font-size: 16px;
-  }
-
-  .metaItem {
+  .labelCell,
+  .colonCell,
+  .valueCell {
     font-size: 9px;
-    line-height: 1.2;
   }
 
-  .rollNumText {
-    font-size: 18px;
+  .breakdownText {
+    font-size: 7px;
   }
 
-  .bottomSection {
-    padding-top: 3px;
-  }
-
-  .k3lHeading {
-    font-size: 8.5px;
-  }
-
-  .k3lText {
-    font-size: 7.5px;
+  .k3lTitle,
+  .k3lNumber {
+    font-size: 6px;
   }
 
   .footerBar {
@@ -318,17 +492,17 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PRINT MEDIA RULES (90mm x 50mm Landscape - 9x5 cm)
+   PRINT MEDIA RULES  100mm x 50mm Landscape - 9x5 cm)
 ───────────────────────────────────────────────────────────── */
 @media print {
   @page {
-    size: 90mm 50mm landscape;
+    size: 100mm 50mm landscape;
     margin: 0;
   }
 
   html,
   body {
-    width: 90mm !important;
+    width: 100mm !important;
     height: 50mm !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -336,6 +510,7 @@
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    font-family: 'Times New Roman', Times, Georgia, serif !important;
   }
 
   body * {
@@ -365,11 +540,13 @@
   }
 
   .topBar,
-  .footerBar {
+  .footerBar,
+  .previewNotice,
+  .editDrawer {
     display: none !important;
   }
 
-  .contentArea {
+  .ticketArea {
     background: transparent !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -388,9 +565,9 @@
     position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    width: 90mm !important;
+    width: 100mm !important;
     height: 50mm !important;
-    padding: 2.5mm !important;
+    padding: 1mm !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     box-sizing: border-box !important;
@@ -402,67 +579,124 @@
   }
 
   .labelBorder {
-    width: 85mm !important;
-    height: 45mm !important;
+    width: 98mm !important;
+    height: 48mm !important;
     border: 2px solid #000000 !important;
-    padding: 2mm 3.5mm !important;
+    padding: 1.2mm 2mm !important;
     box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
   }
 
-  .topSection {
-    height: 28mm !important;
-    gap: 3.5mm !important;
+  .headerArea {
+    height: 11mm !important;
+    margin-bottom: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+
+  .companyInfo {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  .companyName {
+    font-size: 10pt !important;
+    font-weight: 900 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .bodyArea {
+    height: 30mm !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5mm !important;
+    padding: 0.5mm 0 !important;
+    border-top: 1.5px solid #000000 !important;
+    border-bottom: 1.5px solid #000000 !important;
+    box-sizing: border-box !important;
+  }
+
+  .qrColumn {
+    width: 24mm !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
   }
 
   .qrWrapper {
-    width: 28mm !important;
-    height: 28mm !important;
+    width: 22.5mm !important;
+    height: 22.5mm !important;
   }
 
   .qrImage {
     image-rendering: pixelated !important;
   }
 
-  .infoColumn {
-    height: 28mm !important;
-    padding-left: 1.5mm !important;
+  .qrText {
+    font-size: 4.8pt !important;
+    margin-top: 0.4mm !important;
   }
 
-  .lengthText {
-    font-size: 16pt !important;
-    font-weight: 900 !important;
-    line-height: 1.05 !important;
+  .detailsColumn {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    padding-top: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
   }
 
-  .metaItem {
-    font-size: 8.5pt !important;
-    font-weight: 700 !important;
-    line-height: 1.2 !important;
+  .detailsGrid {
+    row-gap: 0.9mm !important;
   }
 
-  .rollNumText {
-    font-size: 20pt !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
+  .labelCell,
+  .colonCell,
+  .valueCell {
+    font-size: 12pt !important;
+  }
+
+  .colonCell {
+    padding: 0 1.2mm !important;
+  }
+
+  .breakdownText {
+    font-size: 5.8pt !important;
+    font-weight: 500 !important;
+    margin-top: 0.2mm !important;
   }
 
   .bottomSection {
-    padding-top: 1mm !important;
-    gap: 0.3mm !important;
+    height: 3.5mm !important;
+    margin-top: 0.2mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
   }
 
-  .k3lHeading {
-    font-size: 8pt !important;
-    font-weight: 800 !important;
-    line-height: 1.2 !important;
-  }
-
-  .k3lText {
-    font-size: 6.8pt !important;
-    font-weight: 500 !important;
+  .k3lTitle,
+  .k3lNumber {
+    font-size: 7pt !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.2px !important;
+    color: #000000 !important;
     line-height: 1.15 !important;
+    text-align: center !important;
+    margin: 0 !important;
   }
 }

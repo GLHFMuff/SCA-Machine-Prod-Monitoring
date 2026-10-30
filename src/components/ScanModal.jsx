@@ -5,15 +5,15 @@ import styles from './ScanModal.module.css'
 export const SAMPLE_QR_CODES = [
   {
     label: 'OP.012026.001113 (Order Terdaftar)',
-    value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52;Putih Reguler;REC-PRD-001;REC-SLS-001;REC-ITM-001;5,000.50;2,500.00;',
+    value: 'OP.012026.001113;SPM.2026.DES.018;CUST-SCA-01;SCA 100% PE 102 X 52;Putih Reguler;REC-PRD-001;REC-SLS-001;REC-ITM-001;5,000.50;2,500.00;20-D-001909;CV. CUNDA MANUNGGAL;',
   },
   {
     label: 'OP.022026.000674 (Order Terdaftar)',
-    value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis;Navy;REC-PRD-002;REC-SLS-002;REC-ITM-002;3,500.00;1,200.75;',
+    value: 'OP.022026.000674;SPM.2026.DES.019;CUST-SCA-02;Rayon Twill 30s Motif Garis;Navy;REC-PRD-002;REC-SLS-002;REC-ITM-002;3,500.00;1,200.75;20-D-001909;CV. CUNDA MANUNGGAL;',
   },
   {
     label: 'OP.102026.000999 (Data Baru)',
-    value: 'OP.102026.000999;SPM.2026.DES.020;CUST-NEW;Cotton Combed 24s;Hitam Reaktif;REC-PRD-003;REC-SLS-003;REC-ITM-003;4,250.00;0.00;',
+    value: 'OP.102026.000999;SPM.2026.DES.020;CUST-NEW;Cotton Combed 24s;Hitam Reaktif;REC-PRD-003;REC-SLS-003;REC-ITM-003;4,250.00;0.00;20-D-001909;CV. CUNDA MANUNGGAL;',
   },
 ]
 
@@ -31,7 +31,7 @@ export function parseFormattedNumber(val) {
 
 /**
  * Helper to parse QR content with format:
- * ProdId;SeqmentNum;CustCode;DesignCode;Color;RecidProdId;RecidSalesId;RecidItemId;OrderQty;StockQty;
+ * ProdId;SeqmentNum;CustCode;DesignCode;Color;RecidProdId;RecidSalesId;RecidItemId;OrderQty;StockQty;K3LNumber;K3LName;
  */
 export function parseQrContent(rawString) {
   if (!rawString) return null
@@ -50,6 +50,8 @@ export function parseQrContent(rawString) {
     const recidItemId = parts[7] || ''
     const orderQty = parseFormattedNumber(parts[8])
     const stockQty = parseFormattedNumber(parts[9])
+    const k3lNumber = parts[10] || ''
+    const k3lName = parts[11] || ''
 
     return {
       raw: text,
@@ -66,6 +68,10 @@ export function parseQrContent(rawString) {
       recidItemId,
       orderQty,
       stockQty,
+      k3lNumber,
+      k3lName,
+      K3LNumber: k3lNumber,
+      K3LName: k3lName,
       isQrBundle: true,
     }
   }
@@ -86,6 +92,10 @@ export function parseQrContent(rawString) {
     recidItemId: '',
     orderQty: 0,
     stockQty: 0,
+    k3lNumber: '',
+    k3lName: '',
+    K3LNumber: '',
+    K3LName: '',
     isQrBundle: false,
   }
 }

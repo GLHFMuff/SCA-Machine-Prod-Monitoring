@@ -73,7 +73,20 @@ export default function Label100x50Modal({
   const initialQrLabel = 'inktr.ee/rayoncunda'
 
   // K3L Registration Number
-  const initialK3L = '20-D-001909'
+  const initialK3L =
+    prodData?.k3lNumber ||
+    prodData?.K3LNumber ||
+    roll?.k3lNumber ||
+    roll?.K3LNumber ||
+    '20-D-001909'
+
+  // K3L Name / Header Title (dari CountingKainHeader)
+  const initialK3LName =
+    prodData?.k3lName ||
+    prodData?.K3LName ||
+    roll?.k3lName ||
+    roll?.K3LName ||
+    ''
 
   // ── State for live customizable values ──
   const [rollNum, setRollNum] = useState(initialRollNum)
@@ -86,6 +99,7 @@ export default function Label100x50Modal({
   const [qrUrl, setQrUrl] = useState(initialQrLink)
   const [qrLabel, setQrLabel] = useState(initialQrLabel)
   const [k3lNumber, setK3lNumber] = useState(initialK3L)
+  const [k3lName, setK3lName] = useState(initialK3LName)
 
   // QR Code base64 DataURL
   const [qrDataUrl, setQrDataUrl] = useState('')
@@ -96,7 +110,7 @@ export default function Label100x50Modal({
     const textToEncode = qrUrl.trim() || 'https://linktr.ee/rayoncunda'
 
     QRCode.toDataURL(textToEncode, {
-      width: 320,
+      width: 380,
       margin: 1,
       errorCorrectionLevel: 'M',
       color: {
@@ -128,17 +142,19 @@ export default function Label100x50Modal({
     setQrUrl(initialQrLink)
     setQrLabel(initialQrLabel)
     setK3lNumber(initialK3L)
+    setK3lName(initialK3LName)
   }
 
-  // Format Kode Design / Jenis Kain:
+  // Format Header Title (diambil dari CountingKainHeader field K3LName, fallback ke Kode Design jika kosong)
+  const rawK3LName = String(k3lName || '').trim()
   const cleanCode = kodeDesign.trim()
   const hasCdPrefix = /^CD\s*[-–:]?\s*/i.test(cleanCode)
   const innerCode = hasCdPrefix
     ? cleanCode.replace(/^CD\s*[-–:]?\s*/i, '').trim()
     : cleanCode
-  const cdDesignTitle = hasCdPrefix
-    ? `CD ${innerCode.toUpperCase()}`
-    : `CD ${cleanCode.toUpperCase()}`
+  const cdDesignTitle = rawK3LName
+    ? rawK3LName.toUpperCase()
+    : (hasCdPrefix ? `CD ${innerCode.toUpperCase()}` : `CD ${cleanCode.toUpperCase()}`)
 
   // Dynamic font sizing for header title & color
   let headerTitleFontSize = '16px'
@@ -194,16 +210,16 @@ export default function Label100x50Modal({
                 .labelWrapper {
                   width: 100mm;
                   height: 50mm;
-                  padding: 2mm;
+                  padding: 1mm;
                   display: flex;
                   justify-content: center;
                   align-items: center;
                 }
                 .labelBorder {
-                  width: 96mm;
-                  height: 46mm;
+                  width: 98mm;
+                  height: 48mm;
                   border: 2px solid #000000;
-                  padding: 2.2mm 3.2mm;
+                  padding: 1mm 2mm;
                   display: flex;
                   flex-direction: column;
                   justify-content: space-between;
@@ -213,7 +229,7 @@ export default function Label100x50Modal({
                   display: flex;
                   align-items: center;
                   justify-content: space-between;
-                  height: 12mm;
+                  height: 9mm;
                   width: 100%;
                 }
                 .headerLeft {
@@ -222,8 +238,8 @@ export default function Label100x50Modal({
                   flex-shrink: 0;
                 }
                 .logoCunda {
-                  width: 11mm;
-                  height: 11mm;
+                  width: 10.5mm;
+                  height: 10.5mm;
                   object-fit: contain;
                   border-radius: 50%;
                   display: block;
@@ -254,26 +270,30 @@ export default function Label100x50Modal({
                   flex-shrink: 0;
                 }
                 .logoHalal {
-                  height: 10.5mm;
+                  height: 10mm;
                   width: auto;
                   max-width: 9.5mm;
                   object-fit: contain;
                   display: block;
                 }
                 .logoTkdn {
-                  height: 10.5mm;
+                  height: 10mm;
                   width: auto;
                   max-width: 12mm;
                   object-fit: contain;
                   display: block;
                 }
-                /* Body Area (QR + Details) */
+                /* Body Area (QR + Details centered) */
                 .bodyArea {
-                  height: 28mm;
+                  height: 30mm;
                   display: flex;
-                  align-items: flex-start;
-                  justify-content: flex-start;
-                  gap: 4mm;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 2mm;
+                  border-top: 1.5px solid #000000;
+                  border-bottom: 1.5px solid #000000;
+                  padding: 0mm 0;
+                  box-sizing: border-box;
                 }
                 .qrColumn {
                   width: 25mm;
@@ -283,8 +303,8 @@ export default function Label100x50Modal({
                   align-items: center;
                 }
                 .qrWrapper {
-                  width: 23mm;
-                  height: 23mm;
+                  width: 23.5mm;
+                  height: 23.5mm;
                   display: flex;
                   align-items: center;
                   justify-content: center;
@@ -303,36 +323,39 @@ export default function Label100x50Modal({
                   font-weight: 600;
                   color: #000000;
                   text-align: center;
-                  margin-top: 0.6mm;
+                  margin-top: 0.5mm;
                   word-break: break-all;
                   line-height: 1.1;
                 }
                 .detailsColumn {
-                  flex: 1;
+                  flex: 0 0 auto;
                   min-width: 0;
-                  padding-top: 0.2mm;
+                  padding-top: 0;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
                 }
                 .detailsGrid {
                   display: grid;
                   grid-template-columns: max-content auto 1fr;
-                  row-gap: 1mm;
+                  row-gap: 0.2mm;
                   align-items: baseline;
                 }
                 .labelCell {
-                  font-size: 8.5pt;
+                  font-size: 12pt;
                   font-weight: 900;
                   color: #000000;
                   white-space: nowrap;
                 }
                 .colonCell {
-                  font-size: 8.5pt;
+                  font-size: 12pt;
                   font-weight: 900;
                   color: #000000;
-                  padding: 0 1.5mm;
+                  padding: 0 1.2mm;
                   text-align: center;
                 }
                 .valueCell {
-                  font-size: 8.5pt;
+                  font-size: 12pt;
                   font-weight: 600;
                   color: #000000;
                   white-space: nowrap;
@@ -343,16 +366,16 @@ export default function Label100x50Modal({
                   align-items: flex-start;
                 }
                 .breakdownText {
-                  font-size: 8pt;
-                  font-weight: 600;
+                  font-size: 6pt;
+                  font-weight: 500;
                   color: #000000;
                   margin-top: 0.3mm;
                   white-space: nowrap;
                 }
                 /* Bottom K3L Registration Area */
                 .bottomSection {
-                  height: 4mm;
-                  margin-top: 0.4mm;
+                  height: 3mm;
+                  margin-top: 0mm;
                   display: flex;
                   flex-direction: column;
                   align-items: center;
@@ -362,9 +385,9 @@ export default function Label100x50Modal({
                 }
                 .k3lTitle,
                 .k3lNumber {
-                  font-size: 5pt;
-                  font-weight: 400;
-                  letter-spacing: 0.2px;
+                  font-size: 7pt;
+                  font-weight: 500;
+                  letter-spacing: 0.6px;
                   color: #000000;
                   line-height: 1.15;
                   text-align: center;
@@ -429,8 +452,7 @@ export default function Label100x50Modal({
 
                   <!-- Bottom Registration K3L Area -->
                   <div class="bottomSection">
-                    <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L</div>
-                    <div class="k3lNumber">${k3lNumber}</div>
+                    <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L : ${k3lNumber}</div>
                   </div>
                 </div>
               </div>
@@ -571,6 +593,16 @@ export default function Label100x50Modal({
                     placeholder="20-D-001909"
                   />
                 </div>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>Nama K3L (Header)</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={k3lName}
+                    onChange={(e) => setK3lName(e.target.value)}
+                    placeholder="Contoh: K3L NAME"
+                  />
+                </div>
                 <div className={styles.editGroupFull}>
                   <label className={styles.editLabel}>Teks Bawah QR Code</label>
                   <input
@@ -699,8 +731,8 @@ export default function Label100x50Modal({
 
                 {/* 3. Bottom Registration Area */}
                 <div className={styles.bottomSection}>
-                  <div className={styles.k3lTitle}>NOMOR REGISTRASI BARANG K3L</div>
-                  <div className={styles.k3lNumber}>{k3lNumber}</div>
+                  <div className={styles.k3lTitle}>NOMOR REGISTRASI BARANG K3L : {k3lNumber}</div>
+                  {/* <div className={styles.k3lNumber}>{k3lNumber}</div> */}
                 </div>
               </div>
             </div>

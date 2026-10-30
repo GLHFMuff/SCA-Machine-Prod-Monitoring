@@ -66,6 +66,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         recidItemId: initialSavedOrder.recidItemId || '',
         orderQty: parseFormattedNumber(initialSavedOrder.orderQty),
         stockQty: parseFormattedNumber(initialSavedOrder.stockQty),
+        k3lNumber: initialSavedOrder.k3lNumber || initialSavedOrder.K3LNumber || '',
+        k3lName: initialSavedOrder.k3lName || initialSavedOrder.K3LName || '',
+        K3LNumber: initialSavedOrder.K3LNumber || initialSavedOrder.k3lNumber || '',
+        K3LName: initialSavedOrder.K3LName || initialSavedOrder.k3lName || '',
         noMesin: currentMachineId,
         userId: user?.username || user?.name || 'operator',
         isFromDb: true,
@@ -179,6 +183,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           recidItemId: parts[7] || '',
           orderQty: parseFormattedNumber(parts[8]),
           stockQty: parseFormattedNumber(parts[9]),
+          k3lNumber: parts[10] || '',
+          k3lName: parts[11] || '',
+          K3LNumber: parts[10] || '',
+          K3LName: parts[11] || '',
         }
       } else {
         parsed = {
@@ -195,6 +203,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           recidItemId: '',
           orderQty: 0,
           stockQty: 0,
+          k3lNumber: '',
+          k3lName: '',
+          K3LNumber: '',
+          K3LName: '',
         }
       }
     }
@@ -209,6 +221,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     const targetRecidItemId = (parsed.recidItemId || '').trim()
     const targetOrderQty = parseFormattedNumber(parsed.orderQty)
     const targetStockQty = parseFormattedNumber(parsed.stockQty)
+    const targetK3LNumber = (parsed.k3lNumber || parsed.K3LNumber || '').trim()
+    const targetK3LName = (parsed.k3lName || parsed.K3LName || '').trim()
     const machineId = String(user?.machine_id || user?.machineId || '1')
     const userId = user?.username || user?.name || 'operator'
 
@@ -229,6 +243,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         recidItemId: targetRecidItemId,
         orderQty: targetOrderQty,
         stockQty: targetStockQty,
+        k3lNumber: targetK3LNumber,
+        k3lName: targetK3LName,
+        K3LNumber: targetK3LNumber,
+        K3LName: targetK3LName,
         startRollNumber: parsed.startRollNumber || startRollNumber || null,
         scannedAt: new Date().toISOString(),
       }
@@ -255,6 +273,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           RecidItemId: targetRecidItemId,
           OrderQty: targetOrderQty,
           StockQty: targetStockQty,
+          K3LNumber: targetK3LNumber,
+          K3LName: targetK3LName,
         })
         headerSaveSuccess = true
       } catch (headErr) {
@@ -293,6 +313,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           recidItemId: dbRecord.RecidItemId || targetRecidItemId || '',
           orderQty: dbRecord.OrderQty !== undefined && dbRecord.OrderQty !== null ? parseFormattedNumber(dbRecord.OrderQty) : targetOrderQty,
           stockQty: dbRecord.StockQty !== undefined && dbRecord.StockQty !== null ? parseFormattedNumber(dbRecord.StockQty) : targetStockQty,
+          k3lNumber: dbRecord.K3LNumber || targetK3LNumber || '',
+          k3lName: dbRecord.K3LName || targetK3LName || '',
+          K3LNumber: dbRecord.K3LNumber || targetK3LNumber || '',
+          K3LName: dbRecord.K3LName || targetK3LName || '',
           noMesin: machineId,
           userId: dbRecord.UserId || userId,
           isFromDb: true,
@@ -406,6 +430,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           recidItemId: targetRecidItemId || '',
           orderQty: targetOrderQty,
           stockQty: targetStockQty,
+          k3lNumber: targetK3LNumber,
+          k3lName: targetK3LName,
+          K3LNumber: targetK3LNumber,
+          K3LName: targetK3LName,
           noMesin: machineId,
           userId: userId,
           isFromDb: true,
@@ -435,6 +463,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         recidItemId: targetRecidItemId || '',
         orderQty: targetOrderQty,
         stockQty: targetStockQty,
+        k3lNumber: targetK3LNumber,
+        k3lName: targetK3LName,
+        K3LNumber: targetK3LNumber,
+        K3LName: targetK3LName,
         isFromDb: false,
       })
       setRolls([])
@@ -499,6 +531,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         RecidItemId: prodData.recidItemId || '',
         OrderQty: prodData.orderQty || 0,
         StockQty: prodData.stockQty || 0,
+        K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
+        K3LName: prodData.k3lName || prodData.K3LName || '',
         lines: linesPayload,
       })
 
@@ -585,6 +619,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       RecidItemId: prodData.recidItemId || '',
       OrderQty: prodData.orderQty || 0,
       StockQty: prodData.stockQty || 0,
+      K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
+      K3LName: prodData.k3lName || prodData.K3LName || '',
       lines: [
         {
           RoolNumber: nextId,
@@ -752,6 +788,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         RecidItemId: prodData.recidItemId || '',
         OrderQty: prodData.orderQty || 0,
         StockQty: prodData.stockQty || 0,
+        K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
+        K3LName: prodData.k3lName || prodData.K3LName || '',
         lines: [
           {
             RoolNumber: fullRoll.id,

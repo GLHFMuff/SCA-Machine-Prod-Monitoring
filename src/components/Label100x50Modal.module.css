@@ -211,7 +211,7 @@
   aspect-ratio: 2 / 1;
   background: #ffffff;
   color: #000000;
-  padding: 8px;
+  padding: 4px;
   box-sizing: border-box;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   display: flex;
@@ -225,7 +225,7 @@
   height: 100%;
   border: 2.2px solid #000000;
   box-sizing: border-box;
-  padding: 10px 14px 10px 14px;
+  padding: 5px 10px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -238,7 +238,7 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .headerLeft {
@@ -302,14 +302,18 @@
   display: block;
 }
 
-/* 2. Body Area (QR Code + Specifications) */
+/* 2. Body Area (QR Code + Specifications centered) */
 .bodyArea {
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
   flex: 1;
-  padding-top: 2px;
+  width: 100%;
+  border-top: 1.8px solid #000000;
+  border-bottom: 1.8px solid #000000;
+  padding: 3px 0;
+  box-sizing: border-box;
 }
 
 .qrColumn {
@@ -321,8 +325,8 @@
 }
 
 .qrWrapper {
-  width: 92px;
-  height: 92px;
+  width: 94px;
+  height: 94px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -351,9 +355,12 @@
 }
 
 .detailsColumn {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
-  padding-top: 2px;
+  padding-top: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .detailsGrid {
@@ -377,7 +384,7 @@
   font-size: 13px;
   font-weight: 900;
   color: #000000;
-  padding: 0 6px;
+  padding: 0 4px;
   text-align: center;
 }
 
@@ -398,10 +405,10 @@
 
 .breakdownText {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 9.5px;
+  font-weight: 500;
   color: #000000;
-  margin-top: 2px;
+  margin-top: 1px;
   white-space: nowrap;
 }
 
@@ -458,7 +465,7 @@
   }
 
   .labelBorder {
-    padding: 6px 8px;
+    padding: 4px 6px;
     border-width: 1.8px;
   }
 
@@ -480,13 +487,18 @@
     height: 28px;
   }
 
+  .bodyArea {
+    gap: 12px;
+    padding: 2px 0;
+  }
+
   .qrColumn {
-    width: 72px;
+    width: 76px;
   }
 
   .qrWrapper {
-    width: 68px;
-    height: 68px;
+    width: 72px;
+    height: 72px;
   }
 
   .qrText {
@@ -500,7 +512,7 @@
   }
 
   .breakdownText {
-    font-size: 9px;
+    font-size: 7.5px;
   }
 
   .k3lTitle,
@@ -597,7 +609,7 @@
     top: 0 !important;
     width: 100mm !important;
     height: 50mm !important;
-    padding: 2mm !important;
+    padding: 1mm !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     box-sizing: border-box !important;
@@ -609,10 +621,10 @@
   }
 
   .labelBorder {
-    width: 96mm !important;
-    height: 46mm !important;
+    width: 98mm !important;
+    height: 48mm !important;
     border: 2px solid #000000 !important;
-    padding: 2.2mm 3.2mm !important;
+    padding: 1.2mm 2mm !important;
     box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
@@ -620,7 +632,7 @@
   }
 
   .headerArea {
-    height: 12mm !important;
+    height: 11mm !important;
     margin-bottom: 0 !important;
   }
 
@@ -629,8 +641,8 @@
   }
 
   .logoCunda {
-    width: 11mm !important;
-    height: 11mm !important;
+    width: 10.5mm !important;
+    height: 10.5mm !important;
   }
 
   .companyInfo {
@@ -653,26 +665,36 @@
   }
 
   .logoHalal {
-    height: 10.5mm !important;
+    height: 10mm !important;
   }
 
   .logoTkdn {
-    height: 10.5mm !important;
+    height: 10mm !important;
   }
 
   .bodyArea {
     height: 28mm !important;
-    gap: 4mm !important;
-    padding-top: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6mm !important;
+    padding: 0.6mm 0 !important;
+    border-top: 1.5px solid #000000 !important;
+    border-bottom: 1.5px solid #000000 !important;
+    box-sizing: border-box !important;
   }
 
   .qrColumn {
     width: 25mm !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
   }
 
   .qrWrapper {
-    width: 23mm !important;
-    height: 23mm !important;
+    width: 23.5mm !important;
+    height: 23.5mm !important;
   }
 
   .qrImage {
@@ -681,7 +703,16 @@
 
   .qrText {
     font-size: 5pt !important;
-    margin-top: 0.6mm !important;
+    margin-top: 0.5mm !important;
+  }
+
+  .detailsColumn {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    padding-top: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
   }
 
   .detailsGrid {
@@ -695,17 +726,18 @@
   }
 
   .colonCell {
-    padding: 0 1.5mm !important;
+    padding: 0 1.2mm !important;
   }
 
   .breakdownText {
-    font-size: 8pt !important;
+    font-size: 6pt !important;
+    font-weight: 500 !important;
     margin-top: 0.3mm !important;
   }
 
   .bottomSection {
-    height: 4mm !important;
-    margin-top: 0.4mm !important;
+    height: 3.5mm !important;
+    margin-top: 0.2mm !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
