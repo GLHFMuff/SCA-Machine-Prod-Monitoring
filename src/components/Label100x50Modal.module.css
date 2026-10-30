@@ -244,7 +244,7 @@
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-shrink: 0;
 }
 
 .logoCunda {
@@ -257,27 +257,26 @@
 }
 
 .companyInfo {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
+  text-align: center;
+  padding: 0 6px;
+  min-width: 0;
 }
 
 .companyName {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 0.5px;
-  line-height: 1.1;
+  line-height: 1.15;
   color: #000000;
-  margin: 0 0 2px 0;
-}
-
-.companyAddress {
-  font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 10px;
-  font-weight: 400;
-  color: #000000;
-  line-height: 1.25;
+  text-align: center;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .headerRight {
@@ -406,6 +405,29 @@
   white-space: nowrap;
 }
 
+/* 3. Bottom Registration Area */
+.bottomSection {
+  text-align: center;
+  margin-top: 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.k3lTitle,
+.k3lNumber {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  color: #000000;
+  line-height: 1.15;
+  text-align: center;
+  margin: 0;
+}
+
 /* Modal Footer */
 .footerBar {
   padding: 14px 20px;
@@ -479,6 +501,11 @@
 
   .breakdownText {
     font-size: 9px;
+  }
+
+  .k3lTitle,
+  .k3lNumber {
+    font-size: 6.5px;
   }
 
   .footerBar {
@@ -597,18 +624,32 @@
     margin-bottom: 0 !important;
   }
 
+  .headerLeft {
+    flex-shrink: 0 !important;
+  }
+
   .logoCunda {
     width: 11mm !important;
     height: 11mm !important;
   }
 
-  .companyName {
-    font-size: 11pt !important;
-    margin: 0 0 0.3mm 0 !important;
+  .companyInfo {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 0 2mm !important;
   }
 
-  .companyAddress {
-    font-size: 5.5pt !important;
+  .companyName {
+    font-size: 10.5pt !important;
+    font-weight: 900 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
   }
 
   .logoHalal {
@@ -660,6 +701,27 @@
   .breakdownText {
     font-size: 8pt !important;
     margin-top: 0.3mm !important;
+  }
+
+  .bottomSection {
+    height: 4mm !important;
+    margin-top: 0.4mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  .k3lTitle,
+  .k3lNumber {
+    font-size: 5pt !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.2px !important;
+    color: #000000 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+    margin: 0 !important;
   }
 }
 

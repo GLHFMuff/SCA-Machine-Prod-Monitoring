@@ -43,6 +43,16 @@ export default function Label100x50Modal({
   const initialKodeDesign =
     String(rawDesign).trim().replace(/^CD\s*[-–:]?\s*/i, '') || 'A0301'
 
+  // Motif / Warna
+  const rawColor =
+    prodData?.color ||
+    roll?.color ||
+    prodData?.motif ||
+    roll?.motif ||
+    'WARNA WARNI'
+
+  const initialColor = String(rawColor).trim().toUpperCase() || 'WARNA WARNI'
+
   // Date in DD-MM-YYYY
   const initialDate = formatDMY(roll?.createdAt || new Date())
 
@@ -62,15 +72,20 @@ export default function Label100x50Modal({
   const initialQrLink = 'https://linktr.ee/rayoncunda'
   const initialQrLabel = 'inktr.ee/rayoncunda'
 
+  // K3L Registration Number
+  const initialK3L = '20-D-001909'
+
   // ── State for live customizable values ──
   const [rollNum, setRollNum] = useState(initialRollNum)
   const [kodeDesign, setKodeDesign] = useState(initialKodeDesign)
+  const [color, setColor] = useState(initialColor)
   const [dateStr, setDateStr] = useState(initialDate)
   const [lengthInchStr, setLengthInchStr] = useState(initialLengthInch)
   const [qtyStr, setQtyStr] = useState(initialQty)
   const [breakdownStr, setBreakdownStr] = useState(initialBreakdown)
   const [qrUrl, setQrUrl] = useState(initialQrLink)
   const [qrLabel, setQrLabel] = useState(initialQrLabel)
+  const [k3lNumber, setK3lNumber] = useState(initialK3L)
 
   // QR Code base64 DataURL
   const [qrDataUrl, setQrDataUrl] = useState('')
@@ -105,12 +120,35 @@ export default function Label100x50Modal({
   function handleResetDefaults() {
     setRollNum(initialRollNum)
     setKodeDesign(initialKodeDesign)
+    setColor(initialColor)
     setDateStr(initialDate)
     setLengthInchStr(initialLengthInch)
     setQtyStr(initialQty)
     setBreakdownStr(initialBreakdown)
     setQrUrl(initialQrLink)
     setQrLabel(initialQrLabel)
+    setK3lNumber(initialK3L)
+  }
+
+  // Format Kode Design / Jenis Kain:
+  const cleanCode = kodeDesign.trim()
+  const hasCdPrefix = /^CD\s*[-–:]?\s*/i.test(cleanCode)
+  const innerCode = hasCdPrefix
+    ? cleanCode.replace(/^CD\s*[-–:]?\s*/i, '').trim()
+    : cleanCode
+  const cdDesignTitle = hasCdPrefix
+    ? `CD ${innerCode.toUpperCase()}`
+    : `CD ${cleanCode.toUpperCase()}`
+
+  // Dynamic font sizing for header title & color
+  let headerTitleFontSize = '16px'
+  let printHeaderFontSize = '10.5pt'
+  if (cdDesignTitle.length > 20 || color.length > 20) {
+    headerTitleFontSize = '13px'
+    printHeaderFontSize = '8.5pt'
+  } else if (cdDesignTitle.length > 14 || color.length > 14) {
+    headerTitleFontSize = '14.5px'
+    printHeaderFontSize = '9.5pt'
   }
 
   // Handle printing via isolated iframe (100mm x 50mm landscape)
@@ -181,7 +219,7 @@ export default function Label100x50Modal({
                 .headerLeft {
                   display: flex;
                   align-items: center;
-                  gap: 2.5mm;
+                  flex-shrink: 0;
                 }
                 .logoCunda {
                   width: 11mm;
@@ -191,28 +229,29 @@ export default function Label100x50Modal({
                   display: block;
                 }
                 .companyInfo {
+                  flex: 1;
                   display: flex;
                   flex-direction: column;
+                  align-items: center;
                   justify-content: center;
+                  text-align: center;
+                  padding: 0 2mm;
                 }
                 .companyName {
-                  font-size: 11pt;
+                  font-size: ${printHeaderFontSize};
                   font-weight: 900;
                   letter-spacing: 0.3px;
-                  line-height: 1.05;
-                  margin: 0 0 0.3mm 0;
-                  color: #000000;
-                }
-                .companyAddress {
-                  font-size: 5.5pt;
-                  font-weight: 400;
                   line-height: 1.15;
+                  margin: 0;
                   color: #000000;
+                  text-align: center;
+                  white-space: nowrap;
                 }
                 .headerRight {
                   display: flex;
                   align-items: center;
                   gap: 1.8mm;
+                  flex-shrink: 0;
                 }
                 .logoHalal {
                   height: 10.5mm;
@@ -310,6 +349,27 @@ export default function Label100x50Modal({
                   margin-top: 0.3mm;
                   white-space: nowrap;
                 }
+                /* Bottom K3L Registration Area */
+                .bottomSection {
+                  height: 4mm;
+                  margin-top: 0.4mm;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  text-align: center;
+                  width: 100%;
+                }
+                .k3lTitle,
+                .k3lNumber {
+                  font-size: 5pt;
+                  font-weight: 400;
+                  letter-spacing: 0.2px;
+                  color: #000000;
+                  line-height: 1.15;
+                  text-align: center;
+                  margin: 0;
+                }
               </style>
             </head>
             <body>
@@ -319,11 +379,10 @@ export default function Label100x50Modal({
                   <div class="headerArea">
                     <div class="headerLeft">
                       <img src="${logoCunda}" alt="Logo Cunda" class="logoCunda" />
-                      <div class="companyInfo">
-                        <h1 class="companyName">RAYON CUNDA</h1>
-                        <div class="companyAddress">Tersono, Kec. Tersono</div>
-                        <div class="companyAddress">Kabupaten Batang</div>
-                      </div>
+                    </div>
+                    <div class="companyInfo">
+                      <div class="companyName">${cdDesignTitle}</div>
+                      <div class="companyName">${color.toUpperCase()}</div>
                     </div>
                     <div class="headerRight">
                       <img src="${logoHalal}" alt="Logo Halal" class="logoHalal" />
@@ -366,6 +425,12 @@ export default function Label100x50Modal({
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  <!-- Bottom Registration K3L Area -->
+                  <div class="bottomSection">
+                    <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L</div>
+                    <div class="k3lNumber">${k3lNumber}</div>
                   </div>
                 </div>
               </div>
@@ -447,6 +512,16 @@ export default function Label100x50Modal({
                   />
                 </div>
                 <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>Motif / Warna</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    placeholder="Contoh: WARNA WARNI"
+                  />
+                </div>
+                <div className={styles.editGroup}>
                   <label className={styles.editLabel}>Tanggal (DD-MM-YYYY)</label>
                   <input
                     type="text"
@@ -484,6 +559,16 @@ export default function Label100x50Modal({
                     value={breakdownStr}
                     onChange={(e) => setBreakdownStr(e.target.value)}
                     placeholder="Contoh: X (100 + 56)"
+                  />
+                </div>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>No. Registrasi K3L</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={k3lNumber}
+                    onChange={(e) => setK3lNumber(e.target.value)}
+                    placeholder="20-D-001909"
                   />
                 </div>
                 <div className={styles.editGroupFull}>
@@ -531,10 +616,19 @@ export default function Label100x50Modal({
                       alt="Rayon Cunda Logo"
                       className={styles.logoCunda}
                     />
-                    <div className={styles.companyInfo}>
-                      <h1 className={styles.companyName}>RAYON CUNDA</h1>
-                      <div className={styles.companyAddress}>Tersono, Kec. Tersono</div>
-                      <div className={styles.companyAddress}>Kabupaten Batang</div>
+                  </div>
+                  <div className={styles.companyInfo}>
+                    <div
+                      className={styles.companyName}
+                      style={{ fontSize: headerTitleFontSize }}
+                    >
+                      {cdDesignTitle}
+                    </div>
+                    <div
+                      className={styles.companyName}
+                      style={{ fontSize: headerTitleFontSize }}
+                    >
+                      {color.toUpperCase()}
                     </div>
                   </div>
 
@@ -601,6 +695,12 @@ export default function Label100x50Modal({
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* 3. Bottom Registration Area */}
+                <div className={styles.bottomSection}>
+                  <div className={styles.k3lTitle}>NOMOR REGISTRASI BARANG K3L</div>
+                  <div className={styles.k3lNumber}>{k3lNumber}</div>
                 </div>
               </div>
             </div>
