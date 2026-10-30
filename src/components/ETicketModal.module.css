@@ -1,4 +1,4 @@
-/* ETicketModal.module.css - Rayon Cunda Standard Label Printing */
+/* ETicketModal.module.css - Rayon Cunda Standard Label Printing (7x11 cm Portrait) */
 
 .overlay {
   position: fixed;
@@ -23,7 +23,7 @@
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: var(--radius-lg, 16px);
   width: 100%;
-  max-width: 580px;
+  max-width: 480px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
   display: flex;
   flex-direction: column;
@@ -95,7 +95,7 @@
 /* Info pill above the preview card */
 .previewNotice {
   width: 100%;
-  max-width: 480px;
+  max-width: 340px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -103,7 +103,7 @@
   background: rgba(30, 41, 59, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
 }
 
@@ -127,7 +127,7 @@
 /* Edit Drawer */
 .editDrawer {
   width: 100%;
-  max-width: 480px;
+  max-width: 420px;
   background: #1e293b;
   border: 1px solid #334155;
   border-radius: 10px;
@@ -204,20 +204,22 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   THE RAYON CUNDA LABEL CARD (Printable)
+   THE RAYON CUNDA LABEL CARD (Printable - 7x11 cm Portrait)
    Exact match to the reference sticker image
 ───────────────────────────────────────────────────────────── */
 .labelCard {
   width: 100%;
-  max-width: 480px;
+  max-width: 330px;
+  aspect-ratio: 7 / 11;
   background: #ffffff;
   color: #000000;
-  padding: 20px 22px 16px 22px;
+  padding: 12px 14px 10px 14px;
   box-sizing: border-box;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   font-family: 'Times New Roman', Times, Georgia, serif;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
 }
 
 /* ── 1. Top Header ── */
@@ -225,19 +227,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   width: 100%;
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .logoCunda {
-  width: 68px;
-  height: 68px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
   flex-shrink: 0;
   border-radius: 50%;
@@ -252,85 +254,86 @@
 
 .companyName {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 24px;
+  font-size: 15px;
   font-weight: 900;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   line-height: 1.1;
   color: #000000;
-  margin: 0 0 3px 0;
+  margin: 0 0 2px 0;
 }
 
 .companyAddress {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 14px;
+  font-size: 9px;
   font-weight: 400;
   color: #000000;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .headerRight {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .logoHalal {
-  height: 62px;
+  height: 40px;
   width: auto;
-  max-width: 60px;
+  max-width: 36px;
   object-fit: contain;
   display: block;
 }
 
 .logoTkdn {
-  height: 62px;
+  height: 40px;
   width: auto;
-  max-width: 68px;
+  max-width: 42px;
   object-fit: contain;
   display: block;
 }
 
 /* ── 2. Center Rounded Box ── */
 .mainBox {
-  border: 3.5px solid #000000;
-  border-radius: 22px;
-  padding: 16px 18px 18px 18px;
+  border: 2.2px solid #000000;
+  border-radius: 12px;
+  padding: 8px 10px 10px 10px;
   background: #ffffff;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  margin: 4px 0;
 }
 
 .boxTitles {
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .boxTitleCode {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 34px;
   font-weight: 900;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   line-height: 1.15;
   color: #000000;
 }
 
 .boxTitleMotif {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 28px;
   font-weight: 900;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   line-height: 1.15;
   color: #000000;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .boxBody {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px;
+  flex: 1;
 }
 
 /* Left QR column */
@@ -338,13 +341,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 140px;
+  width: 90px;
   flex-shrink: 0;
 }
 
 .qrWrapper {
-  width: 130px;
-  height: 130px;
+  width: 84px;
+  height: 84px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -363,63 +366,64 @@
 
 .qrLinkText {
   font-family: Arial, Helvetica, system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 8px;
+  font-weight: 600;
   color: #000000;
   text-align: center;
-  margin-top: 6px;
+  margin-top: 4px;
   word-break: break-all;
+  line-height: 1.15;
 }
 
 /* Right Details Column */
 .detailsColumn {
   flex: 1;
   min-width: 0;
-  padding-top: 4px;
+  padding-top: 2px;
 }
 
 .detailsGrid {
   display: grid;
   grid-template-columns: max-content auto 1fr;
-  row-gap: 8px;
+  row-gap: 5px;
   align-items: baseline;
 }
 
 .labelCell {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 18px;
+  font-size: 11px;
   font-weight: 900;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   color: #000000;
   white-space: nowrap;
 }
 
 .colonCell {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 18px;
+  font-size: 11px;
   font-weight: 900;
   color: #000000;
-  padding: 0 10px;
+  padding: 0 4px;
   text-align: center;
 }
 
 .valueCell {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
   color: #000000;
   white-space: nowrap;
 }
 
 .valueCellDesign {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
   color: #000000;
   word-break: break-word;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .qtyContainer {
@@ -430,17 +434,17 @@
 
 .breakdownText {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 17px;
-  font-weight: 500;
+  font-size: 9.5px;
+  font-weight: 600;
   color: #000000;
-  margin-top: 3px;
+  margin-top: 2px;
   white-space: nowrap;
 }
 
 /* ── 3. Bottom Section ── */
 .bottomSection {
   text-align: center;
-  margin-top: 10px;
+  margin-top: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -448,20 +452,20 @@
 
 .k3lTitle {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 11px;
+  font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.4px;
   color: #000000;
   text-transform: uppercase;
 }
 
 .k3lNumber {
   font-family: 'Times New Roman', Times, Georgia, serif;
-  font-size: 11px;
+  font-size: 7.5px;
   font-weight: 700;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
   color: #000000;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 /* Modal Footer Bar */
@@ -494,8 +498,8 @@
   }
 
   .labelCard {
-    padding: 10px 12px;
-    width: 100%;
+    padding: 10px 10px;
+    max-width: 300px;
   }
 
   .footerBar {
@@ -512,13 +516,13 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PRINT MEDIA RULES
+   PRINT MEDIA RULES (70mm x 110mm Portrait - 7x11 cm)
    Guarantees 100% clean, high-contrast, perfectly-centered printout
 ───────────────────────────────────────────────────────────── */
 @media print {
   @page {
-    size: auto;
-    margin: 4mm;
+    size: 70mm 110mm portrait;
+    margin: 0;
   }
 
   /* Hide everything on the page except the printable ticket card */
@@ -531,6 +535,15 @@
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 70mm !important;
+    height: 110mm !important;
+  }
+
+  html {
+    width: 70mm !important;
+    height: 110mm !important;
     margin: 0 !important;
     padding: 0 !important;
   }
@@ -579,22 +592,117 @@
   }
 
   .labelCard {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 70mm !important;
+    height: 110mm !important;
     box-shadow: none !important;
     border: none !important;
-    width: 100% !important;
-    max-width: 460px !important;
     margin: 0 auto !important;
-    padding: 10px 14px !important;
+    padding: 3mm 3.5mm 2.5mm 3.5mm !important;
     page-break-inside: avoid !important;
     background: #ffffff !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+  }
+
+  .labelHeader {
+    height: 11mm !important;
+    margin-bottom: 0 !important;
+  }
+
+  .logoCunda {
+    width: 10.5mm !important;
+    height: 10.5mm !important;
+  }
+
+  .companyName {
+    font-size: 8.5pt !important;
+    margin: 0 0 0.3mm 0 !important;
+  }
+
+  .companyAddress {
+    font-size: 5pt !important;
+  }
+
+  .logoHalal {
+    height: 10mm !important;
+  }
+
+  .logoTkdn {
+    height: 10mm !important;
   }
 
   .mainBox {
-    border: 3.5px solid #000000 !important;
+    border: 1.8px solid #000000 !important;
+    border-radius: 3.5mm !important;
+    padding: 2mm 2mm 2.2mm 2mm !important;
+    margin: 1.2mm 0 !important;
     background: #ffffff !important;
+    flex: 1 !important;
+  }
+
+  .boxTitles {
+    margin-bottom: 1.5mm !important;
+  }
+
+  .boxTitleCode {
+    font-size: 13pt !important;
+  }
+
+  .boxTitleMotif {
+    font-size: 11.5pt !important;
+    margin-top: 0.6mm !important;
+  }
+
+  .qrColumn {
+    width: 23mm !important;
+  }
+
+  .qrWrapper {
+    width: 23mm !important;
+    height: 23mm !important;
   }
 
   .qrImage {
     image-rendering: pixelated !important;
+  }
+
+  .qrLinkText {
+    font-size: 4.8pt !important;
+    margin-top: 0.8mm !important;
+  }
+
+  .detailsGrid {
+    row-gap: 1.4mm !important;
+  }
+
+  .labelCell,
+  .colonCell,
+  .valueCell,
+  .valueCellDesign {
+    font-size: 7.2pt !important;
+  }
+
+  .colonCell {
+    padding: 0 1mm !important;
+  }
+
+  .breakdownText {
+    font-size: 6.5pt !important;
+    margin-top: 0.4mm !important;
+  }
+
+  .bottomSection {
+    height: 5.5mm !important;
+    margin-top: 0 !important;
+  }
+
+  .k3lTitle,
+  .k3lNumber {
+    font-size: 5.2pt !important;
   }
 }

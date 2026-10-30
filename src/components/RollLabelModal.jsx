@@ -76,7 +76,7 @@ export default function RollLabelModal({
         await onPrint(roll)
       }
 
-      // Iframe print terisolasi agar 100% pas proporsi 100mm x 47mm landscape
+      // Iframe print terisolasi agar 100% pas proporsi 90mm x 50mm (9x5 cm) landscape
       const iframe = printIframeRef.current
       if (iframe) {
         const doc = iframe.contentWindow.document
@@ -86,10 +86,10 @@ export default function RollLabelModal({
           <html>
             <head>
               <meta charset="utf-8" />
-              <title>Label Roll #${rollNum} - 11x7cm</title>
+              <title>Label Roll #${rollNum} - 9x5cm</title>
               <style>
                 @page {
-                  size: 100mm 50mm landscape;
+                  size: 90mm 50mm landscape;
                   margin: 0;
                 }
                 * {
@@ -101,7 +101,7 @@ export default function RollLabelModal({
                   print-color-adjust: exact !important;
                 }
                 html, body {
-                  width: 100mm;
+                  width: 90mm;
                   height: 50mm;
                   background: #ffffff;
                   color: #000000;
@@ -110,7 +110,7 @@ export default function RollLabelModal({
                   padding: 0;
                 }
                 .labelWrapper {
-                  width: 100mm;
+                  width: 90mm;
                   height: 50mm;
                   padding: 2.5mm;
                   display: flex;
@@ -118,10 +118,10 @@ export default function RollLabelModal({
                   align-items: center;
                 }
                 .labelBorder {
-                  width: 97mm;
-                  height: 47mm;
-                  border: 2.5px solid #000000;
-                  padding: 3.5mm 4.5mm;
+                  width: 85mm;
+                  height: 45mm;
+                  border: 2px solid #000000;
+                  padding: 2mm 3.5mm;
                   display: flex;
                   flex-direction: column;
                   justify-content: space-between;
@@ -131,12 +131,12 @@ export default function RollLabelModal({
                   flex-direction: row;
                   justify-content: space-between;
                   align-items: flex-start;
-                  height: 41mm;
-                  gap: 3mm;
+                  height: 28mm;
+                  gap: 3.5mm;
                 }
                 .qrWrapper {
-                  width: 26mm;
-                  height: 26mm;
+                  width: 28mm;
+                  height: 28mm;
                   flex-shrink: 0;
                   display: flex;
                   align-items: center;
@@ -150,46 +150,46 @@ export default function RollLabelModal({
                 }
                 .infoColumn {
                   flex: 1;
-                  height: 26mm;
+                  height: 28mm;
                   display: flex;
                   flex-direction: column;
                   justify-content: space-between;
-                  padding-left: 2mm;
+                  padding-left: 1.5mm;
                 }
                 .lengthText {
-                  font-size: 18pt;
+                  font-size: 16pt;
                   font-weight: 900;
                   line-height: 1.05;
                 }
                 .metaItem {
-                  font-size: 10pt;
+                  font-size: 8.5pt;
                   font-weight: 700;
-                  line-height: 1.25;
+                  line-height: 1.2;
                   text-transform: uppercase;
                 }
                 .metaLabel {
                   font-weight: 800;
                 }
                 .rollNumText {
-                  font-size: 15pt;
+                  font-size: 20pt;
                   font-weight: 900;
                   line-height: 1;
                 }
                 .bottomSection {
                   display: flex;
                   flex-direction: column;
-                  gap: 0.5mm;
-                  padding-top: 1.5mm;
+                  gap: 0.3mm;
+                  padding-top: 1mm;
                 }
                 .k3lHeading {
-                  font-size: 9pt;
+                  font-size: 8pt;
                   font-weight: 800;
-                  line-height: 1.25;
+                  line-height: 1.2;
                 }
                 .k3lText {
-                  font-size: 7.5pt;
+                  font-size: 6.8pt;
                   font-weight: 500;
-                  line-height: 1.2;
+                  line-height: 1.15;
                 }
               </style>
             </head>
@@ -238,7 +238,7 @@ export default function RollLabelModal({
         {/* Modal Header */}
         <div className={styles.topBar}>
           <div className={styles.topTitle}>
-            <span>🏷️ Cetak Label Roll #{rollNum}</span>
+            <span>🏷️ Cetak Label Roll #{rollNum} (9x5 cm)</span>
             {roll?.isPrinted && (
               <span className={styles.alreadyPrintedBadge}>✓ Pernah Dicetak</span>
             )}
@@ -314,11 +314,11 @@ export default function RollLabelModal({
         </div>
       </div>
 
-      {/* Hidden isolated iframe for 100% accurate 100mm x 47mm label printing */}
+      {/* Hidden isolated iframe for 100% accurate 90mm x 50mm label printing */}
       <iframe
         ref={printIframeRef}
         title="Print Label Frame"
-        style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: '100mm', height: '47mm', border: 'none' }}
+        style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: '90mm', height: '50mm', border: 'none' }}
       />
     </div>
   )

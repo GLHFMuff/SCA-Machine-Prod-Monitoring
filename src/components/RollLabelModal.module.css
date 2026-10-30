@@ -1,4 +1,4 @@
-/* RollLabelModal.module.css - 11x7 cm Landscape Roll Label Printing */
+/* RollLabelModal.module.css - 9x5 cm Landscape Roll Label Printing */
 
 .overlay {
   position: fixed;
@@ -105,20 +105,20 @@
 
 .previewWrapper {
   width: 100%;
-  max-width: 600px;
+  max-width: 480px;
   display: flex;
   justify-content: center;
 }
 
-/* Card representation of 11 x 7 cm Landscape */
+/* Card representation of 9 x 5 cm Landscape */
 .labelCard {
   width: 100%;
-  aspect-ratio: 11 / 7;
+  aspect-ratio: 9 / 5;
   background: #ffffff;
   color: #000000;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.2);
   border-radius: 4px;
-  padding: 10px;
+  padding: 8px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -129,9 +129,9 @@
 .labelBorder {
   width: 100%;
   height: 100%;
-  border: 2.8px solid #000000;
+  border: 2.2px solid #000000;
   box-sizing: border-box;
-  padding: 12px 16px;
+  padding: 9px 13px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -144,13 +144,13 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px;
   flex: 1;
 }
 
 .qrWrapper {
-  width: 170px;
-  height: 170px;
+  width: 120px;
+  height: 120px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -165,7 +165,7 @@
 }
 
 .qrLoading {
-  font-size: 12px;
+  font-size: 11px;
   color: #6b7280;
 }
 
@@ -174,20 +174,20 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 170px;
-  padding-left: 6px;
+  height: 120px;
+  padding-left: 4px;
 }
 
 .lengthText {
-  font-size: 32px;
+  font-size: 24px;
   font-weight: 900;
   color: #000000;
   line-height: 1.05;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.3px;
 }
 
 .metaItem {
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 700;
   color: #000000;
   line-height: 1.25;
@@ -203,7 +203,7 @@
 }
 
 .rollNumText {
-  font-size: 42px;
+  font-size: 32px;
   font-weight: 900;
   color: #000000;
   line-height: 1;
@@ -214,18 +214,18 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-top: 8px;
+  padding-top: 5px;
 }
 
 .k3lHeading {
-  font-size: 14.5px;
+  font-size: 11.5px;
   font-weight: 800;
   color: #000000;
   line-height: 1.25;
 }
 
 .k3lText {
-  font-size: 12.5px;
+  font-size: 9.5px;
   font-weight: 500;
   color: #000000;
   line-height: 1.2;
@@ -261,8 +261,8 @@
   }
 
   .labelBorder {
-    padding: 8px 10px;
-    border-width: 2px;
+    padding: 6px 8px;
+    border-width: 1.8px;
   }
 
   .topSection {
@@ -270,38 +270,38 @@
   }
 
   .qrWrapper {
-    width: 100px;
-    height: 100px;
+    width: 82px;
+    height: 82px;
   }
 
   .infoColumn {
-    height: 100px;
+    height: 82px;
     padding-left: 2px;
   }
 
   .lengthText {
-    font-size: 19px;
+    font-size: 16px;
   }
 
   .metaItem {
-    font-size: 10.5px;
+    font-size: 9px;
     line-height: 1.2;
   }
 
   .rollNumText {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .bottomSection {
-    padding-top: 4px;
+    padding-top: 3px;
   }
 
   .k3lHeading {
-    font-size: 10px;
+    font-size: 8.5px;
   }
 
   .k3lText {
-    font-size: 8.5px;
+    font-size: 7.5px;
   }
 
   .footerBar {
@@ -318,18 +318,18 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PRINT MEDIA RULES (100mm x 47mm Landscape)
+   PRINT MEDIA RULES (90mm x 50mm Landscape - 9x5 cm)
 ───────────────────────────────────────────────────────────── */
 @media print {
   @page {
-    size: 100mm 47mm landscape;
+    size: 90mm 50mm landscape;
     margin: 0;
   }
 
   html,
   body {
-    width: 100mm !important;
-    height: 47mm !important;
+    width: 90mm !important;
+    height: 50mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -388,8 +388,8 @@
     position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100mm !important;
-    height: 47mm !important;
+    width: 90mm !important;
+    height: 50mm !important;
     padding: 2.5mm !important;
     box-shadow: none !important;
     border-radius: 0 !important;
@@ -402,10 +402,10 @@
   }
 
   .labelBorder {
-    width: 97mm !important;
+    width: 85mm !important;
     height: 45mm !important;
-    border: 2.5px solid #000000 !important;
-    padding: 3.5mm 4.5mm !important;
+    border: 2px solid #000000 !important;
+    padding: 2mm 3.5mm !important;
     box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
@@ -413,13 +413,13 @@
   }
 
   .topSection {
-    height: 41mm !important;
-    gap: 5mm !important;
+    height: 28mm !important;
+    gap: 3.5mm !important;
   }
 
   .qrWrapper {
-    width: 41mm !important;
-    height: 41mm !important;
+    width: 28mm !important;
+    height: 28mm !important;
   }
 
   .qrImage {
@@ -427,42 +427,42 @@
   }
 
   .infoColumn {
-    height: 41mm !important;
-    padding-left: 2mm !important;
+    height: 28mm !important;
+    padding-left: 1.5mm !important;
   }
 
   .lengthText {
-    font-size: 24pt !important;
+    font-size: 16pt !important;
     font-weight: 900 !important;
     line-height: 1.05 !important;
   }
 
   .metaItem {
-    font-size: 12pt !important;
+    font-size: 8.5pt !important;
     font-weight: 700 !important;
-    line-height: 1.25 !important;
+    line-height: 1.2 !important;
   }
 
   .rollNumText {
-    font-size: 30pt !important;
+    font-size: 20pt !important;
     font-weight: 900 !important;
     line-height: 1 !important;
   }
 
   .bottomSection {
-    padding-top: 1.5mm !important;
-    gap: 0.5mm !important;
+    padding-top: 1mm !important;
+    gap: 0.3mm !important;
   }
 
   .k3lHeading {
-    font-size: 11pt !important;
+    font-size: 8pt !important;
     font-weight: 800 !important;
-    line-height: 1.25 !important;
+    line-height: 1.2 !important;
   }
 
   .k3lText {
-    font-size: 9.5pt !important;
+    font-size: 6.8pt !important;
     font-weight: 500 !important;
-    line-height: 1.2 !important;
+    line-height: 1.15 !important;
   }
 }

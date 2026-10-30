@@ -419,6 +419,7 @@
 .editRowBtn,
 .defectBtn,
 .printTicketBtn,
+.printLabel100Btn,
 .printLabelBtn,
 .deleteRowBtn {
   min-width: 54px;
@@ -495,6 +496,17 @@
 .printTicketBtn:hover {
   background: rgba(99, 102, 241, 0.22);
   border-color: #6366f1;
+}
+
+.printLabel100Btn {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+
+.printLabel100Btn:hover {
+  background: rgba(245, 158, 11, 0.24);
+  border-color: #f59e0b;
 }
 
 .printLabelBtn {
@@ -717,6 +729,7 @@
   .editRowBtn,
   .defectBtn,
   .printTicketBtn,
+  .printLabel100Btn,
   .printLabelBtn,
   .deleteRowBtn {
     min-width: 48px;

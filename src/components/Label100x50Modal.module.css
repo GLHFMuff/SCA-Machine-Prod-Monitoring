@@ -1,0 +1,665 @@
+/* Label100x50Modal.module.css - Rayon Cunda 100x50mm Landscape Label Printing */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.container {
+  background: var(--surface, #1e293b);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 16px);
+  width: 100%;
+  max-width: 620px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  max-height: 94vh;
+  overflow: hidden;
+  animation: scaleUp 0.2s ease;
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.topBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: var(--bg, #0f172a);
+}
+
+.topTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #f8fafc);
+}
+
+.alreadyPrintedBadge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: var(--muted, #94a3b8);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.closeBtn:hover {
+  background: var(--border, rgba(255, 255, 255, 0.1));
+  color: var(--text, #ffffff);
+}
+
+/* Scrollable Ticket Area */
+.ticketArea {
+  padding: 20px;
+  background: #090d16;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  gap: 14px;
+}
+
+.previewNotice {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.toggleEditBtn {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggleEditBtn:hover {
+  background: rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+/* Optional In-Place Field Editor */
+.editDrawer {
+  width: 100%;
+  max-width: 520px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.2s ease;
+}
+
+.editGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.editGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editGroupFull {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.editInput {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.editInput:focus {
+  border-color: #3b82f6;
+}
+
+.resetBtn {
+  align-self: flex-end;
+  background: transparent;
+  border: 1px solid #475569;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.resetBtn:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PREVIEW CARD (100mm x 50mm Landscape - Aspect Ratio 2:1)
+───────────────────────────────────────────────────────────── */
+.previewWrapper {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  justify-content: center;
+}
+
+.labelCard {
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  background: #ffffff;
+  color: #000000;
+  padding: 8px;
+  box-sizing: border-box;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.labelBorder {
+  width: 100%;
+  height: 100%;
+  border: 2.2px solid #000000;
+  box-sizing: border-box;
+  padding: 10px 14px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+}
+
+/* 1. Header Area */
+.headerArea {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logoCunda {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: block;
+}
+
+.companyInfo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.companyName {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+  color: #000000;
+  margin: 0 0 2px 0;
+}
+
+.companyAddress {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 10px;
+  font-weight: 400;
+  color: #000000;
+  line-height: 1.25;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.logoHalal {
+  height: 40px;
+  width: auto;
+  max-width: 40px;
+  object-fit: contain;
+  display: block;
+}
+
+.logoTkdn {
+  height: 40px;
+  width: auto;
+  max-width: 46px;
+  object-fit: contain;
+  display: block;
+}
+
+/* 2. Body Area (QR Code + Specifications) */
+.bodyArea {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 16px;
+  flex: 1;
+  padding-top: 2px;
+}
+
+.qrColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.qrWrapper {
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.qrImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+.qrText {
+  font-family: Arial, Helvetica, system-ui, sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: #000000;
+  text-align: center;
+  margin-top: 3px;
+  word-break: break-all;
+  line-height: 1.15;
+}
+
+.detailsColumn {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: max-content auto 1fr;
+  row-gap: 4px;
+  align-items: baseline;
+}
+
+.labelCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.colonCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 13px;
+  font-weight: 900;
+  color: #000000;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.valueCell {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.qtyContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.breakdownText {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* Modal Footer */
+.footerBar {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: var(--bg, #0f172a);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ── Mobile Responsive Preview ── */
+@media screen and (max-width: 640px) {
+  .overlay {
+    padding: 8px;
+  }
+
+  .container {
+    max-height: 96dvh;
+    border-radius: 14px;
+  }
+
+  .topBar {
+    padding: 10px 14px;
+  }
+
+  .ticketArea {
+    padding: 14px 8px;
+  }
+
+  .labelBorder {
+    padding: 6px 8px;
+    border-width: 1.8px;
+  }
+
+  .logoCunda {
+    width: 32px;
+    height: 32px;
+  }
+
+  .companyName {
+    font-size: 13px;
+  }
+
+  .companyAddress {
+    font-size: 8px;
+  }
+
+  .logoHalal,
+  .logoTkdn {
+    height: 28px;
+  }
+
+  .qrColumn {
+    width: 72px;
+  }
+
+  .qrWrapper {
+    width: 68px;
+    height: 68px;
+  }
+
+  .qrText {
+    font-size: 7px;
+  }
+
+  .labelCell,
+  .colonCell,
+  .valueCell {
+    font-size: 9.5px;
+  }
+
+  .breakdownText {
+    font-size: 9px;
+  }
+
+  .footerBar {
+    padding: 10px 14px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .footerBar button {
+    width: 100%;
+    justify-content: center;
+    padding: 11px 16px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PRINT MEDIA RULES (100mm x 50mm Landscape)
+───────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: 100mm 50mm landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 100mm !important;
+    height: 50mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-family: 'Times New Roman', Times, Georgia, serif !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .labelCard,
+  .labelCard * {
+    visibility: visible !important;
+  }
+
+  .overlay {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  .container {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .topBar,
+  .footerBar,
+  .previewNotice,
+  .editDrawer {
+    display: none !important;
+  }
+
+  .ticketArea {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .previewWrapper {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .labelCard {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100mm !important;
+    height: 50mm !important;
+    padding: 2mm !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    page-break-inside: avoid !important;
+    background: #ffffff !important;
+  }
+
+  .labelBorder {
+    width: 96mm !important;
+    height: 46mm !important;
+    border: 2px solid #000000 !important;
+    padding: 2.2mm 3.2mm !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+  }
+
+  .headerArea {
+    height: 12mm !important;
+    margin-bottom: 0 !important;
+  }
+
+  .logoCunda {
+    width: 11mm !important;
+    height: 11mm !important;
+  }
+
+  .companyName {
+    font-size: 11pt !important;
+    margin: 0 0 0.3mm 0 !important;
+  }
+
+  .companyAddress {
+    font-size: 5.5pt !important;
+  }
+
+  .logoHalal {
+    height: 10.5mm !important;
+  }
+
+  .logoTkdn {
+    height: 10.5mm !important;
+  }
+
+  .bodyArea {
+    height: 28mm !important;
+    gap: 4mm !important;
+    padding-top: 0 !important;
+  }
+
+  .qrColumn {
+    width: 25mm !important;
+  }
+
+  .qrWrapper {
+    width: 23mm !important;
+    height: 23mm !important;
+  }
+
+  .qrImage {
+    image-rendering: pixelated !important;
+  }
+
+  .qrText {
+    font-size: 5pt !important;
+    margin-top: 0.6mm !important;
+  }
+
+  .detailsGrid {
+    row-gap: 1mm !important;
+  }
+
+  .labelCell,
+  .colonCell,
+  .valueCell {
+    font-size: 8.5pt !important;
+  }
+
+  .colonCell {
+    padding: 0 1.5mm !important;
+  }
+
+  .breakdownText {
+    font-size: 8pt !important;
+    margin-top: 0.3mm !important;
+  }
+}
+

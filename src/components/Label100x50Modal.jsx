@@ -1,0 +1,648 @@
+import { useState, useEffect, useRef } from 'react'
+import QRCode from 'qrcode'
+import logoCunda from '../img/lg_cunda.png'
+import logoHalal from '../img/lg_halal.png'
+import logoTkdn from '../img/lg_tkdn.png'
+import styles from './Label100x50Modal.module.css'
+
+/**
+ * Format date to standard DD-MM-YYYY format
+ */
+function formatDMY(dateInput) {
+  const d = dateInput ? new Date(dateInput) : new Date()
+  if (isNaN(d.getTime())) return '29-09-2026'
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}-${month}-${year}`
+}
+
+export default function Label100x50Modal({
+  roll,
+  prodData,
+  user,
+  onPrint,
+  onClose,
+}) {
+  const [printing, setPrinting] = useState(false)
+  const [showEditor, setShowEditor] = useState(false)
+  const printIframeRef = useRef(null)
+
+  // ── Derive initial values from props or sensible defaults ──
+  const initialRollNum = String(roll?.id ?? roll?.roolNumber ?? 1).padStart(2, '0')
+
+  // Kode Design
+  const rawDesign =
+    prodData?.fabricType ||
+    prodData?.design ||
+    prodData?.designCode ||
+    roll?.fabricType ||
+    roll?.design ||
+    'A0301'
+
+  const initialKodeDesign =
+    String(rawDesign).trim().replace(/^CD\s*[-–:]?\s*/i, '') || 'A0301'
+
+  // Date in DD-MM-YYYY
+  const initialDate = formatDMY(roll?.createdAt || new Date())
+
+  // Length in inch (lebar kain standard 52")
+  const initialLengthInch =
+    prodData?.width && prodData.width.includes('52')
+      ? '52"'
+      : prodData?.width || roll?.width || '52"'
+
+  // QTY in Yard
+  const initialQty = roll?.length ? `${roll.length} YARD` : '156 YARD'
+
+  // Sambungan / breakdown
+  const initialBreakdown = roll?.breakdown || 'X (100 + 56)'
+
+  // QR Link & Label (default inktr.ee/rayoncunda sesuai permintaan)
+  const initialQrLink = 'https://linktr.ee/rayoncunda'
+  const initialQrLabel = 'inktr.ee/rayoncunda'
+
+  // ── State for live customizable values ──
+  const [rollNum, setRollNum] = useState(initialRollNum)
+  const [kodeDesign, setKodeDesign] = useState(initialKodeDesign)
+  const [dateStr, setDateStr] = useState(initialDate)
+  const [lengthInchStr, setLengthInchStr] = useState(initialLengthInch)
+  const [qtyStr, setQtyStr] = useState(initialQty)
+  const [breakdownStr, setBreakdownStr] = useState(initialBreakdown)
+  const [qrUrl, setQrUrl] = useState(initialQrLink)
+  const [qrLabel, setQrLabel] = useState(initialQrLabel)
+
+  // QR Code base64 DataURL
+  const [qrDataUrl, setQrDataUrl] = useState('')
+
+  // Generate crisp QR code whenever qrUrl changes
+  useEffect(() => {
+    let isMounted = true
+    const textToEncode = qrUrl.trim() || 'https://linktr.ee/rayoncunda'
+
+    QRCode.toDataURL(textToEncode, {
+      width: 320,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#000000',
+        light: '#ffffff',
+      },
+    })
+      .then((url) => {
+        if (isMounted) setQrDataUrl(url)
+      })
+      .catch((err) => {
+        console.error('Error generating QR code:', err)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [qrUrl])
+
+  // Reset to original defaults
+  function handleResetDefaults() {
+    setRollNum(initialRollNum)
+    setKodeDesign(initialKodeDesign)
+    setDateStr(initialDate)
+    setLengthInchStr(initialLengthInch)
+    setQtyStr(initialQty)
+    setBreakdownStr(initialBreakdown)
+    setQrUrl(initialQrLink)
+    setQrLabel(initialQrLabel)
+  }
+
+  // Handle printing via isolated iframe (100mm x 50mm landscape)
+  async function handlePrintAction() {
+    setPrinting(true)
+    try {
+      if (onPrint) {
+        await onPrint(roll)
+      }
+
+      const iframe = printIframeRef.current
+      if (iframe) {
+        const doc = iframe.contentWindow.document
+        doc.open()
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>Label Roll #${rollNum} - 100x50mm</title>
+              <style>
+                @page {
+                  size: 100mm 50mm landscape;
+                  margin: 0;
+                }
+                * {
+                  box-sizing: border-box;
+                  margin: 0;
+                  padding: 0;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                html, body {
+                  width: 100mm;
+                  height: 50mm;
+                  background: #ffffff;
+                  color: #000000;
+                  overflow: hidden;
+                  margin: 0;
+                  padding: 0;
+                  font-family: 'Times New Roman', Times, Georgia, serif;
+                }
+                .labelWrapper {
+                  width: 100mm;
+                  height: 50mm;
+                  padding: 2mm;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                }
+                .labelBorder {
+                  width: 96mm;
+                  height: 46mm;
+                  border: 2px solid #000000;
+                  padding: 2.2mm 3.2mm;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: space-between;
+                }
+                /* Top Header */
+                .headerArea {
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  height: 12mm;
+                  width: 100%;
+                }
+                .headerLeft {
+                  display: flex;
+                  align-items: center;
+                  gap: 2.5mm;
+                }
+                .logoCunda {
+                  width: 11mm;
+                  height: 11mm;
+                  object-fit: contain;
+                  border-radius: 50%;
+                  display: block;
+                }
+                .companyInfo {
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                }
+                .companyName {
+                  font-size: 11pt;
+                  font-weight: 900;
+                  letter-spacing: 0.3px;
+                  line-height: 1.05;
+                  margin: 0 0 0.3mm 0;
+                  color: #000000;
+                }
+                .companyAddress {
+                  font-size: 5.5pt;
+                  font-weight: 400;
+                  line-height: 1.15;
+                  color: #000000;
+                }
+                .headerRight {
+                  display: flex;
+                  align-items: center;
+                  gap: 1.8mm;
+                }
+                .logoHalal {
+                  height: 10.5mm;
+                  width: auto;
+                  max-width: 9.5mm;
+                  object-fit: contain;
+                  display: block;
+                }
+                .logoTkdn {
+                  height: 10.5mm;
+                  width: auto;
+                  max-width: 12mm;
+                  object-fit: contain;
+                  display: block;
+                }
+                /* Body Area (QR + Details) */
+                .bodyArea {
+                  height: 28mm;
+                  display: flex;
+                  align-items: flex-start;
+                  justify-content: flex-start;
+                  gap: 4mm;
+                }
+                .qrColumn {
+                  width: 25mm;
+                  flex-shrink: 0;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                }
+                .qrWrapper {
+                  width: 23mm;
+                  height: 23mm;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  background: #ffffff;
+                }
+                .qrImage {
+                  width: 100%;
+                  height: 100%;
+                  object-fit: contain;
+                  image-rendering: pixelated;
+                  display: block;
+                }
+                .qrText {
+                  font-family: Arial, Helvetica, sans-serif;
+                  font-size: 5pt;
+                  font-weight: 600;
+                  color: #000000;
+                  text-align: center;
+                  margin-top: 0.6mm;
+                  word-break: break-all;
+                  line-height: 1.1;
+                }
+                .detailsColumn {
+                  flex: 1;
+                  min-width: 0;
+                  padding-top: 0.2mm;
+                }
+                .detailsGrid {
+                  display: grid;
+                  grid-template-columns: max-content auto 1fr;
+                  row-gap: 1mm;
+                  align-items: baseline;
+                }
+                .labelCell {
+                  font-size: 8.5pt;
+                  font-weight: 900;
+                  color: #000000;
+                  white-space: nowrap;
+                }
+                .colonCell {
+                  font-size: 8.5pt;
+                  font-weight: 900;
+                  color: #000000;
+                  padding: 0 1.5mm;
+                  text-align: center;
+                }
+                .valueCell {
+                  font-size: 8.5pt;
+                  font-weight: 600;
+                  color: #000000;
+                  white-space: nowrap;
+                }
+                .qtyContainer {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-start;
+                }
+                .breakdownText {
+                  font-size: 8pt;
+                  font-weight: 600;
+                  color: #000000;
+                  margin-top: 0.3mm;
+                  white-space: nowrap;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="labelWrapper">
+                <div class="labelBorder">
+                  <!-- Header Area -->
+                  <div class="headerArea">
+                    <div class="headerLeft">
+                      <img src="${logoCunda}" alt="Logo Cunda" class="logoCunda" />
+                      <div class="companyInfo">
+                        <h1 class="companyName">RAYON CUNDA</h1>
+                        <div class="companyAddress">Tersono, Kec. Tersono</div>
+                        <div class="companyAddress">Kabupaten Batang</div>
+                      </div>
+                    </div>
+                    <div class="headerRight">
+                      <img src="${logoHalal}" alt="Logo Halal" class="logoHalal" />
+                      <img src="${logoTkdn}" alt="Logo TKDN" class="logoTkdn" />
+                    </div>
+                  </div>
+
+                  <!-- Body Area (QR Code + Details) -->
+                  <div class="bodyArea">
+                    <div class="qrColumn">
+                      <div class="qrWrapper">
+                        <img src="${qrDataUrl}" alt="QR Code" class="qrImage" />
+                      </div>
+                      <div class="qrText">${qrLabel}</div>
+                    </div>
+
+                    <div class="detailsColumn">
+                      <div class="detailsGrid">
+                        <span class="labelCell">NO. ROLL</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCell">${rollNum}</span>
+
+                        <span class="labelCell">KODE DESIGN</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCell">${kodeDesign.toUpperCase()}</span>
+
+                        <span class="labelCell">DATE</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCell">${dateStr}</span>
+
+                        <span class="labelCell">LENGTH</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCell">${lengthInchStr}</span>
+
+                        <span class="labelCell">QTY</span>
+                        <span class="colonCell">:</span>
+                        <div class="qtyContainer">
+                          <span class="valueCell">${qtyStr}</span>
+                          ${breakdownStr && breakdownStr.trim() !== '' ? `<div class="breakdownText">${breakdownStr.trim()}</div>` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </body>
+          </html>
+        `)
+        doc.close()
+        iframe.contentWindow.focus()
+        setTimeout(() => {
+          iframe.contentWindow.print()
+        }, 200)
+      } else {
+        window.print()
+      }
+    } catch (err) {
+      console.error('Print error:', err)
+    } finally {
+      setPrinting(false)
+    }
+  }
+
+  return (
+    <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
+      <div className={styles.container} onClick={(e) => e.stopPropagation()}>
+        {/* Modal Controls */}
+        <div className={styles.topBar}>
+          <div className={styles.topTitle}>
+            <span>🏷️ Cetak Label Roll #{rollNum} (100x50 mm)</span>
+            {roll?.isPrinted && (
+              <span className={styles.alreadyPrintedBadge}>✓ Sudah Pernah Dicetak</span>
+            )}
+          </div>
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label="Tutup"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Printable Ticket Area */}
+        <div className={styles.ticketArea} id="printable-label-100x50">
+          {/* Notice & Customization Toggle */}
+          <div className={styles.previewNotice}>
+            <span>Format Label Rayon Cunda (100x50 mm Landscape)</span>
+            <button
+              type="button"
+              className={styles.toggleEditBtn}
+              onClick={() => setShowEditor(!showEditor)}
+            >
+              {showEditor ? '▲ Tutup Pengaturan' : '✏️ Sesuaikan Data Label'}
+            </button>
+          </div>
+
+          {/* Optional In-Place Field Editor */}
+          {showEditor && (
+            <div className={styles.editDrawer}>
+              <div className={styles.editGrid}>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>No. Roll</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={rollNum}
+                    onChange={(e) => setRollNum(e.target.value)}
+                    placeholder="Contoh: 01"
+                  />
+                </div>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>Kode Design</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={kodeDesign}
+                    onChange={(e) => setKodeDesign(e.target.value)}
+                    placeholder="Contoh: A0301"
+                  />
+                </div>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>Tanggal (DD-MM-YYYY)</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={dateStr}
+                    onChange={(e) => setDateStr(e.target.value)}
+                    placeholder="29-09-2026"
+                  />
+                </div>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>Length (Lebar)</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={lengthInchStr}
+                    onChange={(e) => setLengthInchStr(e.target.value)}
+                    placeholder='52"'
+                  />
+                </div>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>QTY</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={qtyStr}
+                    onChange={(e) => setQtyStr(e.target.value)}
+                    placeholder="156 YARD"
+                  />
+                </div>
+                <div className={styles.editGroup}>
+                  <label className={styles.editLabel}>Sambungan (Breakdown)</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={breakdownStr}
+                    onChange={(e) => setBreakdownStr(e.target.value)}
+                    placeholder="Contoh: X (100 + 56)"
+                  />
+                </div>
+                <div className={styles.editGroupFull}>
+                  <label className={styles.editLabel}>Teks Bawah QR Code</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={qrLabel}
+                    onChange={(e) => setQrLabel(e.target.value)}
+                    placeholder="inktr.ee/rayoncunda"
+                  />
+                </div>
+                <div className={styles.editGroupFull}>
+                  <label className={styles.editLabel}>Target URL QR Code</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={qrUrl}
+                    onChange={(e) => setQrUrl(e.target.value)}
+                    placeholder="https://linktr.ee/rayoncunda"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.resetBtn}
+                onClick={handleResetDefaults}
+              >
+                ↺ Reset ke Default
+              </button>
+            </div>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              PREVIEW KARTU LABEL 100 x 50 MM LANDSCAPE
+          ───────────────────────────────────────────────────────────── */}
+          <div className={styles.previewWrapper}>
+            <div className={styles.labelCard}>
+              <div className={styles.labelBorder}>
+                {/* 1. Header Section */}
+                <div className={styles.headerArea}>
+                  <div className={styles.headerLeft}>
+                    <img
+                      src={logoCunda}
+                      alt="Rayon Cunda Logo"
+                      className={styles.logoCunda}
+                    />
+                    <div className={styles.companyInfo}>
+                      <h1 className={styles.companyName}>RAYON CUNDA</h1>
+                      <div className={styles.companyAddress}>Tersono, Kec. Tersono</div>
+                      <div className={styles.companyAddress}>Kabupaten Batang</div>
+                    </div>
+                  </div>
+
+                  <div className={styles.headerRight}>
+                    <img
+                      src={logoHalal}
+                      alt="Logo Halal"
+                      className={styles.logoHalal}
+                    />
+                    <img
+                      src={logoTkdn}
+                      alt="Logo TKDN"
+                      className={styles.logoTkdn}
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Body Section (QR Code on Left, Specifications on Right) */}
+                <div className={styles.bodyArea}>
+                  {/* Left QR Column */}
+                  <div className={styles.qrColumn}>
+                    <div className={styles.qrWrapper}>
+                      {qrDataUrl ? (
+                        <img
+                          src={qrDataUrl}
+                          alt="QR Code"
+                          className={styles.qrImage}
+                        />
+                      ) : (
+                        <div style={{ fontSize: '10px', color: '#666' }}>Memuat QR…</div>
+                      )}
+                    </div>
+                    <div className={styles.qrText}>{qrLabel}</div>
+                  </div>
+
+                  {/* Right Details Column */}
+                  <div className={styles.detailsColumn}>
+                    <div className={styles.detailsGrid}>
+                      <span className={styles.labelCell}>NO. ROLL</span>
+                      <span className={styles.colonCell}>:</span>
+                      <span className={styles.valueCell}>{rollNum}</span>
+
+                      <span className={styles.labelCell}>KODE DESIGN</span>
+                      <span className={styles.colonCell}>:</span>
+                      <span className={styles.valueCell}>{kodeDesign.toUpperCase()}</span>
+
+                      <span className={styles.labelCell}>DATE</span>
+                      <span className={styles.colonCell}>:</span>
+                      <span className={styles.valueCell}>{dateStr}</span>
+
+                      <span className={styles.labelCell}>LENGTH</span>
+                      <span className={styles.colonCell}>:</span>
+                      <span className={styles.valueCell}>{lengthInchStr}</span>
+
+                      <span className={styles.labelCell}>QTY</span>
+                      <span className={styles.colonCell}>:</span>
+                      <div className={styles.qtyContainer}>
+                        <span className={styles.valueCell}>{qtyStr}</span>
+                        {breakdownStr && breakdownStr.trim() !== '' && (
+                          <div className={styles.breakdownText}>
+                            {breakdownStr.trim()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Action Buttons */}
+        <div className={styles.footerBar}>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={onClose}
+            disabled={printing}
+          >
+            Tutup
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            style={{ minWidth: '150px' }}
+            onClick={handlePrintAction}
+            disabled={printing}
+          >
+            {printing ? '⏳ Menyiapkan…' : '🖨️ Cetak Label 10x5'}
+          </button>
+        </div>
+      </div>
+
+      {/* Hidden isolated iframe for 100% accurate 100mm x 50mm landscape label printing */}
+      <iframe
+        ref={printIframeRef}
+        title="Print Label 100x50 Frame"
+        style={{
+          position: 'fixed',
+          top: '-9999px',
+          left: '-9999px',
+          width: '100mm',
+          height: '50mm',
+          border: 'none',
+        }}
+      />
+    </div>
+  )
+}
+

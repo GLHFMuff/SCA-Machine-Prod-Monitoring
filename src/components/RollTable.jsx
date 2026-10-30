@@ -4,6 +4,7 @@ import ManualRollModal from './ManualRollModal.jsx'
 import GetDataConfirmModal from './GetDataConfirmModal.jsx'
 import ETicketModal from './ETicketModal.jsx'
 import RollLabelModal from './RollLabelModal.jsx'
+import Label100x50Modal from './Label100x50Modal.jsx'
 import MultiMachineReserveModal from './MultiMachineReserveModal.jsx'
 import EditRollModal from './EditRollModal.jsx'
 import { getAutonicData } from '../services/autonicService.js'
@@ -49,6 +50,7 @@ export default function RollTable({
   const [savingEdit, setSavingEdit] = useState(false)
   const [showManualModal, setShowManualModal] = useState(false)
   const [ticketModalRoll, setTicketModalRoll] = useState(null)
+  const [label100Roll, setLabel100Roll] = useState(null)
   const [labelModalRoll, setLabelModalRoll] = useState(null)
   const [showReserveModal, setShowReserveModal] = useState(false)
   const [editingBsId, setEditingBsId] = useState(null)
@@ -469,20 +471,30 @@ export default function RollTable({
                           type="button"
                           className={styles.printTicketBtn}
                           onClick={() => setTicketModalRoll(roll)}
-                          title="Cetak E-Ticket per roll"
+                          title="Cetak E-Ticket 7x11 cm (Portrait)"
                         >
                           <span className={styles.btnIcon}>🖨️</span>
-                          <span className={styles.btnLabel}>Cetak</span>
+                          <span className={styles.btnLabel}>E-Ticket Cunda</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={styles.printLabel100Btn}
+                          onClick={() => setLabel100Roll(roll)}
+                          title="Cetak Label Roll 100x50 mm (Rayon Cunda)"
+                        >
+                          <span className={styles.btnIcon}>🏷️</span>
+                          <span className={styles.btnLabel}>Label Cunda</span>
                         </button>
 
                         <button
                           type="button"
                           className={styles.printLabelBtn}
                           onClick={() => setLabelModalRoll(roll)}
-                          title="Cetak Label Roll 11x7 cm"
+                          title="Cetak Label Roll 9x5 cm"
                         >
                           <span className={styles.btnIcon}>🏷️</span>
-                          <span className={styles.btnLabel}>Label</span>
+                          <span className={styles.btnLabel}>Label QR</span>
                         </button>
 
                         <button
@@ -559,7 +571,7 @@ export default function RollTable({
         />
       )}
 
-      {/* ── Modal Cetak Label Roll 11x7 cm ── */}
+      {/* ── Modal Cetak Label Roll 9x5 cm ── */}
       {labelModalRoll && (
         <RollLabelModal
           roll={labelModalRoll}
@@ -567,6 +579,17 @@ export default function RollTable({
           user={user}
           onPrint={handlePrintTicket}
           onClose={() => setLabelModalRoll(null)}
+        />
+      )}
+
+      {/* ── Modal Cetak Label Roll 100x50 mm (Rayon Cunda) ── */}
+      {label100Roll && (
+        <Label100x50Modal
+          roll={label100Roll}
+          prodData={prodData}
+          user={user}
+          onPrint={handlePrintTicket}
+          onClose={() => setLabel100Roll(null)}
         />
       )}
 

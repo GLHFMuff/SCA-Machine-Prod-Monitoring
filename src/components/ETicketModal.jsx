@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import logoCunda from '../img/lg_cunda.png'
 import logoHalal from '../img/lg_halal.png'
@@ -27,6 +27,7 @@ export default function ETicketModal({
 }) {
   const [printing, setPrinting] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
+  const printIframeRef = useRef(null)
 
   // ── Derive initial values from props or sensible defaults matching reference ──
   const initialRollNum = String(roll?.id ?? 1).padStart(2, '0')
@@ -128,22 +129,6 @@ export default function ETicketModal({
     setK3lNumber(initialK3L)
   }
 
-  // Handle printing
-  async function handlePrintAction() {
-    setPrinting(true)
-    try {
-      if (onPrint) {
-        await onPrint(roll)
-      }
-      // Trigger native browser print
-      window.print()
-    } catch (err) {
-      console.error('Print error:', err)
-    } finally {
-      setPrinting(false)
-    }
-  }
-
   // Format Kode Design / Jenis Kain:
   // "cd itu design, jadi CD Design (jenis kain), kode design jg sama jenis kain"
   const cleanCode = kodeDesign.trim()
@@ -160,25 +145,366 @@ export default function ETicketModal({
   // Nilai baris tabel KODE DESIGN: jenis kain yang sama
   const tableKodeDesign = (innerCode || cleanCode).toUpperCase()
 
-  // Dynamic font sizing if design name is long
+  // Dynamic font sizing for 7x11 cm (Portrait)
   const titleLength = boxTopTitle.length
-  let boxTitleFontSize = '34px'
+  let boxTitleFontSize = '19px'
+  let printTitleFontSize = '13pt'
   if (titleLength > 30) {
-    boxTitleFontSize = '19px'
+    boxTitleFontSize = '12px'
+    printTitleFontSize = '8.5pt'
   } else if (titleLength > 20) {
-    boxTitleFontSize = '23px'
+    boxTitleFontSize = '14px'
+    printTitleFontSize = '10pt'
   } else if (titleLength > 13) {
-    boxTitleFontSize = '27px'
+    boxTitleFontSize = '16px'
+    printTitleFontSize = '11.5pt'
   }
 
   const motifLength = motif.length
-  let motifFontSize = '28px'
+  let motifFontSize = '16px'
+  let printMotifFontSize = '11pt'
   if (motifLength > 30) {
-    motifFontSize = '17px'
+    motifFontSize = '10.5px'
+    printMotifFontSize = '7.5pt'
   } else if (motifLength > 20) {
-    motifFontSize = '21px'
+    motifFontSize = '12.5px'
+    printMotifFontSize = '9pt'
   } else if (motifLength > 14) {
-    motifFontSize = '25px'
+    motifFontSize = '14px'
+    printMotifFontSize = '10pt'
+  }
+
+  // Handle printing
+  async function handlePrintAction() {
+    setPrinting(true)
+    try {
+      if (onPrint) {
+        await onPrint(roll)
+      }
+      // Iframe print terisolasi agar 100% pas ukuran kertas 70mm x 110mm (7x11 cm portrait)
+      const iframe = printIframeRef.current
+      if (iframe) {
+        const doc = iframe.contentWindow.document
+        doc.open()
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>E-Ticket Roll #${rollNum} - 7x11cm</title>
+              <style>
+                @page {
+                  size: 70mm 110mm portrait;
+                  margin: 0;
+                }
+                * {
+                  box-sizing: border-box;
+                  margin: 0;
+                  padding: 0;
+                  font-family: 'Times New Roman', Times, Georgia, serif;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                html, body {
+                  width: 70mm;
+                  height: 110mm;
+                  background: #ffffff;
+                  color: #000000;
+                  overflow: hidden;
+                  margin: 0;
+                  padding: 0;
+                }
+                .labelCard {
+                  width: 70mm;
+                  height: 110mm;
+                  padding: 3mm 3.5mm 2.5mm 3.5mm;
+                  box-sizing: border-box;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: space-between;
+                  background: #ffffff;
+                }
+                .labelHeader {
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  width: 100%;
+                  height: 11mm;
+                }
+                .headerLeft {
+                  display: flex;
+                  align-items: center;
+                  gap: 1.8mm;
+                }
+                .logoCunda {
+                  width: 10.5mm;
+                  height: 10.5mm;
+                  object-fit: contain;
+                  border-radius: 50%;
+                  display: block;
+                }
+                .companyInfo {
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                }
+                .companyName {
+                  font-size: 8.5pt;
+                  font-weight: 900;
+                  letter-spacing: 0.3px;
+                  line-height: 1.05;
+                  margin: 0 0 0.3mm 0;
+                  color: #000000;
+                }
+                .companyAddress {
+                  font-size: 5pt;
+                  font-weight: 400;
+                  line-height: 1.15;
+                  color: #000000;
+                }
+                .headerRight {
+                  display: flex;
+                  align-items: center;
+                  gap: 1.5mm;
+                }
+                .logoHalal {
+                  height: 10mm;
+                  width: auto;
+                  max-width: 9mm;
+                  object-fit: contain;
+                  display: block;
+                }
+                .logoTkdn {
+                  height: 10mm;
+                  width: auto;
+                  max-width: 11mm;
+                  object-fit: contain;
+                  display: block;
+                }
+                .mainBox {
+                  border: 1.8px solid #000000;
+                  border-radius: 3.5mm;
+                  padding: 2mm 2mm 2.2mm 2mm;
+                  background: #ffffff;
+                  box-sizing: border-box;
+                  display: flex;
+                  flex-direction: column;
+                  flex: 1;
+                  margin: 1.2mm 0;
+                }
+                .boxTitles {
+                  text-align: center;
+                  margin-bottom: 1.5mm;
+                }
+                .boxTitleCode {
+                  font-size: ${printTitleFontSize};
+                  font-weight: 900;
+                  letter-spacing: 0.2px;
+                  line-height: 1.1;
+                  color: #000000;
+                }
+                .boxTitleMotif {
+                  font-size: ${printMotifFontSize};
+                  font-weight: 900;
+                  letter-spacing: 0.3px;
+                  line-height: 1.1;
+                  color: #000000;
+                  margin-top: 0.6mm;
+                }
+                .boxBody {
+                  display: flex;
+                  align-items: flex-start;
+                  justify-content: space-between;
+                  gap: 2mm;
+                  flex: 1;
+                }
+                .qrColumn {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  width: 23mm;
+                  flex-shrink: 0;
+                }
+                .qrWrapper {
+                  width: 23mm;
+                  height: 23mm;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  background: #ffffff;
+                }
+                .qrImage {
+                  width: 100%;
+                  height: 100%;
+                  object-fit: contain;
+                  image-rendering: pixelated;
+                  display: block;
+                }
+                .qrLinkText {
+                  font-family: Arial, Helvetica, sans-serif;
+                  font-size: 4.8pt;
+                  font-weight: 600;
+                  color: #000000;
+                  text-align: center;
+                  margin-top: 0.8mm;
+                  word-break: break-all;
+                  line-height: 1.1;
+                }
+                .detailsColumn {
+                  flex: 1;
+                  min-width: 0;
+                  padding-top: 0.4mm;
+                }
+                .detailsGrid {
+                  display: grid;
+                  grid-template-columns: max-content auto 1fr;
+                  row-gap: 1.4mm;
+                  align-items: baseline;
+                }
+                .labelCell {
+                  font-size: 7.2pt;
+                  font-weight: 900;
+                  color: #000000;
+                  white-space: nowrap;
+                }
+                .colonCell {
+                  font-size: 7.2pt;
+                  font-weight: 900;
+                  color: #000000;
+                  padding: 0 1mm;
+                  text-align: center;
+                }
+                .valueCell {
+                  font-size: 7.2pt;
+                  font-weight: 600;
+                  color: #000000;
+                  white-space: nowrap;
+                }
+                .valueCellDesign {
+                  font-size: 7.2pt;
+                  font-weight: 600;
+                  color: #000000;
+                  word-break: break-word;
+                  line-height: 1.15;
+                }
+                .qtyContainer {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-start;
+                }
+                .breakdownText {
+                  font-size: 6.5pt;
+                  font-weight: 600;
+                  color: #000000;
+                  margin-top: 0.4mm;
+                  white-space: nowrap;
+                }
+                .bottomSection {
+                  height: 5.5mm;
+                  text-align: center;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                }
+                .k3lTitle {
+                  font-size: 5.2pt;
+                  font-weight: 800;
+                  letter-spacing: 0.3px;
+                  color: #000000;
+                  text-transform: uppercase;
+                }
+                .k3lNumber {
+                  font-size: 5.2pt;
+                  font-weight: 700;
+                  letter-spacing: 0.2px;
+                  color: #000000;
+                  margin-top: 0.3mm;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="labelCard">
+                <div class="labelHeader">
+                  <div class="headerLeft">
+                    <img src="${logoCunda}" alt="Rayon Cunda Logo" class="logoCunda" />
+                    <div class="companyInfo">
+                      <h1 class="companyName">RAYON CUNDA</h1>
+                      <div class="companyAddress">Tersono, Kec. Tersono</div>
+                      <div class="companyAddress">Kabupaten Batang</div>
+                    </div>
+                  </div>
+                  <div class="headerRight">
+                    <img src="${logoHalal}" alt="Halal Indonesia" class="logoHalal" />
+                    <img src="${logoTkdn}" alt="TKDN" class="logoTkdn" />
+                  </div>
+                </div>
+
+                <div class="mainBox">
+                  <div class="boxTitles">
+                    <div class="boxTitleCode">${boxTopTitle}</div>
+                    <div class="boxTitleMotif">${motif.toUpperCase()}</div>
+                  </div>
+
+                  <div class="boxBody">
+                    <div class="qrColumn">
+                      <div class="qrWrapper">
+                        <img src="${qrDataUrl}" alt="QR Code" class="qrImage" />
+                      </div>
+                      <div class="qrLinkText">${qrLabel}</div>
+                    </div>
+
+                    <div class="detailsColumn">
+                      <div class="detailsGrid">
+                        <span class="labelCell">NO. ROLL</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCell">${rollNum}</span>
+
+                        <span class="labelCell">KODE DESIGN</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCellDesign">${tableKodeDesign}</span>
+
+                        <span class="labelCell">DATE</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCell">${dateStr}</span>
+
+                        <span class="labelCell">LENGTH</span>
+                        <span class="colonCell">:</span>
+                        <span class="valueCell">${lengthStr}</span>
+
+                        <span class="labelCell">QTY</span>
+                        <span class="colonCell">:</span>
+                        <div class="qtyContainer">
+                          <span class="valueCell">${qtyStr}</span>
+                          ${breakdownStr && breakdownStr.trim() !== '' ? `<div class="breakdownText">${breakdownStr.trim()}</div>` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bottomSection">
+                  <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L</div>
+                  <div class="k3lNumber">${k3lNumber}</div>
+                </div>
+              </div>
+            </body>
+          </html>
+        `)
+        doc.close()
+        iframe.contentWindow.focus()
+        setTimeout(() => {
+          iframe.contentWindow.print()
+        }, 200)
+      } else {
+        // Fallback trigger native browser print
+        window.print()
+      }
+    } catch (err) {
+      console.error('Print error:', err)
+    } finally {
+      setPrinting(false)
+    }
   }
 
   return (
@@ -187,7 +513,7 @@ export default function ETicketModal({
         {/* Modal Controls (Hidden during print) */}
         <div className={styles.topBar}>
           <div className={styles.topTitle}>
-            <span>🏷️ Cetak E-Ticket Roll #{rollNum}</span>
+            <span>🏷️ Cetak E-Ticket Roll #{rollNum} (7x11 cm)</span>
             {roll?.isPrinted && (
               <span className={styles.alreadyPrintedBadge}>✓ Sudah Pernah Dicetak</span>
             )}
@@ -206,7 +532,7 @@ export default function ETicketModal({
         <div className={styles.ticketArea} id="printable-e-ticket">
           {/* Notice & Customization Toggle (Hidden during print) */}
           <div className={styles.previewNotice}>
-            <span>Format Standar Label Rayon Cunda (Batang)</span>
+            <span>Format Standar Label Rayon Cunda (7x11 cm Portrait)</span>
             <button
               type="button"
               className={styles.toggleEditBtn}
@@ -449,6 +775,13 @@ export default function ETicketModal({
           </button>
         </div>
       </div>
+
+      {/* Hidden isolated iframe for 100% accurate 70mm x 110mm portrait e-ticket printing */}
+      <iframe
+        ref={printIframeRef}
+        title="Print E-Ticket Frame"
+        style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: '70mm', height: '110mm', border: 'none' }}
+      />
     </div>
   )
 }
