@@ -188,7 +188,7 @@ export default function RollLabelModal({
           <html>
             <head>
               <meta charset="utf-8" />
-              <title>Label Roll #${rollNum} - 9x5cm</title>
+              <title>Label Roll #${rollNum}</title>
               <style>
                 @page {
                   size: 100mm 50mm landscape;
@@ -233,7 +233,7 @@ export default function RollLabelModal({
                   display: flex;
                   align-items: center;
                   justify-content: center;
-                  height: 9m;
+                  height: 9mm;
                   width: 100%;
                 }
                 .companyInfo {
@@ -417,7 +417,7 @@ export default function RollLabelModal({
                   <!-- Bottom Registration K3L Area -->
                   <div class="bottomSection">
                     <div class="k3lTitle">No Claim After Cutting  -  Setelah potong, klaim tidak diterima</div>
-                    <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L : ${k3lNumber}</DIV>
+                    <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L : ${k3lNumber}</div>
                   </div>
                 </div>
               </div>
@@ -445,7 +445,7 @@ export default function RollLabelModal({
         {/* Modal Controls */}
         <div className={styles.topBar}>
           <div className={styles.topTitle}>
-            <span>🏷️ Cetak Label Roll #{rollNum} (9x5 cm)</span>
+            <span>🏷️ Label Roll #{rollNum}</span>
             {roll?.isPrinted && (
               <span className={styles.alreadyPrintedBadge}>✓ Sudah Pernah Dicetak</span>
             )}
@@ -461,10 +461,10 @@ export default function RollLabelModal({
         </div>
 
         {/* Printable Ticket Area */}
-        <div className={styles.ticketArea} id="printable-label-9x5">
+        <div className={styles.ticketArea} id="printable-label-roll">
           {/* Notice & Customization Toggle */}
           <div className={styles.previewNotice}>
-            <span>Format Label Roll (9x5 cm Landscape)</span>
+            <span>Format Label Roll</span>
             <button
               type="button"
               className={styles.toggleEditBtn}
@@ -479,12 +479,12 @@ export default function RollLabelModal({
             <div className={styles.editDrawer}>
               <div className={styles.editGrid}>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>No. Roll</label>
+                  <label className={styles.editLabel}>No. Roll (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={rollNum}
-                    onChange={(e) => setRollNum(e.target.value)}
+                    readOnly
                     placeholder="Contoh: 01"
                   />
                 </div>
@@ -519,22 +519,22 @@ export default function RollLabelModal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Length (Lebar)</label>
+                  <label className={styles.editLabel}>Length (Lebar) (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={lengthInchStr}
-                    onChange={(e) => setLengthInchStr(e.target.value)}
+                    readOnly
                     placeholder='52"'
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>QTY</label>
+                  <label className={styles.editLabel}>QTY (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={qtyStr}
-                    onChange={(e) => setQtyStr(e.target.value)}
+                    readOnly
                     placeholder="156 YARD"
                   />
                 </div>
@@ -549,42 +549,42 @@ export default function RollLabelModal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>No. Registrasi K3L</label>
+                  <label className={styles.editLabel}>No. Registrasi K3L (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={k3lNumber}
-                    onChange={(e) => setK3lNumber(e.target.value)}
+                    readOnly
                     placeholder="20-D-001909"
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Nama K3L (Header)</label>
+                  <label className={styles.editLabel}>Nama K3L (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={k3lName}
-                    onChange={(e) => setK3lName(e.target.value)}
+                    readOnly
                     placeholder="Contoh: K3L NAME"
                   />
                 </div>
                 <div className={styles.editGroupFull}>
-                  <label className={styles.editLabel}>Isi QR Code (Barcode: QrNum;RecidProdId;RecidSalesId;RecidItemId;Length;)</label>
+                  <label className={styles.editLabel}>Isi QR Code (Barcode) (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={barcodeContent}
-                    onChange={(e) => setBarcodeContent(e.target.value)}
+                    readOnly
                     placeholder="QrNum;RecidProdId;RecidSalesId;RecidItemId;Length;"
                   />
                 </div>
                 <div className={styles.editGroupFull}>
-                  <label className={styles.editLabel}>Teks Bawah QR Code (Opsional)</label>
+                  <label className={styles.editLabel}>Teks Bawah QR Code (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={qrLabel}
-                    onChange={(e) => setQrLabel(e.target.value)}
+                    readOnly
                     placeholder="Kosongkan jika tidak ada teks"
                   />
                 </div>
@@ -703,7 +703,7 @@ export default function RollLabelModal({
             onClick={handlePrintAction}
             disabled={printing}
           >
-            {printing ? '⏳ Menyiapkan…' : '🖨️ Cetak Label 9x5'}
+            {printing ? '⏳ Menyiapkan…' : '🖨️ Print Label Roll'}
           </button>
         </div>
       </div>
@@ -711,7 +711,7 @@ export default function RollLabelModal({
       {/* Hidden isolated iframe for 100% accurate 100mm x 50mm landscape label printing */}
       <iframe
         ref={printIframeRef}
-        title="Print Label 9x5 Frame"
+        title="Print Label Roll Frame"
         style={{
           position: 'fixed',
           top: '-9999px',

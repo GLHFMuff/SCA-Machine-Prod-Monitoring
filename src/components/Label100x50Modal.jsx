@@ -184,7 +184,7 @@ export default function Label100x50Modal({
           <html>
             <head>
               <meta charset="utf-8" />
-              <title>Label Roll #${rollNum} - 100x50mm</title>
+              <title>Label Cust #${rollNum}</title>
               <style>
                 @page {
                   size: 100mm 50mm landscape;
@@ -480,7 +480,7 @@ export default function Label100x50Modal({
         {/* Modal Controls */}
         <div className={styles.topBar}>
           <div className={styles.topTitle}>
-            <span>🏷️ Cetak Label Roll #{rollNum} (100x50 mm)</span>
+            <span>🏷️ Label Cust #{rollNum}</span>
             {roll?.isPrinted && (
               <span className={styles.alreadyPrintedBadge}>✓ Sudah Pernah Dicetak</span>
             )}
@@ -496,10 +496,10 @@ export default function Label100x50Modal({
         </div>
 
         {/* Printable Ticket Area */}
-        <div className={styles.ticketArea} id="printable-label-100x50">
+        <div className={styles.ticketArea} id="printable-label-cust">
           {/* Notice & Customization Toggle */}
           <div className={styles.previewNotice}>
-            <span>Format Label Rayon Cunda (100x50 mm Landscape)</span>
+            <span>Format Label Cust</span>
             <button
               type="button"
               className={styles.toggleEditBtn}
@@ -514,12 +514,12 @@ export default function Label100x50Modal({
             <div className={styles.editDrawer}>
               <div className={styles.editGrid}>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>No. Roll</label>
+                  <label className={styles.editLabel}>No. Roll (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={rollNum}
-                    onChange={(e) => setRollNum(e.target.value)}
+                    readOnly
                     placeholder="Contoh: 01"
                   />
                 </div>
@@ -554,22 +554,22 @@ export default function Label100x50Modal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Length (Lebar)</label>
+                  <label className={styles.editLabel}>Length (Lebar) (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={lengthInchStr}
-                    onChange={(e) => setLengthInchStr(e.target.value)}
+                    readOnly
                     placeholder='52"'
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>QTY</label>
+                  <label className={styles.editLabel}>QTY (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={qtyStr}
-                    onChange={(e) => setQtyStr(e.target.value)}
+                    readOnly
                     placeholder="156 YARD"
                   />
                 </div>
@@ -584,42 +584,42 @@ export default function Label100x50Modal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>No. Registrasi K3L</label>
+                  <label className={styles.editLabel}>No. Registrasi K3L (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={k3lNumber}
-                    onChange={(e) => setK3lNumber(e.target.value)}
+                    readOnly
                     placeholder="20-D-001909"
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Nama K3L (Header)</label>
+                  <label className={styles.editLabel}>Nama K3L (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={k3lName}
-                    onChange={(e) => setK3lName(e.target.value)}
+                    readOnly
                     placeholder="Contoh: K3L NAME"
                   />
                 </div>
                 <div className={styles.editGroupFull}>
-                  <label className={styles.editLabel}>Teks Bawah QR Code</label>
+                  <label className={styles.editLabel}>Teks Bawah QR Code (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={qrLabel}
-                    onChange={(e) => setQrLabel(e.target.value)}
+                    readOnly
                     placeholder="inktr.ee/rayoncunda"
                   />
                 </div>
                 <div className={styles.editGroupFull}>
-                  <label className={styles.editLabel}>Target URL QR Code</label>
+                  <label className={styles.editLabel}>Target URL QR Code (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={qrUrl}
-                    onChange={(e) => setQrUrl(e.target.value)}
+                    readOnly
                     placeholder="https://linktr.ee/rayoncunda"
                   />
                 </div>
@@ -756,7 +756,7 @@ export default function Label100x50Modal({
             onClick={handlePrintAction}
             disabled={printing}
           >
-            {printing ? '⏳ Menyiapkan…' : '🖨️ Cetak Label 10x5'}
+            {printing ? '⏳ Menyiapkan…' : '🖨️ Print Label Cust'}
           </button>
         </div>
       </div>
@@ -764,7 +764,7 @@ export default function Label100x50Modal({
       {/* Hidden isolated iframe for 100% accurate 100mm x 50mm landscape label printing */}
       <iframe
         ref={printIframeRef}
-        title="Print Label 100x50 Frame"
+        title="Print Label Cust Frame"
         style={{
           position: 'fixed',
           top: '-9999px',

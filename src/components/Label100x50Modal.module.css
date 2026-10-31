@@ -179,6 +179,14 @@
   border-color: #3b82f6;
 }
 
+.editInput[readonly] {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: #1e293b;
+  color: #64748b;
+  cursor: not-allowed;
+  user-select: none;
+}
+
 .resetBtn {
   align-self: flex-end;
   background: transparent;

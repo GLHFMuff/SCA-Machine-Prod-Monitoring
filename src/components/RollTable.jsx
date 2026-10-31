@@ -481,20 +481,20 @@ export default function RollTable({
                           type="button"
                           className={styles.printLabel100Btn}
                           onClick={() => setLabel100Roll(roll)}
-                          title="Cetak Label Roll 100x50 mm (Rayon Cunda)"
+                          title="Print Label Cust"
                         >
                           <span className={styles.btnIcon}>🏷️</span>
-                          <span className={styles.btnLabel}>Label Cunda</span>
+                          <span className={styles.btnLabel}>Label Cust</span>
                         </button>
 
                         <button
                           type="button"
                           className={styles.printLabelBtn}
                           onClick={() => setLabelModalRoll(roll)}
-                          title="Cetak Label Roll 9x5 cm"
+                          title="Print Label Roll"
                         >
                           <span className={styles.btnIcon}>🏷️</span>
-                          <span className={styles.btnLabel}>Label QR</span>
+                          <span className={styles.btnLabel}>Label Roll</span>
                         </button>
 
                         <button
@@ -571,7 +571,7 @@ export default function RollTable({
         />
       )}
 
-      {/* ── Modal Cetak Label Roll 9x5 cm ── */}
+      {/* ── Modal Cetak Label Roll ── */}
       {labelModalRoll && (
         <RollLabelModal
           roll={labelModalRoll}
@@ -582,7 +582,7 @@ export default function RollTable({
         />
       )}
 
-      {/* ── Modal Cetak Label Roll 100x50 mm (Rayon Cunda) ── */}
+      {/* ── Modal Cetak Label Cust ── */}
       {label100Roll && (
         <Label100x50Modal
           roll={label100Roll}
