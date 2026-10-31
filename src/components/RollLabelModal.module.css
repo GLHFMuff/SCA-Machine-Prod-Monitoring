@@ -394,13 +394,30 @@
 
 /* 3. Bottom Registration Area */
 .bottomSection {
-  text-align: center;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 2px;
+  box-sizing: border-box;
+}
+
+.bottomLeftCol {
+  width: 96%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  text-align: center;
+}
+
+.bottomRightCol {
+  width: 4%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .k3lTitle,
@@ -413,6 +430,15 @@
   line-height: 1.15;
   text-align: center;
   margin: 0;
+}
+
+.stockBadge {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  color: #000000;
+  text-align: center;
 }
 
 /* Modal Footer */

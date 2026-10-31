@@ -25,6 +25,9 @@ export default function RollLabelModal({
   const [showEditor, setShowEditor] = useState(false)
   const printIframeRef = useRef(null)
 
+  // Status Kain Stock (isStock)
+  const isStockRoll = Boolean(roll?.isStock || roll?.is_stock || roll?.IsStock)
+
   // ── Derive initial values from props or sensible defaults ──
   const initialRollNum = String(roll?.id ?? roll?.roolNumber ?? 1).padStart(2, '0')
 
@@ -345,14 +348,28 @@ export default function RollLabelModal({
                 }
                 /* Bottom K3L Registration Area */
                 .bottomSection {
-                  height: 3mm;
+                  width: 100%;
+                  display: flex;
+                  flex-direction: row;
+                  align-items: center;
+                  justify-content: space-between;
                   margin-top: 0.2mm;
+                  box-sizing: border-box;
+                }
+                .bottomLeftCol {
+                  width: 96%;
                   display: flex;
                   flex-direction: column;
                   align-items: center;
                   justify-content: center;
                   text-align: center;
-                  width: 100%;
+                }
+                .bottomRightCol {
+                  width: 4%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  text-align: center;
                 }
                 .k3lTitle,
                 .k3lNumber {
@@ -363,6 +380,14 @@ export default function RollLabelModal({
                   line-height: 1.25;
                   text-align: center;
                   margin: 0;
+                }
+                .stockBadge {
+                  font-family: 'Times New Roman', Times, Georgia, serif;
+                  font-size: 11pt;
+                  font-weight: 900;
+                  line-height: 1;
+                  color: #000000;
+                  text-align: center;
                 }
               </style>
             </head>
@@ -416,8 +441,13 @@ export default function RollLabelModal({
 
                   <!-- Bottom Registration K3L Area -->
                   <div class="bottomSection">
-                    <div class="k3lTitle">No Claim After Cutting  -  Setelah potong, klaim tidak diterima</div>
-                    <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L : ${k3lNumber}</div>
+                    <div class="bottomLeftCol">
+                      <div class="k3lTitle">No Claim After Cutting  -  Setelah potong, klaim tidak diterima</div>
+                      <div class="k3lTitle">NOMOR REGISTRASI BARANG K3L : ${k3lNumber}</div>
+                    </div>
+                    <div class="bottomRightCol">
+                      ${isStockRoll ? '<span class="stockBadge">S</span>' : ''}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -678,8 +708,13 @@ export default function RollLabelModal({
 
                 {/* 3. Bottom Registration Area */}
                 <div className={styles.bottomSection}>
-                  <div className={styles.k3lTitle}>No Claim After Cutting  -  Setelah potong, klaim tidak diterima</div>
-                  <div className={styles.k3lTitle}>NOMOR REGISTRASI BARANG K3L : {k3lNumber}</div>
+                  <div className={styles.bottomLeftCol}>
+                    <div className={styles.k3lTitle}>No Claim After Cutting  -  Setelah potong, klaim tidak diterima</div>
+                    <div className={styles.k3lTitle}>NOMOR REGISTRASI BARANG K3L : {k3lNumber}</div>
+                  </div>
+                  <div className={styles.bottomRightCol}>
+                    {isStockRoll && <span className={styles.stockBadge}>S</span>}
+                  </div>
                 </div>
               </div>
             </div>
