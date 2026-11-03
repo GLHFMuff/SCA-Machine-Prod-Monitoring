@@ -246,8 +246,8 @@ async function upsertLineQuery(client, line) {
       finalIsExecute = false;
     }
 
-    const finalIsStock = line.isStock !== undefined 
-      ? Boolean(line.isStock) 
+    const finalIsStock = line.isStock !== undefined
+      ? Boolean(line.isStock)
       : (existing.isStock !== null ? Boolean(existing.isStock) : false);
 
     let finalQrNum = line.QrNum || existing.QrNum;
@@ -875,8 +875,8 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
       finalIsExecute = false;
     }
 
-    const finalIsStock = req.body.isStock !== undefined 
-      ? Boolean(req.body.isStock) 
+    const finalIsStock = req.body.isStock !== undefined
+      ? Boolean(req.body.isStock)
       : (existing.isStock !== null ? Boolean(existing.isStock) : false);
 
     let finalQrNum = req.body.QrNum || req.body.qrNum || existing.QrNum;
@@ -1237,11 +1237,10 @@ router.post('/autonic/get-and-delete', async (req, res) => {
       console.warn('[Autonic Webhook Fallback to DB]:', whErr.message);
     }
 
-    // 2. Jika webhook gagal atau tidak mengembalikan data, baca langsung dari tabel database autonicmachine_${machineId}
     const tableName = `autonicmachine_${machineId}`;
     if (!reading || !reading.Length) {
       const directRes = await client.query(
-        `SELECT createdatetime, length FROM "${tableName}" ORDER BY createdatetime DESC LIMIT 1`
+        `SELECT createdatetime, length FROM "${tableName}" ORDER BY length DESC LIMIT 1`
       );
       if (directRes.rows.length > 0) {
         reading = {

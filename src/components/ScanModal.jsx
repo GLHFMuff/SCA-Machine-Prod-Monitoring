@@ -304,23 +304,23 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
             {/* Preview Field Cards */}
             <div className={styles.parsedCard}>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>ProdId:</span>
+                <span className={styles.parsedKey}>No OP:</span>
                 <span className={styles.parsedValHighlight}>{scannedResult.prodId}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>SeqmentNum:</span>
+                <span className={styles.parsedKey}>No DO:</span>
                 <span className={styles.parsedVal}>{scannedResult.seqmentNum || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>CustCode:</span>
+                <span className={styles.parsedKey}>Buyer:</span>
                 <span className={styles.parsedVal}>{scannedResult.custCode || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>DesignCode:</span>
+                <span className={styles.parsedKey}>Kode Design:</span>
                 <span className={styles.parsedVal}>{scannedResult.designCode || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
-                <span className={styles.parsedKey}>Color:</span>
+                <span className={styles.parsedKey}>Warna:</span>
                 <span className={styles.parsedValHighlight}>{scannedResult.color || '-'}</span>
               </div>
               {(scannedResult.orderQty > 0 || scannedResult.stockQty > 0) && (
