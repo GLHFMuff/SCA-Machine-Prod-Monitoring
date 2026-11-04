@@ -59,7 +59,7 @@ export default function JoinedPieceModal({ roll, initJoinedPieces, onSave, onClo
                 <div className={styles.defectItem} key={d.id}>
                   <div>
                     <div className={styles.defectCode}>🧵 Joined Piece</div>
-                    <div className={styles.defectYard}>Posisi yard {d.yard}</div>
+                    <div className={styles.defectYard}>Panjang yard {d.yard}</div>
                   </div>
                   <button
                     className={styles.deleteBtn}

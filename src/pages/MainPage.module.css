@@ -35,7 +35,6 @@
   flex-shrink: 0;
 }
 
-/* ── Mobile Responsive (Tablet & Ponsel) ── */
 @media (max-width: 768px) {
   .wrapper {
     height: auto;

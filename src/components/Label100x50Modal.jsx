@@ -66,7 +66,12 @@ export default function Label100x50Modal({
   const initialQty = roll?.length ? `${roll.length} YARD` : '156 YARD'
 
   // Sambungan / breakdown
-  const initialBreakdown = roll?.breakdown || 'X (100 + 56)'
+  const joinedPieceLengths = (roll?.joinedPieces || roll?.JoinedPieces || [])
+    .map((piece) => piece.LengthPoint ?? piece.lengthPoint ?? piece.yard)
+    .filter((length) => length !== undefined && length !== null && String(length).trim() !== '')
+  const initialBreakdown = joinedPieceLengths.length
+    ? `X (${joinedPieceLengths.join(' + ')})`
+    : (roll?.breakdown || '')
 
   // QR Link & Label (default inktr.ee/rayoncunda sesuai permintaan)
   const initialQrLink = 'https://linktr.ee/rayoncunda'

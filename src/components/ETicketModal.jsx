@@ -22,6 +22,7 @@ export default function ETicketModal({
   prodData,
   user,
   defects = [],
+  joinedPieces = [],
   onPrint,
   onClose,
 }) {
@@ -64,8 +65,13 @@ export default function ETicketModal({
   // QTY
   const initialQty = roll?.length ? `${roll.length} YARD` : '156 YARD'
 
-  // Sambungan breakdown (e.g. X (100 + 56))
-  const initialBreakdown = roll?.breakdown || 'X (100 + 56)'
+  // Sambungan breakdown from joined pieces for this roll
+  const joinedPieceLengths = joinedPieces
+    .map((piece) => piece.LengthPoint ?? piece.lengthPoint ?? piece.yard)
+    .filter((length) => length !== undefined && length !== null && String(length).trim() !== '')
+  const initialBreakdown = joinedPieceLengths.length
+    ? `X (${joinedPieceLengths.join(' + ')})`
+    : ''
 
   // QR Link & Label
   const initialQrLink = 'https://linktr.ee/rayoncunda'

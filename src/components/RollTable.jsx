@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import ConfirmDeleteModal from './ConfirmDeleteModal.jsx'
 import ManualRollModal from './ManualRollModal.jsx'
+import CoProductModal from './CoProductModal.jsx'
 import GetDataConfirmModal from './GetDataConfirmModal.jsx'
 import ETicketModal from './ETicketModal.jsx'
 import RollLabelModal from './RollLabelModal.jsx'
@@ -29,6 +30,9 @@ export default function RollTable({
   onGetData,
   onDeleteRoll,
   onAddRoll,
+  coProducts = [],
+  onAddCoProduct,
+  onDeleteCoProduct,
   onEditRoll,
   onUpdateBsQty,
   onToggleStock,
@@ -38,6 +42,8 @@ export default function RollTable({
   joinedPieces = {},
   showToast,
 }) {
+  // alert(window.innerWidth)
+
   const [loadingGetData, setLoadingGetData] = useState(false)
 
   function handleToggleStock(roll, checked) {
@@ -52,6 +58,7 @@ export default function RollTable({
   const [rollToEdit, setRollToEdit] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [showManualModal, setShowManualModal] = useState(false)
+  const [showCoProductModal, setShowCoProductModal] = useState(false)
   const [ticketModalRoll, setTicketModalRoll] = useState(null)
   const [label100Roll, setLabel100Roll] = useState(null)
   const [labelModalRoll, setLabelModalRoll] = useState(null)
@@ -59,6 +66,7 @@ export default function RollTable({
   const [editingBsId, setEditingBsId] = useState(null)
   const [editBsValue, setEditBsValue] = useState('')
   const [joinedPieceModalRoll, setJoinedPieceModalRoll] = useState(null)
+  const [activeTableTab, setActiveTableTab] = useState('rolls')
 
   const containerRef = useRef(null)
   const prevCountRef = useRef(rolls.length)
@@ -286,7 +294,7 @@ export default function RollTable({
           <button
             type="button"
             className={styles.addRollBtn}
-            onClick={() => setShowManualModal(true)}
+            onClick={() => setShowCoProductModal(true)}
             title="Input Roll BS, Jablak, Kecilan"
           >
             <span>➕</span>
@@ -334,8 +342,36 @@ export default function RollTable({
         </div>
       )}
 
-      {/* Table Data */}
-      <div className={styles.tableContainer} ref={containerRef}>
+      {/* Table tabs */}
+      <div className={styles.tableTabs} role="tablist" aria-label="Data produksi">
+        <button
+          type="button"
+          role="tab"
+          id="rolls-tab"
+          aria-selected={activeTableTab === 'rolls'}
+          aria-controls="rolls-panel"
+          className={`${styles.tableTab} ${activeTableTab === 'rolls' ? styles.tableTabActive : ''}`}
+          onClick={() => setActiveTableTab('rolls')}
+        >
+          Data Roll <span className={styles.tabCount}>{rolls.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="coproducts-tab"
+          aria-selected={activeTableTab === 'coproducts'}
+          aria-controls="coproducts-panel"
+          className={`${styles.tableTab} ${activeTableTab === 'coproducts' ? styles.tableTabActive : ''}`}
+          onClick={() => setActiveTableTab('coproducts')}
+        >
+          Co-Products <span className={styles.tabCount}>{coProducts.length}</span>
+        </button>
+      </div>
+
+      {/* Tables */}
+      <div className={styles.tablesLayout}>
+        <div id="rolls-panel" role="tabpanel" aria-labelledby="rolls-tab" hidden={activeTableTab !== 'rolls'} className={`${styles.tableCard} ${styles.rollCard}`}>
+          <div className={styles.tableContainer} ref={containerRef}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -546,6 +582,19 @@ export default function RollTable({
           </tbody>
         </table>
       </div>
+        </div>
+
+        {/* Co-Products table */}
+        <div id="coproducts-panel" role="tabpanel" aria-labelledby="coproducts-tab" hidden={activeTableTab !== 'coproducts'} className={`${styles.tableCard} ${styles.coProductCard}`}>
+          <div className={`${styles.tableContainer} ${styles.coProductTableContainer}`}>
+            <table className={styles.table}>
+              <thead><tr><th>Jenis</th><th>Panjang</th><th>Mesin</th><th>Aksi</th></tr></thead>
+              <tbody>{coProducts.length ? coProducts.map((item) => <tr key={item.id}><td>{item.inventStatus}</td><td>{item.length} yard</td><td>M-{item.noMesin}</td><td><div className={styles.actionGroup}><button type="button" className={styles.deleteRowBtn} onClick={() => onDeleteCoProduct?.(item.id)} title={`Hapus Co-Product ${item.inventStatus}`} aria-label={`Hapus Co-Product ${item.inventStatus}`}><span className={styles.btnIcon}>🗑️</span><span className={styles.btnLabel}>Hapus</span></button></div></td></tr>) : <tr><td colSpan="4" className={styles.emptyState}>Belum ada Co-Products.</td></tr>}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {showCoProductModal && <CoProductModal onSave={async (data) => { await onAddCoProduct?.(data); setShowCoProductModal(false) }} onClose={() => setShowCoProductModal(false)} />}
 
       {/* ── Modal Konfirmasi Get Data ── */}
       {showGetDataConfirm && (
@@ -596,6 +645,7 @@ export default function RollTable({
           prodData={prodData}
           user={user}
           defects={defects[ticketModalRoll.id] || []}
+          joinedPieces={joinedPieces[ticketModalRoll.id] || []}
           onPrint={handlePrintTicket}
           onClose={() => setTicketModalRoll(null)}
         />
@@ -606,6 +656,7 @@ export default function RollTable({
         <RollLabelModal
           roll={labelModalRoll}
           prodData={prodData}
+          joinedPieces={joinedPieces[labelModalRoll.id] || []}
           user={user}
           onPrint={handlePrintTicket}
           onClose={() => setLabelModalRoll(null)}

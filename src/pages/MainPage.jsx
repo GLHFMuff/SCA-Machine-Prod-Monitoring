@@ -81,6 +81,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
   // Daftar roll kain lokal
   const [rolls, setRolls] = useState([])
+  const [coProducts, setCoProducts] = useState([])
   const [defectModal, setDefectModal] = useState(null) // roll object | null
   const [defects, setDefects] = useState({}) // { rollId: [{id, yard, code}] }
   const [joinedPieces, setJoinedPieces] = useState({}) // { rollId: [{id, yard}] }
@@ -292,7 +293,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       // Cari roll tertinggi milik mesin lain
       const allDbLines = dbRecord?.allLines || multiStats?.lines || []
       const otherMachineLines = allDbLines.filter(
-        (l) => String(l.NoMesin || '').trim() !== machineId
+        (l) => Number(l.ProductType ?? 5) === 5 && String(l.NoMesin || '').trim() !== machineId
       )
       const maxOtherRoll = otherMachineLines.length > 0
         ? Math.max(...otherMachineLines.map((l) => l.RoolNumber || 0))
@@ -325,7 +326,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         })
 
         // Map baris roll dari tabel CountingKainLines (HANYA MILIK MESIN YANG LOGIN)
-        const loadedRolls = (dbRecord.lines || []).map((l) => {
+        const loadedRolls = (dbRecord.lines || []).filter((l) => Number(l.ProductType ?? 5) !== 1).map((l) => {
           let parsedBs = 0
           if (l.Description) {
             const match = l.Description.match(/BS:\s*([\d.]+)/i)
@@ -345,6 +346,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             qrNum: l.QrNum || l.qrNum || '',
           }
         })
+        const loadedCoProducts = (dbRecord.lines || []).filter((l) => Number(l.ProductType ?? 5) === 1).map((l) => ({
+          id: Number(l.RoolNumber), length: Number(l.Length) || 0, inventStatus: l.InventStatus || 'BS',
+          noMesin: String(l.NoMesin || machineId), productType: 1,
+        }))
 
         // Map titik cacat dari tabel CountingKainDefect
         const loadedDefects = {}
@@ -381,6 +386,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         }
 
         setRolls(loadedRolls)
+        setCoProducts(loadedCoProducts)
         setDefects(loadedDefects)
         setJoinedPieces(loadedJoinedPieces)
         setScanned(true)
@@ -458,6 +464,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         })
 
         setRolls([])
+        setCoProducts([])
         setDefects({})
         setJoinedPieces({})
         setScanned(true)
@@ -489,6 +496,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         isFromDb: false,
       })
       setRolls([])
+      setCoProducts([])
       setScanned(true)
       showToast(isRestoring
         ? `Sesi order '${targetProdId}' dimuat kembali.`
@@ -535,6 +543,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         isPrinted: Boolean(r.isPrinted || false),
         isStock: Boolean(r.isStock || false),
         QrNum: r.qrNum || undefined,
+        ProductType: 5,
       }))
 
       const result = await saveCountingData({
@@ -588,7 +597,9 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     if (!nextId) {
       const allUsedRolls = new Set([
         ...rolls.map((r) => r.id),
-        ...existingDbRolls.map((r) => r.RoolNumber),
+        ...existingDbRolls
+          .filter((line) => Number(line.ProductType ?? 5) === 5)
+          .map((line) => Number(line.RoolNumber)),
       ])
       const machineRolls = rolls.filter(
         (r) => String(r.noMesin || machineId) === String(machineId)
@@ -777,8 +788,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     const machineId = String(user?.machine_id || user?.machineId || '1')
 
     const allUsedRolls = new Set([
-      ...rolls.map((r) => r.id),
-      ...existingDbRolls.map((r) => r.RoolNumber),
+      ...rolls.map((r) => Number(r.id)),
+      ...existingDbRolls
+        .filter((line) => Number(line.ProductType ?? 5) === 5)
+        .map((line) => Number(line.RoolNumber)),
     ])
 
     if (allUsedRolls.has(newRoll.id)) {
@@ -819,6 +832,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             NoMesin: machineId,
             isPrinted: false,
             isStock: Boolean(fullRoll.isStock),
+            ProductType: 5,
           },
         ],
       })
@@ -873,6 +887,42 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       setRolls((prev) => [...prev, fullRoll])
       showToast(`Roll #${fullRoll.id} ditambahkan ke daftar lokal (${err.message})`)
     }
+  }
+
+  async function handleAddCoProduct(item) {
+    const prodId = prodData.prodNumber
+    const machineId = String(user?.machine_id || user?.machineId || '1')
+    const usedCoProductNumbers = new Set([
+      ...coProducts.map((line) => Number(line.id)),
+      ...existingDbRolls
+        .filter((line) => Number(line.ProductType ?? 5) === 1)
+        .map((line) => Number(line.RoolNumber)),
+    ])
+    let id = 9001
+    while (usedCoProductNumbers.has(id)) id += 1
+    try {
+      const result = await saveCountingData({
+        ProdId: prodId, NoMesin: machineId, UserId: user?.username || user?.name || 'operator',
+        lines: [{ RoolNumber: id, Description: `${item.inventStatus} (${item.length} yard)`, Length: item.length,
+          IsExecute: false, NoMesin: machineId, isPrinted: false, isStock: false,
+          ProductType: 1, InventStatus: item.inventStatus }],
+      })
+      const saved = result?.data?.lines?.[0]
+      if (saved?.action && saved.action !== 'created') {
+        throw new Error(`Nomor roll #${id} sudah digunakan. Silakan coba lagi.`)
+      }
+      setCoProducts(prev => [...prev, { ...item, id, noMesin: machineId, ProductType: 1, InventStatus: item.inventStatus }])
+      await refreshMultiMachineStats(prodId)
+      showToast(`Co-Product #${id} (${item.inventStatus}) berhasil disimpan.`)
+    } catch (err) { showToast(`Gagal menyimpan Co-Product: ${err.message}`); throw err }
+  }
+
+  async function handleDeleteCoProduct(id) {
+    try {
+      await deleteRollApi(prodData.prodNumber, id)
+      setCoProducts(prev => prev.filter(item => item.id !== id))
+      await refreshMultiMachineStats(prodData.prodNumber)
+    } catch (err) { showToast(`Gagal menghapus Co-Product: ${err.message}`) }
   }
 
   /**
@@ -1095,6 +1145,9 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
             <RollTable
               rolls={rolls}
+              coProducts={coProducts}
+              onAddCoProduct={handleAddCoProduct}
+              onDeleteCoProduct={handleDeleteCoProduct}
               defects={defects}
               pendingDefects={pendingDefects}
               prodData={prodData}

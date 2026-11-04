@@ -40,6 +40,12 @@ function normalizeHeader(body, user) {
 }
 
 function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
+  const productType = Number(item.ProductType ?? item.productType ?? 5);
+  const inventStatus = String(item.InventStatus || item.inventStatus || (productType === 1 ? 'BS' : 'A')).trim().toUpperCase();
+  if (![1, 5].includes(productType)) throw new Error('ProductType must be 1 (Co-Product) or 5 (roll).');
+  if (productType === 1 && (!['BS', 'JABLAK', 'KECILAN'].includes(inventStatus) || Number(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? item.roll_number ?? item.id ?? 0) < 9001)) {
+    throw new Error('Co-Product requires roll number >= 9001 and InventStatus BS, JABLAK, or KECILAN.');
+  }
   return {
     ProdId: (item.ProdId || item.prodId || item.prod_id || parentProdId || '').trim(),
     RoolNumber: parseInt(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? item.roll_number ?? item.id ?? 0, 10),
@@ -50,6 +56,8 @@ function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
     isPrinted: Boolean(item.isPrinted ?? item.is_printed ?? false),
     isStock: item.isStock !== undefined ? Boolean(item.isStock) : (item.is_stock !== undefined ? Boolean(item.is_stock) : false),
     QrNum: (item.QrNum || item.qrNum || item.qr_num || '').trim() || null,
+    ProductType: productType,
+    InventStatus: inventStatus,
   };
 }
 
@@ -233,12 +241,16 @@ async function checkShouldBeStock(client, prodId, explicitIsStock = false) {
  */
 async function upsertLineQuery(client, line) {
   const check = await client.query(
-    `SELECT "IsExecute", "QrNum", "isStock" FROM "CountingKainLines" 
+    `SELECT "IsExecute", "QrNum", "isStock", "ProductType", "InventStatus" FROM "CountingKainLines" 
+ 
      WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
     [line.ProdId, line.RoolNumber]
   );
 
   if (check.rows.length > 0) {
+    if (line.ProductType === 1) {
+      throw new Error(`Nomor Co-Product #${line.RoolNumber} sudah terdaftar.`)
+    }
     // ATURAN: Ketika update lines jika isExecute = true di update jadi false
     const existing = check.rows[0];
     const currentIsExecute = Boolean(existing.IsExecute);
@@ -260,10 +272,10 @@ async function upsertLineQuery(client, line) {
 
     const res = await client.query(
       `UPDATE "CountingKainLines"
-       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9
+       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "ProductType" = $10, "InventStatus" = $11
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum]
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum, line.ProductType, line.InventStatus]
     );
     return { action: 'updated', data: res.rows[0], isExecuteReset: currentIsExecute === true };
   } else {
@@ -277,10 +289,10 @@ async function upsertLineQuery(client, line) {
     }
 
     const res = await client.query(
-      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum]
+      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum, line.ProductType, line.InventStatus]
     );
     return { action: 'created', data: res.rows[0] };
   }
@@ -432,7 +444,7 @@ router.get('/headers/:prodId', async (req, res) => {
     const headerMachine = String(header.NoMesin || '').trim();
 
     const linesRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1
        ORDER BY "RoolNumber" ASC`,
@@ -593,7 +605,7 @@ router.get('/lines', async (req, res) => {
     values.push(parseInt(offset, 10) || 0);
 
     const query = `
-      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
+      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
       FROM "CountingKainLines"
       ${whereClause}
       ORDER BY "ProdId" DESC, "RoolNumber" ASC
@@ -621,7 +633,7 @@ router.get('/lines/:prodId/:roolNumber', async (req, res) => {
     const { prodId, roolNumber } = req.params;
 
     const result = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
        LIMIT 1`,
@@ -795,7 +807,7 @@ router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
     const isStock = Boolean(req.body.isStock);
 
     const checkRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
       [prodId, rollNum]
@@ -871,7 +883,7 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
 
     // 1. Cek baris saat ini di database
     const checkRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
       [prodId, rollNum]
@@ -1101,7 +1113,8 @@ router.get('/next-roll/:prodId', async (req, res) => {
         "isPrinted",
         "Description",
         "isStock",
-        "QrNum"
+        "QrNum",
+        "ProductType"
       FROM "CountingKainLines"
       WHERE "ProdId" = $1
       ORDER BY "RoolNumber" ASC
@@ -1109,13 +1122,14 @@ router.get('/next-roll/:prodId', async (req, res) => {
 
     const result = await pool.query(query, [prodId]);
     const lines = result.rows;
+    const rollLines = lines.filter((line) => Number(line.ProductType ?? 5) === 5);
 
-    const maxRoll = lines.length > 0 ? Math.max(...lines.map((l) => l.RoolNumber || 0)) : 0;
+    const maxRoll = rollLines.length > 0 ? Math.max(...rollLines.map((l) => l.RoolNumber || 0)) : 0;
     const nextSuggestedRoll = maxRoll + 1;
 
     // Aggregate by machine
     const rollsByMachine = {};
-    for (const line of lines) {
+    for (const line of rollLines) {
       const m = String(line.NoMesin || 'Unknown').trim();
       if (!rollsByMachine[m]) {
         rollsByMachine[m] = {
@@ -1208,9 +1222,9 @@ router.get('/next-roll/:prodId', async (req, res) => {
         machineMaxRoll,
         machineNextRoll,
         machineRollsCount,
-        totalRolls: lines.length,
+        totalRolls: rollLines.length,
         rollsByMachine,
-        existingRollNumbers: lines.map((l) => l.RoolNumber),
+        existingRollNumbers: rollLines.map((l) => l.RoolNumber),
         lines,
         orderQty,
         recidSalesId,

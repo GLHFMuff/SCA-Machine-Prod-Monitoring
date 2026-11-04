@@ -1,0 +1,32 @@
+import { useState } from 'react'
+import styles from './ManualRollModal.module.css'
+
+export default function CoProductModal({ onSave, onClose, loading = false }) {
+  const [length, setLength] = useState('')
+  const [status, setStatus] = useState('BS')
+  const [error, setError] = useState('')
+
+  function submit(e) {
+    e.preventDefault()
+    const value = Number(length)
+    if (!Number.isFinite(value) || value <= 0) {
+      setError('Panjang harus diisi dengan angka lebih dari 0.')
+      return
+    }
+    onSave({ length: value, inventStatus: status, productType: 1 })
+  }
+
+  return <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
+    <div className={styles.box} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.head}><div><h3 className={styles.title}>Input Co-Products</h3><p className={styles.sub}>Catat hasil BS, Jablak, atau Kecilan.</p></div><button type="button" className={styles.close} onClick={onClose} aria-label="Tutup">×</button></div>
+      <form onSubmit={submit}>
+        <div className={styles.body}>
+          {error && <div className={styles.errorBanner}>{error}</div>}
+          <div className={styles.formGroup}><label className={styles.label}>Panjang (Yard)</label><div className={styles.inputWrap}><input className={styles.input} type="number" min="0.1" step="0.1" value={length} onChange={e => { setLength(e.target.value); setError('') }} autoFocus required/><span className={styles.unit}>Yard</span></div></div>
+          <div className={styles.formGroup}><label className={styles.label}>Jenis Co-Product</label><select className={styles.input} value={status} onChange={e => setStatus(e.target.value)}><option value="BS">BS</option><option value="JABLAK">JABLAK</option><option value="KECILAN">KECILAN</option></select></div>
+        </div>
+        <div className={styles.footer}><button type="button" className="btn btn-outline btn-sm" onClick={onClose}>Batal</button><button type="submit" className="btn btn-primary btn-sm" disabled={loading}>{loading ? 'Menyimpan…' : 'Simpan Co-Product'}</button></div>
+      </form>
+    </div>
+  </div>
+}

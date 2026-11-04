@@ -15,8 +15,9 @@ function formatDMY(dateInput) {
 }
 
 export default function RollLabelModal({
-  roll,
+    roll,
   prodData,
+  joinedPieces = [],
   user,
   onPrint,
   onClose,
@@ -67,8 +68,12 @@ export default function RollLabelModal({
     roll?.length !== undefined && roll?.length !== null ? String(roll.length) : '0'
   const initialQty = roll?.length ? `${roll.length} YARD` : '156 YARD'
 
-  // Sambungan / breakdown
-  const initialBreakdown = roll?.breakdown || 'X (100 + 11 + 22)'
+    const joinedPieceLengths = joinedPieces
+    .map((piece) => piece.LengthPoint ?? piece.lengthPoint ?? piece.yard)
+    .filter((length) => length !== undefined && length !== null && String(length).trim() !== '')
+  const initialBreakdown = joinedPieceLengths.length
+    ? `X (${joinedPieceLengths.join(' + ')})`
+    : (roll?.breakdown || '')
 
   // Barcode format: QrNum;RecidProdId;RecidSalesId;RecidItemId;Length;
   const qrNum = String(roll?.qrNum || roll?.QrNum || '').trim()
