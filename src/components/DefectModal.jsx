@@ -5,7 +5,7 @@ import styles from './DefectModal.module.css'
 export default function DefectModal({ roll, isPreRoll = false, initDefects, onSave, onClose }) {
   const [list, setList] = useState(initDefects || [])
   const [yard, setYard] = useState('')
-  const [code, setCode] = useState(DEFECT_CODES[0])
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
   function addDefect() {
@@ -104,13 +104,12 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
               </div>
               <div>
                 <label className={styles.fieldLabel}>Kode Cacat</label>
-                <select
+                <input
                   className={styles.fieldInput}
+                  type="text"
                   value={code}
                   onChange={e => setCode(e.target.value)}
-                >
-                  {DEFECT_CODES.map(c => <option key={c}>{c}</option>)}
-                </select>
+                />
               </div>
             </div>
             <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addDefect}>

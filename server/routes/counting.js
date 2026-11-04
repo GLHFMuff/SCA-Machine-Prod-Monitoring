@@ -461,6 +461,15 @@ router.get('/headers/:prodId', async (req, res) => {
       [prodId]
     );
 
+    // Ambil seluruh joined pieces untuk ProdId ini
+    const joinedPiecesRes = await pool.query(
+      `SELECT "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
+       FROM "CountingKainJoinedPiece"
+       WHERE "ProdId" = $1
+       ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
+      [prodId]
+    );
+
     return res.status(200).json({
       success: true,
       data: {
@@ -468,6 +477,7 @@ router.get('/headers/:prodId', async (req, res) => {
         lines,
         allLines,
         defects: defectsRes.rows,
+        joinedPieces: joinedPiecesRes.rows,
         targetMachine: targetMachine || null,
         machineLinesCount: lines.length,
         totalLinesCount: allLines.length,
@@ -523,6 +533,7 @@ router.delete('/headers/:prodId', async (req, res) => {
   try {
     await client.query('BEGIN');
     await client.query('DELETE FROM "CountingKainDefect" WHERE "ProdId" = $1', [prodId]);
+    await client.query('DELETE FROM "CountingKainJoinedPiece" WHERE "ProdId" = $1', [prodId]);
     await client.query('DELETE FROM "CountingKainLines" WHERE "ProdId" = $1', [prodId]);
     const deleteRes = await client.query(
       'DELETE FROM "CountingKainHeader" WHERE "ProdId" = $1 RETURNING "ProdId"',
@@ -702,6 +713,12 @@ router.delete('/lines/:prodId/:roolNumber', async (req, res) => {
       [prodId, rollNum]
     );
 
+    // Hapus joined pieces terkait roll ini
+    await client.query(
+      'DELETE FROM "CountingKainJoinedPiece" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
+      [prodId, rollNum]
+    );
+
     const result = await client.query(
       `DELETE FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
@@ -721,7 +738,7 @@ router.delete('/lines/:prodId/:roolNumber', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Line #${roolNumber} of ProdId '${prodId}' and associated defects deleted successfully.`,
+      message: `Line #${roolNumber} of ProdId '${prodId}' and associated defects/joined pieces deleted successfully.`,
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1345,6 +1362,152 @@ router.post('/autonic/flush', async (req, res) => {
     });
   } finally {
     client.release();
+  }
+});
+
+// ============================================================
+// 5. COUNTING KAIN JOINED PIECES CRUD
+// ============================================================
+
+/**
+ * GET /api/counting/joined-pieces/:prodId
+ * Query params: ?roolNumber=...
+ * Returns list of joined pieces for a production order or a specific roll
+ */
+router.get('/joined-pieces/:prodId', async (req, res) => {
+  try {
+    const { prodId } = req.params;
+    const { roolNumber, rollNumber } = req.query;
+    const targetRoll = parseInt(roolNumber || rollNumber || 0, 10);
+
+    let query = `
+      SELECT "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
+      FROM "CountingKainJoinedPiece"
+      WHERE "ProdId" = $1
+    `;
+    const params = [prodId];
+
+    if (targetRoll > 0) {
+      params.push(targetRoll);
+      query += ` AND "RoolNumber" = $${params.length}`;
+    }
+
+    query += ' ORDER BY "RoolNumber" ASC, "LineNumber" ASC';
+
+    const result = await pool.query(query, params);
+
+    // Group joined pieces by RoolNumber for easy frontend consumption
+    const grouped = {};
+    for (const d of result.rows) {
+      if (!grouped[d.RoolNumber]) grouped[d.RoolNumber] = [];
+      grouped[d.RoolNumber].push(d);
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: result.rows.length,
+      data: result.rows,
+      grouped,
+    });
+  } catch (err) {
+    console.error('[Get Joined Pieces Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/counting/joined-pieces
+ * Body: { ProdId, RoolNumber, pieces: [ { yard / LengthPoint } ] }
+ * Replaces all joined pieces for the specified roll with the provided list (atomic transaction)
+ */
+router.post('/joined-pieces', async (req, res) => {
+  const prodId = String(req.body.ProdId || req.body.prodId || '').trim();
+  const roolNumber = parseInt(req.body.RoolNumber ?? req.body.roolNumber ?? req.body.rollNumber ?? 0, 10);
+  const rawPieces = Array.isArray(req.body.pieces) ? req.body.pieces : [];
+
+  if (!prodId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Bad Request',
+      message: 'ProdId is required.',
+    });
+  }
+
+  if (roolNumber <= 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Bad Request',
+      message: 'Valid RoolNumber (> 0) is required.',
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Hapus joined pieces lama untuk roll ini (overwrite)
+    await client.query(
+      'DELETE FROM "CountingKainJoinedPiece" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
+      [prodId, roolNumber]
+    );
+
+    // 2. Insert joined pieces baru
+    const inserted = [];
+    for (let i = 0; i < rawPieces.length; i++) {
+      const lengthPoint = parseFloat(rawPieces[i].yard ?? rawPieces[i].LengthPoint ?? rawPieces[i].lengthPoint ?? 0);
+      const lineNumber = i + 1;
+
+      const insRes = await client.query(
+        `INSERT INTO "CountingKainJoinedPiece" 
+         ("ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber")
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"`,
+        [prodId, roolNumber, lengthPoint, false, lineNumber]
+      );
+      inserted.push(insRes.rows[0]);
+    }
+
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      success: true,
+      message: `Berhasil menyimpan ${inserted.length} joined piece(s) untuk Roll #${roolNumber}.`,
+      count: inserted.length,
+      data: inserted,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[Save Joined Pieces Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * DELETE /api/counting/joined-pieces/:prodId/:roolNumber
+ * Delete all joined pieces for a specific roll
+ */
+router.delete('/joined-pieces/:prodId/:roolNumber', async (req, res) => {
+  try {
+    const { prodId, roolNumber } = req.params;
+    const rollNum = parseInt(roolNumber, 10);
+
+    const result = await pool.query(
+      `DELETE FROM "CountingKainJoinedPiece"
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       RETURNING "ProdId", "RoolNumber"`,
+      [prodId, rollNum]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Deleted ${result.rows.length} joined piece(s) for Roll #${rollNum} of ProdId '${prodId}'.`,
+      deletedCount: result.rows.length,
+    });
+  } catch (err) {
+    console.error('[Delete Joined Pieces Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

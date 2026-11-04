@@ -507,5 +507,92 @@ export async function updateRollStockApi(prodId, roolNumber, isStock) {
   }
 }
 
+/**
+ * Save / replace joined pieces for a specific roll in CountingKainJoinedPieces
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @param {Array<{ yard: number }>} pieces
+ * @returns {Promise<object>}
+ */
+export async function saveJoinedPiecesApi(prodId, roolNumber, pieces = []) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/joined-pieces`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ProdId: String(prodId).trim(),
+        RoolNumber: parseInt(roolNumber, 10),
+        pieces: pieces.map((p, index) => ({
+          yard: parseFloat(p.yard) || 0,
+          lineNumber: index + 1,
+        })),
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal menyimpan joined pieces');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[saveJoinedPiecesApi] Error for ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Get joined pieces for a production order or roll from CountingKainJoinedPieces
+ * @param {string} prodId
+ * @param {number} [roolNumber]
+ * @returns {Promise<object>}
+ */
+export async function getJoinedPiecesApi(prodId, roolNumber) {
+  if (!prodId) return null;
+  const param = roolNumber ? `?roolNumber=${encodeURIComponent(roolNumber)}` : '';
+  const url = `${API_BASE}/api/counting/joined-pieces/${encodeURIComponent(String(prodId).trim())}${param}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.success) {
+      return data;
+    }
+    return null;
+  } catch (err) {
+    console.warn(`[getJoinedPiecesApi] Error for ${prodId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Delete joined pieces for a specific roll from CountingKainJoinedPieces
+ * @param {string} prodId
+ * @param {number} roolNumber
+ * @returns {Promise<object>}
+ */
+export async function deleteJoinedPiecesApi(prodId, roolNumber) {
+  if (!prodId || !roolNumber) return null;
+  const url = `${API_BASE}/api/counting/joined-pieces/${encodeURIComponent(String(prodId).trim())}/${encodeURIComponent(roolNumber)}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'DELETE',
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal menghapus joined pieces roll');
+    }
+    return data;
+  } catch (err) {
+    console.error(`[deleteJoinedPiecesApi] Error for ${prodId} #${roolNumber}:`, err);
+    throw err;
+  }
+}
+
 
 

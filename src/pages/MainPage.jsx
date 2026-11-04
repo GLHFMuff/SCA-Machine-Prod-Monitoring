@@ -20,6 +20,7 @@ import {
   updateRollLineApi,
   saveRollDefectsApi,
   updateRollStockApi,
+  saveJoinedPiecesApi,
 } from '../services/api.js'
 import styles from './MainPage.module.css'
 
@@ -82,6 +83,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   const [rolls, setRolls] = useState([])
   const [defectModal, setDefectModal] = useState(null) // roll object | null
   const [defects, setDefects] = useState({}) // { rollId: [{id, yard, code}] }
+  const [joinedPieces, setJoinedPieces] = useState({}) // { rollId: [{id, yard}] }
   const [pendingDefects, setPendingDefects] = useState([]) // Catatan cacat sementara saat roll belum terbentuk
   const [toastMsg, setToastMsg] = useState('')
   const [saving, setSaving] = useState(false)
@@ -363,8 +365,23 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           }
         }
 
+        // Map joined pieces dari tabel CountingKainJoinedPiece
+        const loadedJoinedPieces = {}
+        if (Array.isArray(dbRecord.joinedPieces)) {
+          for (const jp of dbRecord.joinedPieces) {
+            const rId = jp.RoolNumber
+            if (!loadedJoinedPieces[rId]) loadedJoinedPieces[rId] = []
+            loadedJoinedPieces[rId].push({
+              id: jp.LineNumber || Date.now() + Math.random(),
+              yard: parseFloat(jp.LengthPoint) || 0,
+              lineNumber: jp.LineNumber,
+            })
+          }
+        }
+
         setRolls(loadedRolls)
         setDefects(loadedDefects)
+        setJoinedPieces(loadedJoinedPieces)
         setScanned(true)
 
         // ATURAN MULTI-MESIN:
@@ -441,6 +458,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
         setRolls([])
         setDefects({})
+        setJoinedPieces({})
         setScanned(true)
         showToast(isRestoring
           ? `✓ Sesi order '${targetProdId}' dipulihkan. Siap produksi!`
@@ -980,6 +998,30 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     }
   }
 
+  /**
+   * Simpan catatan joined piece untuk suatu roll ke database
+   */
+  async function handleSaveJoinedPieces(roll, list) {
+    const rollId = roll.id
+    // Update state lokal terlebih dahulu (optimistic update)
+    setJoinedPieces((prev) => ({ ...prev, [rollId]: list }))
+
+    const prodId = prodData.prodNumber
+    if (!prodId) return
+
+    try {
+      await saveJoinedPiecesApi(prodId, rollId, list)
+      showToast(
+        list.length > 0
+          ? `✓ Joined piece Roll #${rollId} (${list.length} titik) berhasil disimpan.`
+          : `✓ Catatan joined piece Roll #${rollId} dikosongkan.`
+      )
+    } catch (err) {
+      console.error('Error saat menyimpan joined pieces:', err)
+      showToast(`Joined piece Roll #${rollId} tersimpan lokal (Gagal simpan: ${err.message})`)
+    }
+  }
+
   // Pulihkan sesi order produksi dari session storage saat pertama kali mount / refresh
   useEffect(() => {
     if (initialSavedOrder?.prodId) {
@@ -998,6 +1040,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     }
     setScanned(false)
     setDefects({})
+    setJoinedPieces({})
     setRolls([])
     updatePendingDefects([])
     setStartRollNumber(null)
@@ -1058,8 +1101,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               rollsByMachine={rollsByMachine}
               maxRollNumber={maxRollNumber}
               maxOtherRollNumber={maxOtherRollNumber}
+              joinedPieces={joinedPieces}
               onCatatCacat={(roll) => setDefectModal(roll)}
               onCatatCacatPreRoll={(targetId) => setDefectModal({ isPreRoll: true, id: targetId })}
+              onCatatJoinedPiece={handleSaveJoinedPieces}
               onFetchSensor={handleFetchSensor}
               onSaveRollFromSensor={handleSaveRollFromSensor}
               onGetData={handleSaveRollFromSensor}

@@ -7,6 +7,7 @@ import RollLabelModal from './RollLabelModal.jsx'
 import Label100x50Modal from './Label100x50Modal.jsx'
 import MultiMachineReserveModal from './MultiMachineReserveModal.jsx'
 import EditRollModal from './EditRollModal.jsx'
+import JoinedPieceModal from './JoinedPieceModal.jsx'
 import { getAutonicData } from '../services/autonicService.js'
 import styles from './RollTable.module.css'
 
@@ -33,6 +34,8 @@ export default function RollTable({
   onToggleStock,
   onPrintRoll,
   onSetStartRoll,
+  onCatatJoinedPiece,
+  joinedPieces = {},
   showToast,
 }) {
   const [loadingGetData, setLoadingGetData] = useState(false)
@@ -55,6 +58,7 @@ export default function RollTable({
   const [showReserveModal, setShowReserveModal] = useState(false)
   const [editingBsId, setEditingBsId] = useState(null)
   const [editBsValue, setEditBsValue] = useState('')
+  const [joinedPieceModalRoll, setJoinedPieceModalRoll] = useState(null)
 
   const containerRef = useRef(null)
   const prevCountRef = useRef(rolls.length)
@@ -278,6 +282,17 @@ export default function RollTable({
             <span>Input Roll</span>
           </button>
 
+          {/* Tombol Input Roll BS, JABLAK, KECILAN */}
+          <button
+            type="button"
+            className={styles.addRollBtn}
+            onClick={() => setShowManualModal(true)}
+            title="Input Roll BS, Jablak, Kecilan"
+          >
+            <span>➕</span>
+            <span>Input Roll Extra</span>
+          </button>
+
           {/* Tombol Multi-Mesin & Roll Reserve */}
           <button
             type="button"
@@ -467,6 +482,21 @@ export default function RollTable({
                           <span className={styles.btnLabel}>Cacat</span>
                         </button>
 
+
+                        <button
+                          type="button"
+                          className={`${styles.printLabelBtn}`}
+                          onClick={() => setJoinedPieceModalRoll(roll)}
+                          title="Input detail joined piece"
+                        >
+                          <span className={styles.btnIcon}>🧵</span>
+                          <span className={styles.btnLabel}>
+                            {(joinedPieces[roll.id] || []).length > 0
+                              ? `Joined (${(joinedPieces[roll.id] || []).length})`
+                              : 'Joined Piece'}
+                          </span>
+                        </button>
+
                         <button
                           type="button"
                           className={styles.printTicketBtn}
@@ -477,7 +507,7 @@ export default function RollTable({
                           <span className={styles.btnLabel}>E-Ticket Cunda</span>
                         </button>
 
-                        <button
+                        {/* <button
                           type="button"
                           className={styles.printLabel100Btn}
                           onClick={() => setLabel100Roll(roll)}
@@ -485,7 +515,7 @@ export default function RollTable({
                         >
                           <span className={styles.btnIcon}>🏷️</span>
                           <span className={styles.btnLabel}>Label Cust</span>
-                        </button>
+                        </button> */}
 
                         <button
                           type="button"
@@ -623,6 +653,21 @@ export default function RollTable({
           loading={savingEdit}
           onSave={handleSaveEdit}
           onClose={() => setRollToEdit(null)}
+        />
+      )}
+
+      {/* ── Modal Catat Joined Piece ── */}
+      {joinedPieceModalRoll && (
+        <JoinedPieceModal
+          roll={joinedPieceModalRoll}
+          initJoinedPieces={joinedPieces[joinedPieceModalRoll.id] || []}
+          onSave={(list) => {
+            if (onCatatJoinedPiece) {
+              onCatatJoinedPiece(joinedPieceModalRoll, list)
+            }
+            setJoinedPieceModalRoll(null)
+          }}
+          onClose={() => setJoinedPieceModalRoll(null)}
         />
       )}
     </div>
