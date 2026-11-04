@@ -66,6 +66,7 @@ function normalizeDefect(item, parentProdId = '', parentRoolNumber = 0, defaultL
     ProdId: String(item.ProdId || item.prodId || item.prod_id || parentProdId || '').trim(),
     RoolNumber: parseInt(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? parentRoolNumber ?? 0, 10),
     LengthPoint: parseFloat(item.LengthPoint ?? item.lengthPoint ?? item.yard ?? item.length ?? 0),
+    LengthPointTo: parseFloat(item.LengthPointTo ?? item.lengthPointTo ?? item.yardTo ?? item.length ?? 0),
     Code: code,
     Description: desc,
     IsExecuted: Boolean(item.IsExecuted ?? item.isExecuted ?? true),
@@ -454,7 +455,7 @@ router.get('/headers/:prodId', async (req, res) => {
 
     // Ambil seluruh titik cacat kain untuk ProdId ini
     const defectsRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber"
+      `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
        FROM "CountingKainDefect"
        WHERE "ProdId" = $1
        ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
@@ -955,7 +956,7 @@ router.get('/defects/:prodId', async (req, res) => {
     const targetRoll = parseInt(roolNumber || rollNumber || 0, 10);
 
     let query = `
-      SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber"
+      SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
       FROM "CountingKainDefect"
       WHERE "ProdId" = $1
     `;
@@ -1031,10 +1032,10 @@ router.post('/defects', async (req, res) => {
       const norm = normalizeDefect(rawDefects[i], prodId, roolNumber, i + 1);
       const insRes = await client.query(
         `INSERT INTO "CountingKainDefect" 
-         ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber")
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber"`,
-        [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, norm.IsExecuted, norm.LineNumber]
+         ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"`,
+        [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, norm.IsExecuted, norm.LineNumber, norm.LengthPointTo]
       );
       inserted.push(insRes.rows[0]);
     }

@@ -411,6 +411,7 @@ export async function saveRollDefectsApi(prodId, roolNumber, defects = []) {
           yard: parseFloat(d.yard) || 0,
           code: d.code || '',
           lineNumber: index + 1,
+          yardTo: parseFloat(d.yardTo) || 0,
         })),
       }),
     });

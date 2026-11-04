@@ -5,6 +5,7 @@ import styles from './DefectModal.module.css'
 export default function DefectModal({ roll, isPreRoll = false, initDefects, onSave, onClose }) {
   const [list, setList] = useState(initDefects || [])
   const [yard, setYard] = useState('')
+  const [yardTo, setYardTo] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
@@ -22,9 +23,19 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
       setError(`Posisi cacat (${parsedYard} yd) harus di bawah panjang roll (${roll.length} yd).`)
       return
     }
+    const parsedYardTo = parseFloat(yardTo)
+    if (isNaN(parsedYardTo) || parsedYardTo <= 0) {
+      setError('Posisi cacat harus berupa angka lebih dari 0.')
+      return
+    }
+    if (!isPreRoll && roll?.length && parsedYardTo >= roll.length) {
+      setError(`Posisi cacat (${parsedYardTo} yd) harus di bawah panjang roll (${roll.length} yd).`)
+      return
+    }
     setError('')
-    setList(prev => [...prev, { id: Date.now() + Math.random(), yard: parsedYard, code }])
+    setList(prev => [...prev, { id: Date.now() + Math.random(), yard: parsedYard, yardTo: parsedYardTo, code }])
     setYard('')
+    setYardTo('')
   }
 
   function removeDefect(id) {
@@ -67,7 +78,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                 <div className={styles.defectItem} key={d.id}>
                   <div>
                     <div className={styles.defectCode}>⚠️ {d.code}</div>
-                    <div className={styles.defectYard}>Posisi yard {d.yard}</div>
+                    <div className={styles.defectYard}>Posisi yard {d.yard}{d.yardTo && ` sampai yard ${d.yardTo}`}</div>
                   </div>
                   <button
                     className={styles.deleteBtn}
@@ -87,7 +98,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
             {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
             <div className={styles.formRow}>
               <div>
-                <label className={styles.fieldLabel}>Posisi (Yard)</label>
+                <label className={styles.fieldLabel}>Posisi From(Yard)</label>
                 <input
                   className={styles.fieldInput}
                   type="number"
@@ -98,6 +109,22 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                   step="0.1"
                   onChange={e => {
                     setYard(e.target.value)
+                    setError('')
+                  }}
+                />
+              </div>
+              <div>
+                <label className={styles.fieldLabel}>Posisi To(Yard)</label>
+                <input
+                  className={styles.fieldInput}
+                  type="number"
+                  placeholder="mis. 45.5"
+                  value={yardTo}
+                  min="0.1"
+                  {...(!isPreRoll && roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
+                  step="0.1"
+                  onChange={e => {
+                    setYardTo(e.target.value)
                     setError('')
                   }}
                 />

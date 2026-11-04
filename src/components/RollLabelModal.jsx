@@ -68,7 +68,7 @@ export default function RollLabelModal({
   const initialQty = roll?.length ? `${roll.length} YARD` : '156 YARD'
 
   // Sambungan / breakdown
-  const initialBreakdown = roll?.breakdown || 'X (100 + 56)'
+  const initialBreakdown = roll?.breakdown || 'X (100 + 11 + 22)'
 
   // Barcode format: QrNum;RecidProdId;RecidSalesId;RecidItemId;Length;
   const qrNum = String(roll?.qrNum || roll?.QrNum || '').trim()

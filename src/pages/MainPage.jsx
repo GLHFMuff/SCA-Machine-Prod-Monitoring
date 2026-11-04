@@ -361,6 +361,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               code: displayCode,
               isExecuted: Boolean(d.IsExecuted),
               lineNumber: d.LineNumber,
+              yardTo: parseFloat(d.LengthPointTo) || 0,
             })
           }
         }
@@ -678,6 +679,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         code: d.code,
         isExecuted: false,
         lineNumber: idx + 1,
+        yardTo: parseFloat(d.yardTo) || 0,
       }))
 
       try {
@@ -841,6 +843,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           code: d.code,
           isExecuted: false,
           lineNumber: idx + 1,
+          yardTo: parseFloat(d.yardTo) || 0,
         }))
 
         try {

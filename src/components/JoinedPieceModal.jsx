@@ -77,24 +77,24 @@ export default function JoinedPieceModal({ roll, initJoinedPieces, onSave, onClo
           <div className={styles.addForm}>
             <div className={styles.addFormLabel}>+ Tambah Joined Piece</div>
             {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
-            <div className={styles.formRow}>
-              <div>
-                <label className={styles.fieldLabel}>Posisi (Yard)</label>
-                <input
-                  className={styles.fieldInput}
-                  type="number"
-                  placeholder="mis. 45.5"
-                  value={yard}
-                  min="0.1"
-                  {...(roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
-                  step="0.1"
-                  onChange={e => {
-                    setYard(e.target.value)
-                    setError('')
-                  }}
-                />
-              </div>
+            {/* <div className={styles.formRow}> */}
+            <div style={{ margin: '0px 0px 10px 0px' }}>
+              <label className={styles.fieldLabel}>Posisi (Yard)</label>
+              <input
+                className={styles.fieldInput}
+                type="number"
+                placeholder="mis. 45.5"
+                value={yard}
+                min="0.1"
+                {...(roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
+                step="0.1"
+                onChange={e => {
+                  setYard(e.target.value)
+                  setError('')
+                }}
+              />
             </div>
+            {/* </div> */}
             <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addJoinedPiece}>
               ＋ Tambah Joined Piece
             </button>

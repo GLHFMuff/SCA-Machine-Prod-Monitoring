@@ -290,7 +290,7 @@ export default function RollTable({
             title="Input Roll BS, Jablak, Kecilan"
           >
             <span>➕</span>
-            <span>Input Roll Extra</span>
+            <span>Input Co-Products</span>
           </button>
 
           {/* Tombol Multi-Mesin & Roll Reserve */}
@@ -492,8 +492,8 @@ export default function RollTable({
                           <span className={styles.btnIcon}>🧵</span>
                           <span className={styles.btnLabel}>
                             {(joinedPieces[roll.id] || []).length > 0
-                              ? `Joined (${(joinedPieces[roll.id] || []).length})`
-                              : 'Joined Piece'}
+                              ? `JP (${(joinedPieces[roll.id] || []).length})`
+                              : 'JP'}
                           </span>
                         </button>
 
