@@ -63,11 +63,21 @@ export async function authenticateKey(req, res, next) {
         u.email,
         u.full_name,
         u.role,
-        u.machine_id,
+        COALESCE(session_machine.machine_id, u.machine_id) AS machine_id,
+        ml.machine_num,
+        ml.autonic_table,
         u.is_active,
         u.last_login_at
       FROM user_sessions s
       JOIN users u ON u.id = s.user_id
+      LEFT JOIN LATERAL (
+        SELECT machine_id
+        FROM machine_lists
+        WHERE LOWER(BTRIM(user_active)) = LOWER(BTRIM(u.username))
+        ORDER BY machine_id
+        LIMIT 1
+      ) session_machine ON true
+      LEFT JOIN machine_lists ml ON ml.machine_id = COALESCE(session_machine.machine_id, u.machine_id)
       WHERE s.token_hash = $1
         AND s.revoked_at IS NULL
         AND s.expires_at > NOW()
@@ -101,6 +111,8 @@ export async function authenticateKey(req, res, next) {
       full_name: row.full_name,
       role: row.role,
       machine_id: row.machine_id,
+      machine_num: row.machine_num,
+      autonic_table: row.autonic_table,
       is_active: row.is_active,
       last_login_at: row.last_login_at,
     };

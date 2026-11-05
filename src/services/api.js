@@ -19,7 +19,7 @@ export function formatUser(rawUser, sessionKey = '') {
     name: rawUser.full_name || rawUser.username,
     email: rawUser.email,
     machineId: rawUser.machine_id,
-    machine: `Mesin ${rawUser.machine_id}`,
+    machine: rawUser.machine_num || `Mesin ${rawUser.machine_id}`,
     machineType: `Loom Machine #${rawUser.machine_id}`,
     role: rawUser.role,
     sessionKey: sessionKey,
@@ -32,7 +32,14 @@ export function formatUser(rawUser, sessionKey = '') {
  * @param {string} password 
  * @returns {Promise<object>} { success, user, key, message }
  */
-export async function loginApi(username, password) {
+export async function getMachinesApi() {
+  const res = await fetch(`${API_BASE}/api/auth/machines`);
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) throw new Error(data?.message || 'Gagal memuat daftar mesin.');
+  return data.data || [];
+}
+
+export async function loginApi(username, password, machineId) {
   const url = `${API_BASE}/api/auth/login`;
 
   try {
@@ -44,6 +51,7 @@ export async function loginApi(username, password) {
       body: JSON.stringify({
         username: username.trim(),
         password: password,
+        machine_id: machineId,
       }),
     });
 
@@ -91,20 +99,36 @@ export async function checkSessionApi(sessionKey) {
     });
 
     if (!res.ok) {
-      throw new Error('Session expired or invalid');
+      // Only discard the cached login for an explicitly invalid/expired token.
+      if (res.status === 401 || res.status === 403) {
+        clearStoredSession()
+        return null
+      }
+      throw new Error(`Session check failed (${res.status})`)
     }
 
     const data = await res.json();
     if (data?.success && data?.data?.user) {
-      const user = formatUser(data.data.user, sessionKey);
-      localStorage.setItem('mpm_user', JSON.stringify(user));
+      const cachedUser = JSON.parse(localStorage.getItem('mpm_user') || 'null')
+      const user = {
+        ...formatUser(data.data.user, sessionKey),
+        // Machine choice and shift are session selections, not returned by /me.
+        machineId: cachedUser?.machineId || data.data.user.machine_id,
+        shift: cachedUser?.shift,
+      }
+      localStorage.setItem('mpm_user', JSON.stringify(user))
       return user;
     }
     return null;
-  } catch {
-    // Session is invalid or expired
-    clearStoredSession();
-    return null;
+  } catch (error) {
+    // Keep local login and machine assignment intact on temporary API/server failures.
+    const stored = getStoredSession()
+    if (stored?.key === sessionKey) {
+      console.warn('[Session Restore Warning]: using cached session:', error.message)
+      return stored.user
+    }
+    console.error('[Session Restore Error]:', error.message)
+    return null
   }
 }
 
@@ -113,20 +137,39 @@ export async function checkSessionApi(sessionKey) {
  * @param {string} sessionKey 
  */
 export async function logoutApi(sessionKey) {
+  let logoutSucceeded = false
   try {
     if (sessionKey) {
-      await fetch(`${API_BASE}/api/auth/logout`, {
+      const res = await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${sessionKey}`,
         },
-      });
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || `Logout server gagal (Status ${res.status})`)
+      }
+      logoutSucceeded = true
     }
   } catch (err) {
-    console.warn('Logout API call failed:', err);
+    console.error('Logout API call failed; machine may remain occupied:', err)
   } finally {
-    clearStoredSession();
+    clearStoredSession()
+    sessionStorage.removeItem('mpm_login_session')
+    // Drop operator-specific order snapshots so the next login starts at scan.
+    for (const storage of [localStorage, sessionStorage]) {
+      const staleKeys = []
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index)
+        if (key?.startsWith('mpm_active_order_') || key?.startsWith('pending_defects_')) {
+          staleKeys.push(key)
+        }
+      }
+      staleKeys.forEach((key) => storage.removeItem(key))
+    }
   }
+  return logoutSucceeded
 }
 
 /**

@@ -25,11 +25,15 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
     }
     const parsedYardTo = parseFloat(yardTo)
     if (isNaN(parsedYardTo) || parsedYardTo <= 0) {
-      setError('Posisi cacat harus berupa angka lebih dari 0.')
+      setError('Posisi cacat to harus berupa angka lebih dari 0.')
       return
     }
     if (!isPreRoll && roll?.length && parsedYardTo >= roll.length) {
-      setError(`Posisi cacat (${parsedYardTo} yd) harus di bawah panjang roll (${roll.length} yd).`)
+      setError(`Posisi cacat to (${parsedYardTo} yd) harus di bawah panjang roll (${roll.length} yd).`)
+      return
+    }
+    if (parsedYardTo < parsedYard) {
+      setError(`Posisi cacat to harus berupa angka lebih dari ${parsedYard}.`)
       return
     }
     setError('')
@@ -78,7 +82,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                 <div className={styles.defectItem} key={d.id}>
                   <div>
                     <div className={styles.defectCode}>⚠️ {d.code}</div>
-                    <div className={styles.defectYard}>Posisi yard {d.yard}{d.yardTo && ` sampai yard ${d.yardTo}`}</div>
+                    <div className={styles.defectYard}>Posisi yard {d.yard}{d.yardTo != d.yard && ` sampai yard ${d.yardTo}`}</div>
                   </div>
                   <button
                     className={styles.deleteBtn}
@@ -109,6 +113,9 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                   step="0.1"
                   onChange={e => {
                     setYard(e.target.value)
+                    if(!yardTo || yardTo == 0){
+                      setYardTo(e.target.value)
+                    }
                     setError('')
                   }}
                 />
@@ -129,15 +136,21 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                   }}
                 />
               </div>
-              <div>
-                <label className={styles.fieldLabel}>Kode Cacat</label>
-                <input
-                  className={styles.fieldInput}
-                  type="text"
-                  value={code}
-                  onChange={e => setCode(e.target.value)}
-                />
-              </div>
+            </div>
+            
+            <div style={{ margin: '0px 0px 10px 0px'}}>
+              <label className={styles.fieldLabel}>Kode Cacat</label>
+              <select
+                className={styles.fieldInput}
+                style={{ width: '100%' }}
+                value={code}
+                onChange={e => setCode(e.target.value)}
+              >
+                <option value="">Pilih kode cacat</option>
+                {DEFECT_CODES.map(defectCode => (
+                  <option key={defectCode} value={defectCode}>{defectCode}</option>
+                ))}
+              </select>
             </div>
             <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addDefect}>
               ＋ Tambah Titik Cacat

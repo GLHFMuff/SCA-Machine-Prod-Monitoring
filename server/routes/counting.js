@@ -58,6 +58,8 @@ function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
     QrNum: (item.QrNum || item.qrNum || item.qr_num || '').trim() || null,
     ProductType: productType,
     InventStatus: inventStatus,
+    CreatedBy: String(item.CreatedBy ?? item.createdBy ?? item.created_by ?? '').trim() || null,
+    Shift: item.Shift ?? item.shift ?? item.shift_id ?? null,
   };
 }
 
@@ -272,10 +274,10 @@ async function upsertLineQuery(client, line) {
 
     const res = await client.query(
       `UPDATE "CountingKainLines"
-       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "ProductType" = $10, "InventStatus" = $11
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum, line.ProductType, line.InventStatus]
+       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "ProductType" = $10, "InventStatus" = $11, "CreatedBy" = $12, "Shift" = $13
+            WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null]
     );
     return { action: 'updated', data: res.rows[0], isExecuteReset: currentIsExecute === true };
   } else {
@@ -289,10 +291,10 @@ async function upsertLineQuery(client, line) {
     }
 
     const res = await client.query(
-      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum, line.ProductType, line.InventStatus]
+      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null]
     );
     return { action: 'created', data: res.rows[0] };
   }

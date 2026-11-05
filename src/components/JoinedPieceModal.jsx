@@ -8,16 +8,21 @@ export default function JoinedPieceModal({ roll, initJoinedPieces, onSave, onClo
 
   function addJoinedPiece() {
     if (!yard) {
-      setError('Masukkan posisi joined piece dalam yard.')
+      setError('Masukkan joined piece dalam yard.')
       return
     }
     const parsedYard = parseFloat(yard)
     if (isNaN(parsedYard) || parsedYard <= 0) {
-      setError('Posisi joined piece harus berupa angka lebih dari 0.')
+      setError('Joined piece harus berupa angka lebih dari 0.')
       return
     }
     if (roll?.length && parsedYard >= roll.length) {
-      setError(`Posisi joined piece (${parsedYard} yd) harus di bawah panjang roll (${roll.length} yd).`)
+      setError(`Joined piece (${parsedYard} yd) harus di bawah panjang roll (${roll.length} yd).`)
+      return
+    }
+    const totalYard = list.reduce((total, piece) => total + (Number(piece.yard) || 0), 0) + parsedYard
+    if (roll?.length && totalYard > roll.length) {
+      setError(`Total joined piece (${totalYard} yd) tidak boleh melebihi panjang roll (${roll.length} yd).`)
       return
     }
     setError('')
@@ -79,7 +84,7 @@ export default function JoinedPieceModal({ roll, initJoinedPieces, onSave, onClo
             {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
             {/* <div className={styles.formRow}> */}
             <div style={{ margin: '0px 0px 10px 0px' }}>
-              <label className={styles.fieldLabel}>Posisi (Yard)</label>
+              <label className={styles.fieldLabel}>Panjang (Yard)</label>
               <input
                 className={styles.fieldInput}
                 type="number"

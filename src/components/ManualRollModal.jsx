@@ -115,7 +115,7 @@ export default function ManualRollModal({
           <div>
             <h3 className={styles.title}>➕ Input Roll Manual</h3>
             <p className={styles.sub}>
-              Masukkan data roll & BS QTY produksi {machineId ? `(Mesin #${machineId})` : ''}
+              Masukkan data roll {machineId ? `(Mesin #${machineId})` : ''}
             </p>
           </div>
           <button
@@ -180,7 +180,7 @@ export default function ManualRollModal({
               </div>
             </div>
 
-            <div className={styles.formGroup}>
+            {/* <div className={styles.formGroup}>
               <label className={styles.label}>
                 BS QTY (Bad Stock / Potong)
                 <span className={styles.req}>Default 0</span>
@@ -200,7 +200,7 @@ export default function ManualRollModal({
                 />
                 <span className={styles.unit}>Yard</span>
               </div>
-            </div>
+            </div> */}
 
             <div className={styles.checkboxGroup}>
               <label className={styles.checkboxLabel}>

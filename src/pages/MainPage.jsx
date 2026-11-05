@@ -544,6 +544,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         isStock: Boolean(r.isStock || false),
         QrNum: r.qrNum || undefined,
         ProductType: 5,
+        CreatedBy: user?.username || user?.name || 'user',
+        Shift: Number(user?.shift),
       }))
 
       const result = await saveCountingData({
@@ -660,6 +662,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           NoMesin: machineId,
           isPrinted: false,
           isStock: false,
+          CreatedBy: user?.username || user?.name || 'operator',
+          Shift: Number(user?.shift),
         },
       ],
     })
@@ -833,6 +837,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             isPrinted: false,
             isStock: Boolean(fullRoll.isStock),
             ProductType: 5,
+            CreatedBy: user?.username || user?.name || 'operator',
+            Shift: Number(user?.shift),
           },
         ],
       })
@@ -905,7 +911,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         ProdId: prodId, NoMesin: machineId, UserId: user?.username || user?.name || 'operator',
         lines: [{ RoolNumber: id, Description: `${item.inventStatus} (${item.length} yard)`, Length: item.length,
           IsExecute: false, NoMesin: machineId, isPrinted: false, isStock: false,
-          ProductType: 1, InventStatus: item.inventStatus }],
+          ProductType: 1, InventStatus: item.inventStatus,
+          CreatedBy: user?.username || user?.name || 'operator', Shift: Number(user?.shift) }],
       })
       const saved = result?.data?.lines?.[0]
       if (saved?.action && saved.action !== 'created') {

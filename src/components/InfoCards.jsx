@@ -17,14 +17,14 @@ export default function InfoCards({ data, user, totalDefects, pendingDefectsCoun
       <div className={styles.bannerCard}>
         <div className={styles.bannerLeft}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className={styles.bannerLabel}>Nomor Produksi</span>
+            <span className={styles.bannerLabel}>Nomor DO</span>
           </div>
           <span className={styles.bannerProd}>{data.seqmentNum || data.prodNumber}</span>
         </div>
         <div className={styles.bannerRight}>
           <div className={styles.bannerCustomer}>{data.customer || data.custCode}</div>
           <div className={styles.bannerSub}>
-            Ref: {data.prodNumber}
+            Nomor OP: {data.prodNumber}
           </div>
         </div>
       </div>

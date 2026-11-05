@@ -378,7 +378,7 @@ export default function RollTable({
               <th style={{ width: '85px' }}>No. Roll</th>
               <th style={{ width: '80px' }}>Mesin</th>
               <th>Panjang</th>
-              <th>BS Qty</th>
+              {/* <th>BS Qty</th> */}
               <th style={{ width: '80px' }}>Stock</th>
               <th>Status</th>
               <th className={styles.center} style={{ width: '320px' }}>
@@ -415,7 +415,7 @@ export default function RollTable({
                       <span className={styles.lengthUnit}>yard</span>
                     </td>
 
-                    <td
+                    {/* <td
                       className={styles.bsCell}
                       onDoubleClick={() => startEditingBs(roll)}
                       title="Double click untuk edit BS QTY (< panjang roll)"
@@ -465,7 +465,7 @@ export default function RollTable({
                           </span>
                         </div>
                       )}
-                    </td>
+                    </td> */}
 
                     {/* Kolom Stock (isStock checkbox & indikator) */}
                     <td className={styles.stockCell}>
