@@ -638,5 +638,113 @@ export async function deleteJoinedPiecesApi(prodId, roolNumber) {
   }
 }
 
+// ============================================================
+// INVENTORY STATUS
+// ============================================================
 
+/**
+ * Ambil daftar Inventory Status dari tabel master InventoryStatus.
+ * @param {object} [params]
+ * @param {string} [params.search]    - Pencarian partial pada StatusId / Name (case-insensitive)
+ * @param {string} [params.statusId]  - Filter exact match StatusId
+ * @param {number} [params.limit]     - Jumlah baris (default 500, maks 1000)
+ * @param {number} [params.offset]    - Offset pagination (default 0)
+ * @returns {Promise<{ count: number, total: number, limit: number, offset: number, data: Array<{ StatusId: string, Name: string }> }>}
+ */
+export async function getInventoryStatusList({ search, statusId, limit, offset } = {}) {
+  const url = new URL(`${API_BASE}/api/inventory-status`, window.location.origin);
+  if (search)   url.searchParams.set('search',   search);
+  if (statusId) url.searchParams.set('StatusId', statusId);
+  if (limit)    url.searchParams.set('limit',    limit);
+  if (offset)   url.searchParams.set('offset',   offset);
+
+  try {
+    const res  = await fetch(url.toString());
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal mengambil data Inventory Status');
+    }
+    return data;
+  } catch (err) {
+    console.error('[getInventoryStatusList] Error:', err);
+    throw err;
+  }
+}
+
+/**
+ * Ambil satu Inventory Status berdasarkan StatusId.
+ * @param {string} statusId
+ * @returns {Promise<{ StatusId: string, Name: string }>}
+ */
+export async function getInventoryStatusById(statusId) {
+  if (!statusId) throw new Error('statusId wajib diisi');
+
+  const url = `${API_BASE}/api/inventory-status/${encodeURIComponent(statusId)}`;
+  try {
+    const res  = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || `InventoryStatus '${statusId}' tidak ditemukan`);
+    }
+    return data.data;
+  } catch (err) {
+    console.error(`[getInventoryStatusById] Error for '${statusId}':`, err);
+    throw err;
+  }
+}
+
+// ============================================================
+// DEFECT CODE
+// ============================================================
+
+/**
+ * Ambil daftar Defect Code dari tabel master DefectCode.
+ * @param {object} [params]
+ * @param {string} [params.search]  - Pencarian partial pada Code / Defect (case-insensitive)
+ * @param {string} [params.code]    - Filter exact match Code
+ * @param {number} [params.limit]   - Jumlah baris (default 500, maks 1000)
+ * @param {number} [params.offset]  - Offset pagination (default 0)
+ * @returns {Promise<{ count: number, total: number, limit: number, offset: number, data: Array<{ Code: string, Defect: string }> }>}
+ */
+export async function getDefectCodeList({ search, code, limit, offset } = {}) {
+  const url = new URL(`${API_BASE}/api/defect-code`, window.location.origin);
+  if (search) url.searchParams.set('search', search);
+  if (code)   url.searchParams.set('code',   code);
+  if (limit)  url.searchParams.set('limit',  limit);
+  if (offset) url.searchParams.set('offset', offset);
+
+  try {
+    const res  = await fetch(url.toString());
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal mengambil data Defect Code');
+    }
+    return data;
+  } catch (err) {
+    console.error('[getDefectCodeList] Error:', err);
+    throw err;
+  }
+}
+
+/**
+ * Ambil satu Defect Code berdasarkan Code.
+ * @param {string} code
+ * @returns {Promise<{ Code: string, Defect: string }>}
+ */
+export async function getDefectCodeById(code) {
+  if (!code) throw new Error('code wajib diisi');
+
+  const url = `${API_BASE}/api/defect-code/${encodeURIComponent(code)}`;
+  try {
+    const res  = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || `DefectCode '${code}' tidak ditemukan`);
+    }
+    return data.data;
+  } catch (err) {
+    console.error(`[getDefectCodeById] Error for '${code}':`, err);
+    throw err;
+  }
+}
 

@@ -43,7 +43,7 @@ function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
   const productType = Number(item.ProductType ?? item.productType ?? 5);
   const inventStatus = String(item.InventStatus || item.inventStatus || (productType === 1 ? 'BS' : 'A')).trim().toUpperCase();
   if (![1, 5].includes(productType)) throw new Error('ProductType must be 1 (Co-Product) or 5 (roll).');
-  if (productType === 1 && (!['BS', 'JABLAK', 'KECILAN'].includes(inventStatus) || Number(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? item.roll_number ?? item.id ?? 0) < 9001)) {
+  if (productType === 1 && Number(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? item.roll_number ?? item.id ?? 0) < 9001) {
     throw new Error('Co-Product requires roll number >= 9001 and InventStatus BS, JABLAK, or KECILAN.');
   }
   return {

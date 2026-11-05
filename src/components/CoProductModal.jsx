@@ -1,10 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import styles from './ManualRollModal.module.css'
+import { getInventoryStatusList } from '../services/api';
 
 export default function CoProductModal({ onSave, onClose, loading = false }) {
   const [length, setLength] = useState('')
   const [status, setStatus] = useState('BS')
   const [error, setError] = useState('')
+  const [InventStatusOptions, setInventStatusOption] = useState([])
+
+  useEffect(() => {
+    getInventoryStatusList()
+      .then(res => setInventStatusOption(res.data))
+      .catch(err => console.error('[InventoryStatus] gagal load inventory status:', err))
+  }, [])
 
   function submit(e) {
     e.preventDefault()
@@ -22,10 +30,23 @@ export default function CoProductModal({ onSave, onClose, loading = false }) {
       <form onSubmit={submit}>
         <div className={styles.body}>
           {error && <div className={styles.errorBanner}>{error}</div>}
-          <div className={styles.formGroup}><label className={styles.label}>Panjang (Yard)</label><div className={styles.inputWrap}><input className={styles.input} type="number" min="0.1" step="0.1" value={length} onChange={e => { setLength(e.target.value); setError('') }} autoFocus required/><span className={styles.unit}>Yard</span></div></div>
-          <div className={styles.formGroup}><label className={styles.label}>Jenis Co-Product</label><select className={styles.input} value={status} onChange={e => setStatus(e.target.value)}><option value="BS">BS</option><option value="JABLAK">JABLAK</option><option value="KECILAN">KECILAN</option></select></div>
+          <div className={styles.formGroup}><label className={styles.label}>Panjang (Yard)</label><div className={styles.inputWrap}><input className={styles.input} type="number" min="0.1" step="0.1" value={length} onChange={e => { setLength(e.target.value); setError('') }} autoFocus required /><span className={styles.unit}>Yard</span></div></div>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Jenis Co-Product</label>
+            <select
+              className={styles.input}
+              value={InventStatusOptions.statusId}
+              onChange={e => setStatus(e.target.value)}>
+
+              {InventStatusOptions.map(d => (
+                <option key={d.StatusId} value={d.StatusId}>
+                  {d.StatusId} – {d.Name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.footer}><button type="button" className="btn btn-outline btn-sm" onClick={onClose}>Batal</button><button type="submit" className="btn btn-primary btn-sm" disabled={loading}>{loading ? 'Menyimpan…' : 'Simpan Co-Product'}</button></div>
         </div>
-        <div className={styles.footer}><button type="button" className="btn btn-outline btn-sm" onClick={onClose}>Batal</button><button type="submit" className="btn btn-primary btn-sm" disabled={loading}>{loading ? 'Menyimpan…' : 'Simpan Co-Product'}</button></div>
       </form>
     </div>
   </div>

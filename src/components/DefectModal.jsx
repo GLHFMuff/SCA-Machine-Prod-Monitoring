@@ -1,6 +1,7 @@
-import { useState } from 'react'
 import { DEFECT_CODES } from '../data/dummyData.js'
+import { useEffect, useState } from 'react'
 import styles from './DefectModal.module.css'
+import { getDefectCodeList } from '../services/api';
 
 export default function DefectModal({ roll, isPreRoll = false, initDefects, onSave, onClose }) {
   const [list, setList] = useState(initDefects || [])
@@ -8,6 +9,13 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
   const [yardTo, setYardTo] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
+  const [defectOptions, setDefectOptions] = useState([])
+
+  useEffect(() => {
+    getDefectCodeList()
+      .then(res => setDefectOptions(res.data))
+      .catch(err => console.error('[DefectModal] gagal load defect codes:', err))
+  }, [])
 
   function addDefect() {
     if (!yard) {
@@ -45,6 +53,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
   function removeDefect(id) {
     setList(prev => prev.filter(d => d.id !== id))
   }
+
 
   return (
     <div className={styles.overlay}>
@@ -113,7 +122,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                   step="0.1"
                   onChange={e => {
                     setYard(e.target.value)
-                    if(!yardTo || yardTo == 0){
+                    if (!yardTo || yardTo == 0) {
                       setYardTo(e.target.value)
                     }
                     setError('')
@@ -137,8 +146,8 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                 />
               </div>
             </div>
-            
-            <div style={{ margin: '0px 0px 10px 0px'}}>
+
+            <div style={{ margin: '0px 0px 10px 0px' }}>
               <label className={styles.fieldLabel}>Kode Cacat</label>
               <select
                 className={styles.fieldInput}
@@ -146,9 +155,11 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                 value={code}
                 onChange={e => setCode(e.target.value)}
               >
-                <option value="">Pilih kode cacat</option>
-                {DEFECT_CODES.map(defectCode => (
-                  <option key={defectCode} value={defectCode}>{defectCode}</option>
+                <option value="">-- Pilih Kode Cacat --</option>
+                {defectOptions.map(d => (
+                  <option key={d.Code} value={d.Code}>
+                    {d.Code} – {d.Defect}
+                  </option>
                 ))}
               </select>
             </div>

@@ -7,6 +7,8 @@ import https from 'https';
 import { dbConfig, checkDatabaseConnection } from './config/db.js';
 import authRouter from './routes/auth.js';
 import countingRouter from './routes/counting.js';
+import inventoryStatusRouter from './routes/inventory-status.js';
+import defectCodeRouter from './routes/defect-code.js';
 import { authenticateKey } from './middleware/auth.js';
 import { ensureSequenceTable } from './services/sequence.js';
 
@@ -76,6 +78,14 @@ app.get('/api', (req, res) => {
         upsertLines: 'POST /api/counting/lines',
         deleteLine: 'DELETE /api/counting/lines/:prodId/:roolNumber',
       },
+      inventoryStatus: {
+        list: 'GET /api/inventory-status?search=...&limit=500&offset=0',
+        detail: 'GET /api/inventory-status/:statusId',
+      },
+      defectCode: {
+        list: 'GET /api/defect-code?search=...&limit=500&offset=0',
+        detail: 'GET /api/defect-code/:code',
+      },
     },
   });
 });
@@ -129,6 +139,12 @@ app.use('/api/auth', authRouter);
 // Counting Kain CRUD endpoints
 app.use('/api/counting', countingRouter);
 app.use('/api/counting-kain', countingRouter);
+
+// Master data Inventory Status (read-only select)
+app.use('/api/inventory-status', inventoryStatusRouter);
+
+// Master data Defect Code (read-only select)
+app.use('/api/defect-code', defectCodeRouter);
 
 // SPA fallback for frontend routes (non-API GET requests)
 app.use((req, res, next) => {
