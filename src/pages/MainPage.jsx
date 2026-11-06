@@ -921,11 +921,13 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     try {
       const result = await saveCountingData({
         ProdId: prodId, NoMesin: machineId, UserId: user?.username || user?.name || 'operator',
-        lines: [{ RoolNumber: id, Description: `${item.inventStatus} (${item.length} yard)`, Length: item.length,
-          IsExecute: false, NoMesin: machineId, isPrinted: false, isStock: false,
+        lines: [{
+          RoolNumber: id, Description: `${item.inventStatus} (${item.length} yard)`, Length: item.length,
+          IsExecute: false, NoMesin: machineId, isPrinted: false, isStock: true,
           ProductType: 1, InventStatus: item.inventStatus,
           CreatedBy: user?.username || user?.name || 'operator', Shift: Number(user?.shift),
-          TransDate: transDate }],
+          TransDate: transDate
+        }],
       })
       const saved = result?.data?.lines?.[0]
       if (saved?.action && saved.action !== 'created') {

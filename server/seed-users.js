@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { pool } from './config/db.js';
 
-const seedUsers = Array.from({ length: 12 }, (_, i) => {
+const seedUsers = Array.from({ length: 2 }, (_, i) => {
   const num = i + 1;
   return {
     username: `mesin${num}`,

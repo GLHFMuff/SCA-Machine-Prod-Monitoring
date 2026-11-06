@@ -40,7 +40,7 @@ export async function injectUser({
   const cleanUsername = username.trim().toLowerCase();
   const cleanEmail = (email || `${cleanUsername}@sca.id`).trim().toLowerCase();
   const cleanFullName = full_name || cleanUsername.charAt(0).toUpperCase() + cleanUsername.slice(1);
-  const cleanMachineId = String(machine_id || '0');
+  const cleanMachineId = machine_id !== undefined && machine_id !== null ? String(machine_id) : '';
 
   const passwordHash = await bcrypt.hash(password, 10);
 
