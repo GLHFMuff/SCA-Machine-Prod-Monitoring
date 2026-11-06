@@ -132,3 +132,4 @@ if (process.argv[1]?.endsWith('inject-batch-users.mjs')) {
       process.exit(1);
     });
 }
+

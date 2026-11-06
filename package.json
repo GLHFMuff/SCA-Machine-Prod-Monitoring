@@ -15,7 +15,9 @@
     "server:test-auth": "node server/test-auth.js",
     "server:test-counting": "node server/test-counting.js",
     "server:test-sequence": "node server/test-sequence.js",
-    "server:test-backdate": "node server/test-backdate-sequence.mjs"
+    "server:test-backdate": "node server/test-backdate-sequence.mjs",
+    "server:stress-test": "node server/test-stress.mjs",
+    "server:inject-batch": "node server/inject-batch-users.mjs"
   },
   "keywords": [],
   "author": "",

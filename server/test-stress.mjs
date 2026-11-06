@@ -204,7 +204,7 @@ async function runStretchTest() {
     const dates = ['06/11/2026', '22/10/2026', '18/09/2026'];
     const insertTasks = Array.from({ length: mockInsertCount }, async (_, idx) => {
       const transDate = dates[idx % dates.length];
-      const rollNumber = idx + 1;
+      const roolNumber = idx + 1;
       const t0 = performance.now();
 
       // Generate sequence inside transaction
@@ -216,22 +216,20 @@ async function runStretchTest() {
 
         const query = `
           INSERT INTO "CountingKainLines" (
-            "ProdId", "LineNum", "RollNumber", "QrNum", "Qty", "TransDate",
-            "Color", "ItemName", "Lebar", "Gramasi", "LotResep", "Grade",
-            "IsStock", "CreatedAt", "UpdatedAt"
+            "ProdId", "RoolNumber", "Description", "Length", "IsExecute",
+            "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType",
+            "InventStatus", "CreatedBy", "Shift", "TransDate"
           ) VALUES (
-            $1, $2, $3, $4, $5, $6,
-            'Hitam', 'Kain Uji Stres', '180cm', '240gsm', 'LOT-TEST', 'A',
-            false, NOW(), NOW()
-          ) RETURNING "LineNum", "QrNum", "TransDate";
+            $1, $2, 'Kain Uji Stres', 35.5, false,
+            '1', false, false, $3, 0,
+            'GRADE A', 'stress-runner', '1', $4
+          ) RETURNING "ProdId", "RoolNumber", "QrNum", "TransDate";
         `;
 
         const res = await client.query(query, [
           testProdId,
-          idx + 1,
-          rollNumber,
+          roolNumber,
           qrNum,
-          35.5,
           transDate,
         ]);
 
@@ -252,7 +250,7 @@ async function runStretchTest() {
 
     // Verify all rows in database
     const verifyRes = await pool.query(
-      `SELECT "LineNum", "QrNum", "TransDate", "RollNumber" FROM "CountingKainLines" WHERE "ProdId" = $1 ORDER BY "LineNum" ASC`,
+      `SELECT "RoolNumber", "QrNum", "TransDate" FROM "CountingKainLines" WHERE "ProdId" = $1 ORDER BY "RoolNumber" ASC`,
       [testProdId]
     );
 

@@ -1126,7 +1126,7 @@ router.post('/defects', async (req, res) => {
          ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo")
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"`,
-        [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, norm.IsExecuted, norm.LineNumber, norm.LengthPointTo]
+        [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, false, norm.LineNumber, norm.LengthPointTo]
       );
       inserted.push(insRes.rows[0]);
     }
