@@ -234,6 +234,9 @@ npm run server:test-db
 # Menjalankan ulang seeding user
 npm run server:seed
 
+# Tool Inject User (Interaktif & CLI)
+npm run server:inject-user
+
 # Testing alur login & verifikasi key
 npm run server:test-auth
 

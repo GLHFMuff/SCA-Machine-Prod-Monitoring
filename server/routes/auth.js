@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/db.js';
 import { authenticateKey, hashToken } from '../middleware/auth.js';
+import { injectUser, listUsers } from '../inject-user.js';
 
 const router = express.Router();
 
@@ -109,6 +110,45 @@ router.post('/logout', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Gagal logout.' });
   } finally {
     client.release();
+  }
+});
+
+// Endpoint untuk melihat daftar user
+router.get('/users', async (_req, res) => {
+  try {
+    const users = await listUsers();
+    res.json({ success: true, data: users });
+  } catch (err) {
+    console.error('[List Users API Error]:', err);
+    res.status(500).json({ success: false, message: 'Gagal memuat daftar user.' });
+  }
+});
+
+// Endpoint untuk inject / create / update user baru via API
+router.post('/inject-user', async (req, res) => {
+  const { username, password, email, full_name, role, machine_id, is_active } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'Username dan password wajib diisi.' });
+  }
+
+  try {
+    const user = await injectUser({
+      username,
+      password,
+      email,
+      full_name,
+      role: role || 'user',
+      machine_id: machine_id ?? '0',
+      is_active: is_active ?? true,
+    });
+    res.json({
+      success: true,
+      message: `User '${user.username}' berhasil disimpan.`,
+      data: user,
+    });
+  } catch (err) {
+    console.error('[Inject User API Error]:', err);
+    res.status(500).json({ success: false, message: err.message || 'Gagal menyimpan user.' });
   }
 });
 

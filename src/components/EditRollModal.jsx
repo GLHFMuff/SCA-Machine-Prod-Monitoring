@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toDDMMYYYY, toYYYYMMDD } from '../utils/dateUtils.js'
 import styles from './EditRollModal.module.css'
 
 export default function EditRollModal({
@@ -11,12 +12,14 @@ export default function EditRollModal({
 }) {
   const [length, setLength] = useState(roll?.length !== undefined ? String(roll.length) : '')
   const [bsQty, setBsQty] = useState(roll?.bsQty !== undefined && roll?.bsQty !== null ? String(roll.bsQty) : '0')
+  const [date, setDate] = useState(toYYYYMMDD(roll?.transDate || roll?.TransDate))
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (roll) {
       setLength(roll.length !== undefined ? String(roll.length) : '')
       setBsQty(roll.bsQty !== undefined && roll.bsQty !== null ? String(roll.bsQty) : '0')
+      setDate(toYYYYMMDD(roll.transDate || roll.TransDate))
       setError('')
     }
   }, [roll])
@@ -50,6 +53,7 @@ export default function EditRollModal({
     onSave({
       length: parsedLength,
       bsQty: parsedBs,
+      transDate: toDDMMYYYY(date),
     })
   }
 
@@ -168,6 +172,30 @@ export default function EditRollModal({
               </div>
               <span className={styles.hint}>
                 Maksimal BS Qty harus lebih kecil dari panjang roll (&lt; {parseFloat(length) || 0} yd)
+              </span>
+            </div>
+
+            {/* Input 3: Date (TransDate) */}
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Date (Tanggal Transaksi)
+                <span className={styles.req}>*Format tersimpan: DD/MM/YYYY</span>
+              </label>
+              <div className={styles.inputWrap}>
+                <input
+                  type="date"
+                  className={styles.input}
+                  value={date}
+                  onChange={(e) => {
+                    setDate(e.target.value)
+                    setError('')
+                  }}
+                  disabled={loading}
+                  required
+                />
+              </div>
+              <span className={styles.hint}>
+                Tanggal saat ini: {roll.transDate || toDDMMYYYY(date)}
               </span>
             </div>
           </div>

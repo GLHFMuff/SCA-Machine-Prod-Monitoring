@@ -204,14 +204,14 @@ export default function RollTable({
   }
 
   // Step 2: Konfirmasi Ambil Data -> Simpan ke tabel countinglines dan flush antrean
-  async function handleConfirmGetData() {
+  async function handleConfirmGetData(selectedTransDate) {
     if (!pendingSensorData) return
     setLoadingGetData(true)
     try {
       if (onSaveRollFromSensor) {
-        await onSaveRollFromSensor(pendingSensorData, nextRollId)
+        await onSaveRollFromSensor(pendingSensorData, nextRollId, selectedTransDate)
       } else if (onGetData) {
-        await onGetData(pendingSensorData, nextRollId)
+        await onGetData(pendingSensorData, nextRollId, selectedTransDate)
       }
       setShowGetDataConfirm(false)
       setPendingSensorData(null)
@@ -380,6 +380,7 @@ export default function RollTable({
               <th>Panjang</th>
               {/* <th>BS Qty</th> */}
               <th style={{ width: '80px' }}>Stock</th>
+              <th style={{ width: '105px' }}>Date</th>
               <th>Status</th>
               <th className={styles.center} style={{ width: '320px' }}>
                 Aksi
@@ -480,6 +481,11 @@ export default function RollTable({
                           className={styles.stockCheckbox}
                         />
                       </label>
+                    </td>
+
+                    {/* Kolom Date */}
+                    <td>
+                      <span className={styles.dateBadge}>{roll.transDate || '-'}</span>
                     </td>
 
                     {/* Kolom Status (mewakili ada/tidaknya cacat & jumlah titik) */}
@@ -588,8 +594,8 @@ export default function RollTable({
         <div id="coproducts-panel" role="tabpanel" aria-labelledby="coproducts-tab" hidden={activeTableTab !== 'coproducts'} className={`${styles.tableCard} ${styles.coProductCard}`}>
           <div className={`${styles.tableContainer} ${styles.coProductTableContainer}`}>
             <table className={styles.table}>
-              <thead><tr><th>Jenis</th><th>Panjang</th><th>Mesin</th><th>Aksi</th></tr></thead>
-              <tbody>{coProducts.length ? coProducts.map((item) => <tr key={item.id}><td>{item.inventStatus}</td><td>{item.length} yard</td><td>M-{item.noMesin}</td><td><div className={styles.actionGroup}><button type="button" className={styles.deleteRowBtn} onClick={() => onDeleteCoProduct?.(item.id)} title={`Hapus Co-Product ${item.inventStatus}`} aria-label={`Hapus Co-Product ${item.inventStatus}`}><span className={styles.btnIcon}>🗑️</span><span className={styles.btnLabel}>Hapus</span></button></div></td></tr>) : <tr><td colSpan="4" className={styles.emptyState}>Belum ada Co-Products.</td></tr>}</tbody>
+              <thead><tr><th>Jenis</th><th>Panjang</th><th>Mesin</th><th style={{ width: '105px' }}>Date</th><th>Aksi</th></tr></thead>
+              <tbody>{coProducts.length ? coProducts.map((item) => <tr key={item.id}><td>{item.inventStatus}</td><td>{item.length} yard</td><td>M-{item.noMesin}</td><td><span className={styles.dateBadge}>{item.transDate || '-'}</span></td><td><div className={styles.actionGroup}><button type="button" className={styles.deleteRowBtn} onClick={() => onDeleteCoProduct?.(item.id)} title={`Hapus Co-Product ${item.inventStatus}`} aria-label={`Hapus Co-Product ${item.inventStatus}`}><span className={styles.btnIcon}>🗑️</span><span className={styles.btnLabel}>Hapus</span></button></div></td></tr>) : <tr><td colSpan="5" className={styles.emptyState}>Belum ada Co-Products.</td></tr>}</tbody>
             </table>
           </div>
         </div>

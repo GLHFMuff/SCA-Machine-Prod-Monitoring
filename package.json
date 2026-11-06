@@ -11,9 +11,11 @@
     "server:ssl": "node server/generate-ssl.js",
     "server:test-db": "node server/test-db.js",
     "server:seed": "node server/seed-users.js",
+    "server:inject-user": "node server/inject-user.js",
     "server:test-auth": "node server/test-auth.js",
     "server:test-counting": "node server/test-counting.js",
-    "server:test-sequence": "node server/test-sequence.js"
+    "server:test-sequence": "node server/test-sequence.js",
+    "server:test-backdate": "node server/test-backdate-sequence.mjs"
   },
   "keywords": [],
   "author": "",

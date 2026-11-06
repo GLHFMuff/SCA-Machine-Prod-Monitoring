@@ -1,6 +1,6 @@
 import express from 'express';
 import { pool } from '../config/db.js';
-import { generateNextQrNum } from '../services/sequence.js';
+import { generateNextQrNum, parseDatePeriod } from '../services/sequence.js';
 
 const router = express.Router();
 
@@ -39,6 +39,49 @@ function normalizeHeader(body, user) {
   };
 }
 
+/**
+ * Normalizer helper to ensure TransDate is formatted as DD/MM/YYYY
+ */
+function formatTransDate(val) {
+  if (!val) {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  const s = String(val).trim();
+  const ddmmyyyy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmyyyy) {
+    const dd = ddmmyyyy[1].padStart(2, '0');
+    const mm = ddmmyyyy[2].padStart(2, '0');
+    const yyyy = ddmmyyyy[3];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  const yyyymmdd = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (yyyymmdd) {
+    const yyyy = yyyymmdd[1];
+    const mm = yyyymmdd[2].padStart(2, '0');
+    const dd = yyyymmdd[3].padStart(2, '0');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  const ddmmyyyyDash = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (ddmmyyyyDash) {
+    const dd = ddmmyyyyDash[1].padStart(2, '0');
+    const mm = ddmmyyyyDash[2].padStart(2, '0');
+    const yyyy = ddmmyyyyDash[3];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const dd = String(parsed.getDate()).padStart(2, '0');
+    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+    const yyyy = parsed.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return s;
+}
+
 function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
   const productType = Number(item.ProductType ?? item.productType ?? 5);
   const inventStatus = String(item.InventStatus || item.inventStatus || (productType === 1 ? 'BS' : 'A')).trim().toUpperCase();
@@ -60,6 +103,7 @@ function normalizeLine(item, parentProdId = '', parentNoMesin = '') {
     InventStatus: inventStatus,
     CreatedBy: String(item.CreatedBy ?? item.createdBy ?? item.created_by ?? '').trim() || null,
     Shift: item.Shift ?? item.shift ?? item.shift_id ?? null,
+    TransDate: formatTransDate(item.TransDate || item.transDate || item.Date || item.date),
   };
 }
 
@@ -243,7 +287,7 @@ async function checkShouldBeStock(client, prodId, explicitIsStock = false) {
  */
 async function upsertLineQuery(client, line) {
   const check = await client.query(
-    `SELECT "IsExecute", "QrNum", "isStock", "ProductType", "InventStatus" FROM "CountingKainLines" 
+    `SELECT "IsExecute", "QrNum", "isStock", "ProductType", "InventStatus", "TransDate" FROM "CountingKainLines" 
  
      WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
     [line.ProdId, line.RoolNumber]
@@ -265,36 +309,54 @@ async function upsertLineQuery(client, line) {
       ? Boolean(line.isStock)
       : (existing.isStock !== null ? Boolean(existing.isStock) : false);
 
+    const finalTransDate = line.TransDate || existing.TransDate || formatTransDate();
+    const targetPeriod = parseDatePeriod(finalTransDate).period;
+
     let finalQrNum = line.QrNum || existing.QrNum;
     if (!finalQrNum) {
-      finalQrNum = await generateNextQrNum(client, finalIsStock);
-    } else if (finalQrNum.startsWith('QR.O.')) {
-      finalQrNum = finalQrNum.replace(/^QR\.O\./, 'QR.S.');
+      finalQrNum = await generateNextQrNum(client, finalIsStock, finalTransDate);
+    } else {
+      const match = finalQrNum.match(/^QR\.[SO]\.(\d{4})\./);
+      if (match && match[1] !== targetPeriod) {
+        // Bulan TransDate berbeda (misal backdate)! Generate nomor sequence baru sesuai periode TransDate
+        finalQrNum = await generateNextQrNum(client, finalIsStock, finalTransDate);
+      } else if (finalQrNum.startsWith('QR.O.')) {
+        finalQrNum = finalQrNum.replace(/^QR\.O\./, 'QR.S.');
+      }
     }
 
     const res = await client.query(
       `UPDATE "CountingKainLines"
-       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "ProductType" = $10, "InventStatus" = $11, "CreatedBy" = $12, "Shift" = $13
+       SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "ProductType" = $10, "InventStatus" = $11, "CreatedBy" = $12, "Shift" = $13, "TransDate" = $14
             WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null]
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null, finalTransDate]
     );
     return { action: 'updated', data: res.rows[0], isExecuteReset: currentIsExecute === true };
   } else {
     // Validasi otomatis isStock saat CREATE:
     // Jika akumulasi length atas RecidSalesId sudah melebihi/mencapai OrderQty, otomatis tandai sebagai isStock!
     const isStockVal = await checkShouldBeStock(client, line.ProdId, Boolean(line.isStock));
+    const transDateVal = line.TransDate || formatTransDate();
+    const targetPeriod = parseDatePeriod(transDateVal).period;
 
-    let generatedQrNum = line.QrNum || (await generateNextQrNum(client, isStockVal));
-    if (generatedQrNum && generatedQrNum.startsWith('QR.O.')) {
-      generatedQrNum = generatedQrNum.replace(/^QR\.O\./, 'QR.S.');
+    let generatedQrNum = line.QrNum;
+    if (!generatedQrNum) {
+      generatedQrNum = await generateNextQrNum(client, isStockVal, transDateVal);
+    } else {
+      const match = generatedQrNum.match(/^QR\.[SO]\.(\d{4})\./);
+      if (match && match[1] !== targetPeriod) {
+        generatedQrNum = await generateNextQrNum(client, isStockVal, transDateVal);
+      } else if (generatedQrNum.startsWith('QR.O.')) {
+        generatedQrNum = generatedQrNum.replace(/^QR\.O\./, 'QR.S.');
+      }
     }
 
     const res = await client.query(
-      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null]
+      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"`,
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null, transDateVal]
     );
     return { action: 'created', data: res.rows[0] };
   }
@@ -446,7 +508,7 @@ router.get('/headers/:prodId', async (req, res) => {
     const headerMachine = String(header.NoMesin || '').trim();
 
     const linesRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1
        ORDER BY "RoolNumber" ASC`,
@@ -607,7 +669,7 @@ router.get('/lines', async (req, res) => {
     values.push(parseInt(offset, 10) || 0);
 
     const query = `
-      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
+      SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"
       FROM "CountingKainLines"
       ${whereClause}
       ORDER BY "ProdId" DESC, "RoolNumber" ASC
@@ -635,7 +697,7 @@ router.get('/lines/:prodId/:roolNumber', async (req, res) => {
     const { prodId, roolNumber } = req.params;
 
     const result = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
        LIMIT 1`,
@@ -776,7 +838,7 @@ router.patch('/lines/:prodId/:roolNumber/print', async (req, res) => {
       `UPDATE "CountingKainLines"
        SET "isPrinted" = true
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate"`,
       [prodId, parseInt(roolNumber, 10)]
     );
 
@@ -809,7 +871,7 @@ router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
     const isStock = Boolean(req.body.isStock);
 
     const checkRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "TransDate"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
       [prodId, rollNum]
@@ -826,7 +888,7 @@ router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
     let finalQrNum = existing.QrNum;
 
     if (!finalQrNum) {
-      finalQrNum = await generateNextQrNum(pool, isStock);
+      finalQrNum = await generateNextQrNum(pool, isStock, existing.TransDate);
     } else if (finalQrNum.startsWith('QR.O.')) {
       finalQrNum = finalQrNum.replace(/^QR\.O\./, 'QR.S.');
     }
@@ -835,7 +897,7 @@ router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
       `UPDATE "CountingKainLines"
        SET "isStock" = $3, "QrNum" = $4
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate"`,
       [prodId, rollNum, isStock, finalQrNum]
     );
 
@@ -885,7 +947,7 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
 
     // 1. Cek baris saat ini di database
     const checkRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus"
+      `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "TransDate"
        FROM "CountingKainLines"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
       [prodId, rollNum]
@@ -911,9 +973,24 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
       ? Boolean(req.body.isStock)
       : (existing.isStock !== null ? Boolean(existing.isStock) : false);
 
-    let finalQrNum = req.body.QrNum || req.body.qrNum || existing.QrNum;
+    const rawDate = req.body.TransDate ?? req.body.transDate ?? req.body.Date ?? req.body.date;
+    const finalTransDate = rawDate ? formatTransDate(rawDate) : (existing.TransDate || formatTransDate());
+    const targetPeriod = parseDatePeriod(finalTransDate).period;
+
+    let finalQrNum = req.body.QrNum || req.body.qrNum;
     if (!finalQrNum) {
-      finalQrNum = await generateNextQrNum(pool, finalIsStock);
+      const existingQr = existing.QrNum;
+      if (existingQr) {
+        const periodMatch = existingQr.match(/^QR\.[SO]\.(\d{4})\./);
+        if (periodMatch && periodMatch[1] !== targetPeriod) {
+          // Periode bulan/tahun berubah (misal backdate)! Generate nomor sequence baru sesuai periode TransDate
+          finalQrNum = await generateNextQrNum(pool, finalIsStock, finalTransDate);
+        } else {
+          finalQrNum = existingQr.startsWith('QR.O.') ? existingQr.replace(/^QR\.O\./, 'QR.S.') : existingQr;
+        }
+      } else {
+        finalQrNum = await generateNextQrNum(pool, finalIsStock, finalTransDate);
+      }
     } else if (finalQrNum.startsWith('QR.O.')) {
       finalQrNum = finalQrNum.replace(/^QR\.O\./, 'QR.S.');
     }
@@ -933,10 +1010,10 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
 
     const updateRes = await pool.query(
       `UPDATE "CountingKainLines"
-       SET "Length" = $3, "Description" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9
+       SET "Length" = $3, "Description" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "TransDate" = $10
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum"`,
-      [prodId, rollNum, lengthVal, newDescription, finalIsExecute, noMesin, isPrinted, finalIsStock, finalQrNum]
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate"`,
+      [prodId, rollNum, lengthVal, newDescription, finalIsExecute, noMesin, isPrinted, finalIsStock, finalQrNum, finalTransDate]
     );
 
     return res.status(200).json({
@@ -1116,7 +1193,8 @@ router.get('/next-roll/:prodId', async (req, res) => {
         "Description",
         "isStock",
         "QrNum",
-        "ProductType"
+        "ProductType",
+        "TransDate"
       FROM "CountingKainLines"
       WHERE "ProdId" = $1
       ORDER BY "RoolNumber" ASC

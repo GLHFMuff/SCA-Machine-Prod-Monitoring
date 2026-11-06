@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import styles from './ManualRollModal.module.css'
 import { getInventoryStatusList } from '../services/api';
+import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js';
 
 export default function CoProductModal({ onSave, onClose, loading = false }) {
   const [length, setLength] = useState('')
   const [status, setStatus] = useState('BS')
+  const [transDate, setTransDate] = useState(getTodayYYYYMMDD())
   const [error, setError] = useState('')
   const [InventStatusOptions, setInventStatusOption] = useState([])
 
@@ -21,7 +23,12 @@ export default function CoProductModal({ onSave, onClose, loading = false }) {
       setError('Panjang harus diisi dengan angka lebih dari 0.')
       return
     }
-    onSave({ length: value, inventStatus: status, productType: 1 })
+    onSave({
+      length: value,
+      inventStatus: status,
+      productType: 1,
+      transDate: toDDMMYYYY(transDate),
+    })
   }
 
   return <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
@@ -44,6 +51,18 @@ export default function CoProductModal({ onSave, onClose, loading = false }) {
                 </option>
               ))}
             </select>
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Date (Tanggal Transaksi)</label>
+            <div className={styles.inputWrap}>
+              <input
+                className={styles.input}
+                type="date"
+                value={transDate}
+                onChange={e => { setTransDate(e.target.value); setError('') }}
+                required
+              />
+            </div>
           </div>
           <div className={styles.footer}><button type="button" className="btn btn-outline btn-sm" onClick={onClose}>Batal</button><button type="submit" className="btn btn-primary btn-sm" disabled={loading}>{loading ? 'Menyimpan…' : 'Simpan Co-Product'}</button></div>
         </div>

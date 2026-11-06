@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js'
 import styles from './GetDataConfirmModal.module.css'
 
 export default function GetDataConfirmModal({
@@ -10,6 +12,7 @@ export default function GetDataConfirmModal({
   onClose,
   loading = false,
 }) {
+  const [transDate, setTransDate] = useState(getTodayYYYYMMDD())
   return (
     <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
       <div className={styles.box} onClick={(e) => e.stopPropagation()}>
@@ -52,6 +55,24 @@ export default function GetDataConfirmModal({
                 {length !== undefined && length !== null ? `${length} yard` : '-'}
               </span>
             </div>
+            <div className={styles.infoRow} style={{ alignItems: 'center' }}>
+              <span className={styles.infoLabel}>Date (Tanggal Roll)</span>
+              <input
+                type="date"
+                value={transDate}
+                onChange={(e) => setTransDate(e.target.value)}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface2, #1e293b)',
+                  color: 'var(--text, #f8fafc)',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  outline: 'none',
+                }}
+              />
+            </div>
             {pendingDefectsCount > 0 && (
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Catatan Cacat Sementara</span>
@@ -92,7 +113,7 @@ export default function GetDataConfirmModal({
           <button
             type="button"
             className="btn btn-primary"
-            onClick={onConfirm}
+            onClick={() => onConfirm(toDDMMYYYY(transDate))}
             disabled={loading}
           >
             {loading ? (

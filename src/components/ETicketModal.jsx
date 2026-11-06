@@ -3,19 +3,8 @@ import QRCode from 'qrcode'
 import logoCunda from '../img/lg_cunda.png'
 import logoHalal from '../img/lg_halal.png'
 import logoTkdn from '../img/lg_tkdn.png'
+import { toDDMMYYYY } from '../utils/dateUtils.js'
 import styles from './ETicketModal.module.css'
-
-/**
- * Format date to standard DD-MM-YYYY format
- */
-function formatDMY(dateInput) {
-  const d = dateInput ? new Date(dateInput) : new Date()
-  if (isNaN(d.getTime())) return '29-09-2026'
-  const day = String(d.getDate()).padStart(2, '0')
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const year = d.getFullYear()
-  return `${day}-${month}-${year}`
-}
 
 export default function ETicketModal({
   roll,
@@ -53,8 +42,8 @@ export default function ETicketModal({
       ? prodData.color.toUpperCase()
       : 'WARNA WARNI'
 
-  // Date in DD-MM-YYYY
-  const initialDate = formatDMY(roll?.createdAt || new Date())
+  // Date in DD/MM/YYYY
+  const initialDate = toDDMMYYYY(roll?.transDate || roll?.TransDate || roll?.createdAt)
 
   // Width / Length (lebar kain, standard 52")
   const initialLength =
@@ -586,13 +575,13 @@ export default function ETicketModal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Tanggal (DD-MM-YYYY)</label>
+                  <label className={styles.editLabel}>Tanggal (DD/MM/YYYY)</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={dateStr}
                     onChange={(e) => setDateStr(e.target.value)}
-                    placeholder="29-09-2026"
+                    placeholder="06/11/2026"
                   />
                 </div>
                 <div className={styles.editGroup}>

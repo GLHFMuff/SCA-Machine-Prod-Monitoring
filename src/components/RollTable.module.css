@@ -649,6 +649,15 @@
   font-weight: 700;
 }
 
+.dateBadge {
+  display: inline-block;
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 
 .ticketPrintedBadge {
   display: inline-block;

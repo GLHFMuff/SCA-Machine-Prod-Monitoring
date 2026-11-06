@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getNextRollInfo } from '../services/api.js'
+import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js'
 import styles from './ManualRollModal.module.css'
 
 export default function ManualRollModal({
@@ -17,6 +18,7 @@ export default function ManualRollModal({
   const [bsQty, setBsQty] = useState('0')
   const [isStock, setIsStock] = useState(false)
   const [stockInfo, setStockInfo] = useState(null)
+  const [transDate, setTransDate] = useState(getTodayYYYYMMDD())
   const [error, setError] = useState('')
 
   // Sinkronisasi otomatis roll number sesuai mesin & prodId dari database CountingKainLines
@@ -105,6 +107,7 @@ export default function ManualRollModal({
       length: parsedLength,
       bsQty: parsedBs,
       isStock: Boolean(isStock),
+      transDate: toDDMMYYYY(transDate),
     })
   }
 
@@ -177,6 +180,25 @@ export default function ManualRollModal({
                   required
                 />
                 <span className={styles.unit}>Yard</span>
+              </div>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Date (Tanggal Transaksi)
+                <span className={styles.req}>*Format tersimpan: DD/MM/YYYY</span>
+              </label>
+              <div className={styles.inputWrap}>
+                <input
+                  type="date"
+                  className={styles.input}
+                  value={transDate}
+                  onChange={(e) => {
+                    setTransDate(e.target.value)
+                    setError('')
+                  }}
+                  required
+                />
               </div>
             </div>
 

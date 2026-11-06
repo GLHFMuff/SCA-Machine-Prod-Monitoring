@@ -22,6 +22,7 @@ import {
   updateRollStockApi,
   saveJoinedPiecesApi,
 } from '../services/api.js'
+import { toDDMMYYYY, getTodayDDMMYYYY } from '../utils/dateUtils.js'
 import styles from './MainPage.module.css'
 
 function parseFormattedNumber(val) {
@@ -344,11 +345,12 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             isExecute: Boolean(l.IsExecute),
             isStock: Boolean(l.isStock),
             qrNum: l.QrNum || l.qrNum || '',
+            transDate: l.TransDate || '',
           }
         })
         const loadedCoProducts = (dbRecord.lines || []).filter((l) => Number(l.ProductType ?? 5) === 1).map((l) => ({
           id: Number(l.RoolNumber), length: Number(l.Length) || 0, inventStatus: l.InventStatus || 'BS',
-          noMesin: String(l.NoMesin || machineId), productType: 1,
+          noMesin: String(l.NoMesin || machineId), productType: 1, transDate: l.TransDate || '',
         }))
 
         // Map titik cacat dari tabel CountingKainDefect
@@ -589,10 +591,11 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   /**
    * Step 2: Simpan roll ke tabel CountingKainLines, lalu FLUSH setelah data tersimpan
    */
-  async function handleSaveRollFromSensor(sensorData, assignedRollId) {
+  async function handleSaveRollFromSensor(sensorData, assignedRollId, customTransDate) {
     const machineId = String(user?.machine_id || user?.machineId || 1)
     const prodId = prodData.prodNumber
     const lengthVal = parseFloat(sensorData?.Length ?? sensorData?.length) || 0
+    const finalTransDate = customTransDate ? toDDMMYYYY(customTransDate) : getTodayDDMMYYYY()
 
     // Tentukan nomor roll berikutnya
     let nextId = assignedRollId
@@ -635,6 +638,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       noMesin: machineId,
       isPrinted: false,
       isExecute: false,
+      transDate: finalTransDate,
     }
 
     // 1. Simpan data roll ke database PostgreSQL tabel CountingKainLines
@@ -664,6 +668,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           isStock: false,
           CreatedBy: user?.username || user?.name || 'operator',
           Shift: Number(user?.shift),
+          TransDate: finalTransDate,
         },
       ],
     })
@@ -674,6 +679,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       ...newRoll,
       isStock: finalIsStock,
       qrNum: savedLine?.QrNum || '',
+      transDate: savedLine?.TransDate || finalTransDate,
     }
 
     // Update state frontend
@@ -803,11 +809,14 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       return
     }
 
+    const transDate = newRoll.transDate ? toDDMMYYYY(newRoll.transDate) : getTodayDDMMYYYY()
+
     const fullRoll = {
       ...newRoll,
       noMesin: machineId,
       isPrinted: false,
       isExecute: false,
+      transDate: transDate,
     }
 
     try {
@@ -839,6 +848,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             ProductType: 5,
             CreatedBy: user?.username || user?.name || 'operator',
             Shift: Number(user?.shift),
+            TransDate: transDate,
           },
         ],
       })
@@ -848,6 +858,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         ...fullRoll,
         isStock: Boolean(savedLine?.isStock ?? fullRoll.isStock),
         qrNum: savedLine?.QrNum || '',
+        transDate: savedLine?.TransDate || transDate,
       }
 
       setRolls((prev) => [...prev, savedRoll])
@@ -898,6 +909,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   async function handleAddCoProduct(item) {
     const prodId = prodData.prodNumber
     const machineId = String(user?.machine_id || user?.machineId || '1')
+    const transDate = item.transDate ? toDDMMYYYY(item.transDate) : getTodayDDMMYYYY()
     const usedCoProductNumbers = new Set([
       ...coProducts.map((line) => Number(line.id)),
       ...existingDbRolls
@@ -912,13 +924,14 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         lines: [{ RoolNumber: id, Description: `${item.inventStatus} (${item.length} yard)`, Length: item.length,
           IsExecute: false, NoMesin: machineId, isPrinted: false, isStock: false,
           ProductType: 1, InventStatus: item.inventStatus,
-          CreatedBy: user?.username || user?.name || 'operator', Shift: Number(user?.shift) }],
+          CreatedBy: user?.username || user?.name || 'operator', Shift: Number(user?.shift),
+          TransDate: transDate }],
       })
       const saved = result?.data?.lines?.[0]
       if (saved?.action && saved.action !== 'created') {
         throw new Error(`Nomor roll #${id} sudah digunakan. Silakan coba lagi.`)
       }
-      setCoProducts(prev => [...prev, { ...item, id, noMesin: machineId, ProductType: 1, InventStatus: item.inventStatus }])
+      setCoProducts(prev => [...prev, { ...item, id, noMesin: machineId, ProductType: 1, InventStatus: item.inventStatus, transDate: saved?.TransDate || transDate }])
       await refreshMultiMachineStats(prodId)
       showToast(`Co-Product #${id} (${item.inventStatus}) berhasil disimpan.`)
     } catch (err) { showToast(`Gagal menyimpan Co-Product: ${err.message}`); throw err }
@@ -933,10 +946,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   }
 
   /**
-   * Edit Line Roll (Length & BS Qty)
+   * Edit Line Roll (Length, BS Qty & Date)
    * ATURAN KHUSUS: Ketika update lines jika isExecute = true di update jadi false!
    */
-  async function handleEditRoll(rollId, { length, bsQty }) {
+  async function handleEditRoll(rollId, { length, bsQty, transDate }) {
     const prodId = prodData.prodNumber
     const parsedLength = parseFloat(length)
     const parsedBs = parseFloat(bsQty !== undefined && bsQty !== null ? bsQty : 0)
@@ -962,6 +975,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     // ATURAN: jika isExecute = true di update jadi false!
     const newIsExecute = wasExecuted ? false : Boolean(currentRoll?.isExecute)
 
+    const updatedTransDate = transDate ? toDDMMYYYY(transDate) : (currentRoll?.transDate || getTodayDDMMYYYY())
+
     const updatedDescription = parsedBs > 0
       ? `Roll #${rollId} (${parsedLength} yard) | BS: ${parsedBs} yd`
       : `Roll #${rollId} (${parsedLength} yard)`
@@ -975,6 +990,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       isExecute: newIsExecute,
       noMesin: currentRoll?.noMesin || machineId,
       isPrinted: Boolean(currentRoll?.isPrinted),
+      transDate: updatedTransDate,
     }
 
     // 1. Update state rolls lokal
@@ -982,19 +998,26 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
     // 2. Simpan update ke database PostgreSQL
     try {
-      await updateRollLineApi(prodId, rollId, {
+      const updateRes = await updateRollLineApi(prodId, rollId, {
         length: parsedLength,
         bsQty: parsedBs,
         description: updatedDescription,
         isExecute: newIsExecute,
         noMesin: updatedRoll.noMesin,
         isPrinted: updatedRoll.isPrinted,
+        transDate: updatedTransDate,
       })
 
+      if (updateRes?.data?.QrNum) {
+        setRolls((prev) =>
+          prev.map((r) => (r.id === rollId ? { ...r, qrNum: updateRes.data.QrNum } : r))
+        )
+      }
+
       if (wasExecuted) {
-        showToast(`✓ Roll #${rollId} berhasil diupdate (${parsedLength} yd, BS: ${parsedBs} yd). isExecute diubah jadi false.`)
+        showToast(`✓ Roll #${rollId} berhasil diupdate (${parsedLength} yd, BS: ${parsedBs} yd, ${updatedTransDate}). isExecute diubah jadi false.`)
       } else {
-        showToast(`✓ Roll #${rollId} berhasil diupdate (${parsedLength} yd, BS: ${parsedBs} yd).`)
+        showToast(`✓ Roll #${rollId} berhasil diupdate (${parsedLength} yd, BS: ${parsedBs} yd, ${updatedTransDate}).`)
       }
 
       await refreshMultiMachineStats(prodId)

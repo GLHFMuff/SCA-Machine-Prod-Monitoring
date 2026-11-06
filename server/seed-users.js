@@ -1,35 +1,18 @@
 import bcrypt from 'bcryptjs';
 import { pool } from './config/db.js';
 
-const seedUsers = [
-  {
-    username: 'mesin1',
-    password: 'mesin1',
+const seedUsers = Array.from({ length: 12 }, (_, i) => {
+  const num = i + 1;
+  return {
+    username: `mesin${num}`,
+    password: `mesin${num}`,
     role: 'user',
-    email: 'mesin1@sca.id',
-    full_name: 'Mesin 1',
+    email: `mesin${num}@sca.id`,
+    full_name: `Mesin ${num}`,
     is_active: true,
-    machine_id: '1',
-  },
-  {
-    username: 'mesin2',
-    password: 'mesin2',
-    role: 'user',
-    email: 'mesin2@sca.id',
-    full_name: 'Mesin 2',
-    is_active: true,
-    machine_id: '2',
-  },
-  {
-    username: 'mesin3',
-    password: 'mesin3',
-    role: 'user',
-    email: 'mesin3@sca.id',
-    full_name: 'Mesin 3',
-    is_active: true,
-    machine_id: '3',
-  },
-];
+    machine_id: String(num),
+  };
+});
 
 export async function runSeed() {
   console.log('='.repeat(60));
