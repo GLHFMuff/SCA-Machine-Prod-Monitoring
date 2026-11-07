@@ -4,6 +4,7 @@ import logoCunda from '../img/lg_cunda.png'
 import logoHalal from '../img/lg_halal.png'
 import logoTkdn from '../img/lg_tkdn.png'
 import { toDDMMYYYY } from '../utils/dateUtils.js'
+import { getAvailablePrintersApi, directPrintRollLabelApi } from '../services/api.js'
 import styles from './ETicketModal.module.css'
 
 export default function ETicketModal({
@@ -18,6 +19,15 @@ export default function ETicketModal({
   const [printing, setPrinting] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
   const printIframeRef = useRef(null)
+
+  // ── State untuk Cetak Langsung (Direct Print tanpa Windows Print) ──
+  const [printers, setPrinters] = useState([])
+  const [selectedPrinter, setSelectedPrinter] = useState(() => {
+    return localStorage.getItem('mpm_direct_printer') || 'ZDesigner ZD230-203dpi ZPL'
+  })
+  const [loadingPrinters, setLoadingPrinters] = useState(false)
+  const [directPrinting, setDirectPrinting] = useState(false)
+  const [printStatus, setPrintStatus] = useState(null)
 
   // ── Derive initial values from props or sensible defaults matching reference ──
   const initialRollNum = String(roll?.id ?? 1).padStart(2, '0')
@@ -502,6 +512,273 @@ export default function ETicketModal({
     }
   }
 
+  // ── Ambil daftar printer yang terpasang dari backend ──
+  async function fetchPrinters() {
+    setLoadingPrinters(true)
+    try {
+      const res = await getAvailablePrintersApi()
+      const list = res?.printers || []
+      setPrinters(list)
+
+      const savedPrinter = localStorage.getItem('mpm_direct_printer')
+      const exists = list.some((p) => p.name === savedPrinter)
+
+      if (savedPrinter && exists) {
+        setSelectedPrinter(savedPrinter)
+      } else if (res?.zebraPrinter) {
+        setSelectedPrinter(res.zebraPrinter)
+        localStorage.setItem('mpm_direct_printer', res.zebraPrinter)
+      } else if (res?.defaultPrinter) {
+        setSelectedPrinter(res.defaultPrinter)
+      } else if (list.length > 0) {
+        setSelectedPrinter(list[0].name)
+      }
+    } catch (err) {
+      console.warn('Gagal memuat daftar printer:', err)
+    } finally {
+      setLoadingPrinters(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPrinters()
+  }, [])
+
+  function handlePrinterChange(e) {
+    const val = e.target.value
+    setSelectedPrinter(val)
+    localStorage.setItem('mpm_direct_printer', val)
+    setPrintStatus(null)
+  }
+
+  // ── Render E-Ticket ke Canvas (70x110 mm portrait pada 203 DPI = 560x880 px) ──
+  async function renderETicketToCanvas() {
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = 560
+      canvas.height = 880
+      const ctx = canvas.getContext('2d')
+
+      // Background putih
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, 560, 880)
+
+      const loadImage = (src) =>
+        new Promise((resolve) => {
+          if (!src) return resolve(null)
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => resolve(img)
+          img.onerror = () => resolve(null)
+          img.src = src
+        })
+
+      const [cundaImg, halalImg, tkdnImg, qrImg] = await Promise.all([
+        loadImage(logoCunda),
+        loadImage(logoHalal),
+        loadImage(logoTkdn),
+        loadImage(qrDataUrl),
+      ])
+
+      // 1. Header Area
+      if (cundaImg) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(60, 55, 36, 0, Math.PI * 2)
+        ctx.closePath()
+        ctx.clip()
+        ctx.drawImage(cundaImg, 24, 19, 72, 72)
+        ctx.restore()
+      }
+
+      ctx.fillStyle = '#000000'
+      ctx.textAlign = 'left'
+      ctx.font = 'bold 22px "Times New Roman", serif'
+      ctx.fillText('RAYON CUNDA', 108, 44)
+      ctx.font = '13.5px "Times New Roman", serif'
+      ctx.fillText('Tersono, Kec. Tersono', 108, 64)
+      ctx.fillText('Kabupaten Batang', 108, 82)
+
+      if (halalImg) {
+        ctx.drawImage(halalImg, 408, 22, 54, 66)
+      }
+      if (tkdnImg) {
+        ctx.drawImage(tkdnImg, 470, 22, 66, 66)
+      }
+
+      // 2. Main Box (Rounded rectangle)
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = 3.5
+      ctx.beginPath()
+      const bx = 16
+      const by = 98
+      const bw = 528
+      const bh = 712
+      const r = 20
+      ctx.moveTo(bx + r, by)
+      ctx.lineTo(bx + bw - r, by)
+      ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r)
+      ctx.lineTo(bx + bw, by + bh - r)
+      ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh)
+      ctx.lineTo(bx + r, by + bh)
+      ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r)
+      ctx.lineTo(bx, by + r)
+      ctx.quadraticCurveTo(bx, by, bx + r, by)
+      ctx.closePath()
+      ctx.stroke()
+
+      // Box Titles
+      ctx.textAlign = 'center'
+      ctx.font = 'bold 28px "Times New Roman", serif'
+      ctx.fillText(boxTopTitle, 280, 146)
+      ctx.font = 'bold 24px "Times New Roman", serif'
+      ctx.fillText(motif.toUpperCase(), 280, 182)
+
+      // QR Code
+      if (qrImg) {
+        ctx.drawImage(qrImg, 34, 218, 175, 175)
+      }
+      if (qrLabel) {
+        ctx.font = 'bold 12px Arial, sans-serif'
+        ctx.fillText(qrLabel, 122, 412)
+      }
+
+      // Details Grid
+      ctx.textAlign = 'left'
+      ctx.font = 'bold 19px "Times New Roman", serif'
+      const colX = 225
+      const colonX = 370
+      const valX = 390
+
+      const rows = [
+        ['NO. ROLL', rollNum],
+        ['KODE DESIGN', tableKodeDesign],
+        ['DATE', dateStr],
+        ['LENGTH', lengthStr],
+        ['QTY', qtyStr],
+      ]
+
+      let y = 240
+      for (const [lbl, val] of rows) {
+        ctx.fillText(lbl, colX, y)
+        ctx.fillText(':', colonX, y)
+        ctx.fillText(val, valX, y)
+        y += 36
+      }
+
+      if (breakdownStr) {
+        ctx.font = 'bold 13.5px Arial, sans-serif'
+        ctx.fillText(breakdownStr, valX, y - 6)
+      }
+
+      // 3. Bottom Section
+      ctx.textAlign = 'center'
+      ctx.font = 'bold 14px "Times New Roman", serif'
+      ctx.fillText('NOMOR REGISTRASI BARANG K3L', 280, 836)
+      ctx.font = '13.5px "Times New Roman", serif'
+      ctx.fillText(k3lNumber, 280, 856)
+
+      return canvas
+    } catch (err) {
+      console.warn('Gagal render canvas e-ticket:', err)
+      return null
+    }
+  }
+
+  // ── Konversi Canvas 1-bit ke format ZPL ^GFA Hex untuk printer Zebra ──
+  function canvasToZplGf(canvas, threshold = 160) {
+    if (!canvas) return null
+    const ctx = canvas.getContext('2d')
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const { data, width, height } = imgData
+    const bytesPerRow = Math.ceil(width / 8)
+    const totalBytes = bytesPerRow * height
+    let hex = ''
+
+    for (let y = 0; y < height; y++) {
+      for (let b = 0; b < bytesPerRow; b++) {
+        let byteVal = 0
+        for (let bit = 0; bit < 8; bit++) {
+          const x = b * 8 + bit
+          if (x < width) {
+            const idx = (y * width + x) * 4
+            const r = data[idx]
+            const g = data[idx + 1]
+            const bVal = data[idx + 2]
+            const a = data[idx + 3]
+            const lum = 0.299 * r + 0.587 * g + 0.114 * bVal
+            if (a > 64 && lum < threshold) {
+              byteVal |= 1 << (7 - bit)
+            }
+          }
+        }
+        hex += byteVal.toString(16).padStart(2, '0').toUpperCase()
+      }
+    }
+    return `^XA^PW${width}^LL${height}^LH0,0^FO0,0^GFA,${totalBytes},${totalBytes},${bytesPerRow},${hex}^FS^XZ`
+  }
+
+  // ── Eksekusi Cetak Langsung (Direct Print) ke printer yang dipilih ──
+  async function handleDirectPrintAction() {
+    if (!selectedPrinter) {
+      setPrintStatus({
+        type: 'error',
+        message: 'Pilih printer tujuan terlebih dahulu.',
+      })
+      return
+    }
+
+    setDirectPrinting(true)
+    setPrintStatus(null)
+
+    try {
+      const labelData = {
+        rollNum,
+        boxTopTitle,
+        motif,
+        tableKodeDesign,
+        kodeDesign,
+        dateStr,
+        lengthStr,
+        qtyStr,
+        breakdownStr,
+        qrUrl,
+        qrLabel,
+        k3lNumber,
+      }
+
+      const canvas = await renderETicketToCanvas()
+      const imageBase64 = canvas ? canvas.toDataURL('image/png') : null
+      const isZebra = /ZDesigner|Zebra|ZPL/i.test(selectedPrinter)
+      const rawZpl = isZebra && canvas ? canvasToZplGf(canvas) : null
+
+      const res = await directPrintRollLabelApi({
+        printerName: selectedPrinter,
+        labelData,
+        rawZpl,
+        imageBase64,
+        ticketType: 'eticket',
+      })
+
+      if (onPrint) {
+        await onPrint(roll)
+      }
+
+      setPrintStatus({
+        type: 'success',
+        message: res?.message || `✓ E-Ticket berhasil dicetak langsung ke "${selectedPrinter}"!`,
+      })
+    } catch (err) {
+      console.error('Direct print failed:', err)
+      setPrintStatus({
+        type: 'error',
+        message: `Gagal cetak langsung: ${err.message || 'Printer tidak merespon'}. Silakan periksa koneksi atau gunakan Windows Print.`,
+      })
+    } finally {
+      setDirectPrinting(false)
+    }
+  }
+
   return (
     <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
       <div className={styles.container} onClick={(e) => e.stopPropagation()}>
@@ -749,25 +1026,102 @@ export default function ETicketModal({
           </div>
         </div>
 
-        {/* Modal Action Buttons (Hidden during print) */}
+        {/* Modal Action Buttons & Direct Print Controls (Hidden during print) */}
         <div className={styles.footerBar}>
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={onClose}
-            disabled={printing}
-          >
-            Tutup
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ minWidth: '170px' }}
-            onClick={handlePrintAction}
-            disabled={printing}
-          >
-            {printing ? '⏳ Memproses Cetak…' : '🖨️ Cetak E-Ticket'}
-          </button>
+          {/* Status Alert Notification */}
+          {printStatus && (
+            <div
+              className={`${styles.statusMessage} ${
+                printStatus.type === 'success'
+                  ? styles.statusMessageSuccess
+                  : styles.statusMessageError
+              }`}
+            >
+              <span>{printStatus.message}</span>
+              <button
+                type="button"
+                className={styles.closeAlertBtn}
+                onClick={() => setPrintStatus(null)}
+                aria-label="Tutup notifikasi"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <div className={styles.footerControlsRow}>
+            {/* Printer Selection Dropdown */}
+            <div className={styles.printerSelectArea}>
+              <span className={styles.printerSelectIcon} title="Printer Tujuan">
+                🖨️
+              </span>
+              <label htmlFor="eticket-printer-select" className={styles.printerSelectLabel}>
+                Printer:
+              </label>
+              <select
+                id="eticket-printer-select"
+                className={styles.printerSelect}
+                value={selectedPrinter}
+                onChange={handlePrinterChange}
+                disabled={directPrinting || printing}
+              >
+                {printers.length > 0 ? (
+                  printers.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.isZebra ? '⚡ (ZPL Thermal)' : ''} {p.isDefault ? '★ Default' : ''}
+                    </option>
+                  ))
+                ) : (
+                  <option value={selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}>
+                    {selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}
+                  </option>
+                )}
+              </select>
+              <button
+                type="button"
+                className={styles.refreshPrintersBtn}
+                onClick={fetchPrinters}
+                title="Segarkan daftar printer terpasang"
+                disabled={loadingPrinters || directPrinting}
+              >
+                {loadingPrinters ? '⏳' : '🔄'}
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className={styles.footerActionButtons}>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={onClose}
+                disabled={directPrinting || printing}
+              >
+                Tutup
+              </button>
+
+              {/* Tombol Windows Print (Fallback) */}
+              <button
+                type="button"
+                className={styles.btnWindowsPrint}
+                onClick={handlePrintAction}
+                disabled={directPrinting || printing}
+                title="Buka dialog printer Windows / browser standar"
+              >
+                {printing ? '⏳ Menyiapkan…' : '📄 Windows Print'}
+              </button>
+
+              {/* TOMBOL CETAK LANGSUNG (Direct Print tanpa Windows Print Dialog) */}
+              <button
+                type="button"
+                className={styles.btnDirectPrint}
+                onClick={handleDirectPrintAction}
+                disabled={directPrinting || printing || !selectedPrinter}
+                title={`Cetak langsung ke ${selectedPrinter} tanpa dialog Windows`}
+              >
+                {directPrinting ? '⏳ Mencetak…' : '⚡ Cetak Langsung'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

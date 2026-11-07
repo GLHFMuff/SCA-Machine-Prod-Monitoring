@@ -748,3 +748,50 @@ export async function getDefectCodeById(code) {
   }
 }
 
+/**
+ * Ambil daftar printer yang terpasang di sistem untuk cetak langsung
+ * @returns {Promise<{ printers: Array, defaultPrinter: string, zebraPrinter: string }>}
+ */
+export async function getAvailablePrintersApi() {
+  const url = `${API_BASE}/api/print/printers`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || 'Gagal mendeteksi daftar printer');
+    }
+    return data;
+  } catch (err) {
+    console.error('[getAvailablePrintersApi] Error:', err);
+    throw err;
+  }
+}
+
+/**
+ * Kirim perintah cetak langsung ke printer tertentu tanpa dialog Windows
+ * @param {object} payload { printerName, labelData, rawZpl, imageBase64 }
+ * @returns {Promise<object>}
+ */
+export async function directPrintRollLabelApi(payload) {
+  const url = `${API_BASE}/api/print/direct`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || data?.error || 'Gagal mengirim perintah cetak langsung');
+    }
+    return data;
+  } catch (err) {
+    console.error('[directPrintRollLabelApi] Error:', err);
+    throw err;
+  }
+}
+
+

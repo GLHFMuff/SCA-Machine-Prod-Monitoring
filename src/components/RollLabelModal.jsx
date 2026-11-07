@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import { toDDMMYYYY } from '../utils/dateUtils.js'
+import { getAvailablePrintersApi, directPrintRollLabelApi } from '../services/api.js'
 import styles from './RollLabelModal.module.css'
 
 export default function RollLabelModal({
-    roll,
+  roll,
   prodData,
   joinedPieces = [],
   user,
@@ -14,6 +15,15 @@ export default function RollLabelModal({
   const [printing, setPrinting] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
   const printIframeRef = useRef(null)
+
+  // ── State untuk Cetak Langsung (Direct Print tanpa Windows Print) ──
+  const [printers, setPrinters] = useState([])
+  const [selectedPrinter, setSelectedPrinter] = useState(() => {
+    return localStorage.getItem('mpm_direct_printer') || 'ZDesigner ZD230-203dpi ZPL'
+  })
+  const [loadingPrinters, setLoadingPrinters] = useState(false)
+  const [directPrinting, setDirectPrinting] = useState(false)
+  const [printStatus, setPrintStatus] = useState(null)
 
   // Status Kain Stock (isStock)
   const isStockRoll = Boolean(roll?.isStock || roll?.is_stock || roll?.IsStock)
@@ -57,7 +67,7 @@ export default function RollLabelModal({
     roll?.length !== undefined && roll?.length !== null ? String(roll.length) : '0'
   const initialQty = roll?.length ? `${roll.length} YARD` : '156 YARD'
 
-    const joinedPieceLengths = joinedPieces
+  const joinedPieceLengths = joinedPieces
     .map((piece) => piece.LengthPoint ?? piece.lengthPoint ?? piece.yard)
     .filter((length) => length !== undefined && length !== null && String(length).trim() !== '')
   const initialBreakdown = joinedPieceLengths.length
@@ -463,6 +473,198 @@ export default function RollLabelModal({
     }
   }
 
+  // ── Ambil daftar printer yang terpasang dari backend ──
+  async function fetchPrinters() {
+    setLoadingPrinters(true)
+    try {
+      const res = await getAvailablePrintersApi()
+      const list = res?.printers || []
+      setPrinters(list)
+
+      const savedPrinter = localStorage.getItem('mpm_direct_printer')
+      const exists = list.some((p) => p.name === savedPrinter)
+
+      if (savedPrinter && exists) {
+        setSelectedPrinter(savedPrinter)
+      } else if (res?.zebraPrinter) {
+        setSelectedPrinter(res.zebraPrinter)
+        localStorage.setItem('mpm_direct_printer', res.zebraPrinter)
+      } else if (res?.defaultPrinter) {
+        setSelectedPrinter(res.defaultPrinter)
+      } else if (list.length > 0) {
+        setSelectedPrinter(list[0].name)
+      }
+    } catch (err) {
+      console.warn('Gagal memuat daftar printer:', err)
+    } finally {
+      setLoadingPrinters(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPrinters()
+  }, [])
+
+  function handlePrinterChange(e) {
+    const val = e.target.value
+    setSelectedPrinter(val)
+    localStorage.setItem('mpm_direct_printer', val)
+    setPrintStatus(null)
+  }
+
+  // ── Render label ke canvas base64 image (untuk printer Windows non-Zebra) ──
+  async function generateLabelImageBase64(data) {
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = 800
+      canvas.height = 400
+      const ctx = canvas.getContext('2d')
+
+      // Background putih
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, 800, 400)
+
+      // Garis border luar
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = 4
+      ctx.strokeRect(16, 12, 768, 376)
+
+      // Header Area (CD Title & Color)
+      ctx.fillStyle = '#000000'
+      ctx.textAlign = 'center'
+      ctx.font = 'bold 26px "Times New Roman", serif'
+      ctx.fillText(data.cdDesignTitle || '', 400, 48)
+      ctx.fillText((data.color || '').toUpperCase(), 400, 80)
+
+      // Draw QR Code
+      if (data.qrDataUrl) {
+        const qrImg = new Image()
+        await new Promise((resolve, reject) => {
+          qrImg.onload = resolve
+          qrImg.onerror = reject
+          qrImg.src = data.qrDataUrl
+        })
+        ctx.drawImage(qrImg, 45, 105, 175, 175)
+      }
+
+      if (data.qrLabel) {
+        ctx.font = 'bold 12px Arial, sans-serif'
+        ctx.fillText(data.qrLabel, 132, 305)
+      }
+
+      // Details Grid
+      ctx.textAlign = 'left'
+      ctx.font = 'bold 22px "Times New Roman", serif'
+      const colX = 250
+      const colonX = 445
+      const valX = 470
+
+      const rows = [
+        ['NO. ROLL', data.rollNum],
+        ['KODE DESIGN', (data.kodeDesign || '').toUpperCase()],
+        ['DATE', data.dateStr],
+        ['LENGTH', data.lengthInchStr],
+        ['QTY', data.qtyStr],
+      ]
+
+      let y = 132
+      for (const [lbl, val] of rows) {
+        ctx.fillText(lbl, colX, y)
+        ctx.fillText(':', colonX, y)
+        ctx.fillText(val, valX, y)
+        y += 32
+      }
+
+      if (data.breakdownStr) {
+        ctx.font = '14px Arial, sans-serif'
+        ctx.fillText(data.breakdownStr, valX, y - 6)
+      }
+
+      // Bottom Registration Area
+      ctx.textAlign = 'center'
+      ctx.font = '14px Arial, sans-serif'
+      ctx.fillText('No Claim After Cutting  -  Setelah potong, klaim tidak diterima', 400, 345)
+      ctx.fillText(`NOMOR REGISTRASI BARANG K3L : ${data.k3lNumber || ''}`, 400, 368)
+
+      // Stock Roll Badge 'S'
+      if (data.isStockRoll) {
+        ctx.textAlign = 'right'
+        ctx.font = 'bold 28px "Times New Roman", serif'
+        ctx.fillText('S', 760, 365)
+      }
+
+      return canvas.toDataURL('image/png')
+    } catch (err) {
+      console.warn('Gagal render canvas label image:', err)
+      return null
+    }
+  }
+
+  // ── Eksekusi Cetak Langsung (Direct Print) ke printer yang dipilih ──
+  async function handleDirectPrintAction() {
+    if (!selectedPrinter) {
+      setPrintStatus({
+        type: 'error',
+        message: 'Pilih printer tujuan terlebih dahulu.',
+      })
+      return
+    }
+
+    setDirectPrinting(true)
+    setPrintStatus(null)
+
+    try {
+      const labelData = {
+        rollNum,
+        cdDesignTitle,
+        color,
+        kodeDesign,
+        dateStr,
+        lengthInchStr,
+        qtyStr,
+        breakdownStr,
+        barcodeContent,
+        qrLabel,
+        k3lNumber,
+        isStockRoll,
+      }
+
+      // Jika printer bukan Zebra / ZPL, generate image base64 untuk Windows GDI print
+      let imageBase64 = null
+      const isZebra = /ZDesigner|Zebra|ZPL/i.test(selectedPrinter)
+      if (!isZebra) {
+        imageBase64 = await generateLabelImageBase64({
+          ...labelData,
+          qrDataUrl,
+        })
+      }
+
+      const res = await directPrintRollLabelApi({
+        printerName: selectedPrinter,
+        labelData,
+        imageBase64,
+      })
+
+      // Update status cetak roll pada database/tabel
+      if (onPrint) {
+        await onPrint(roll)
+      }
+
+      setPrintStatus({
+        type: 'success',
+        message: res?.message || `✓ Berhasil dikirim ke printer: "${selectedPrinter}"`,
+      })
+    } catch (err) {
+      console.error('Direct print failed:', err)
+      setPrintStatus({
+        type: 'error',
+        message: `Gagal cetak langsung: ${err.message || 'Printer tidak merespon'}. Silakan periksa koneksi atau gunakan Windows Print.`,
+      })
+    } finally {
+      setDirectPrinting(false)
+    }
+  }
+
   return (
     <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
       <div className={styles.container} onClick={(e) => e.stopPropagation()}>
@@ -715,25 +917,102 @@ export default function RollLabelModal({
           </div>
         </div>
 
-        {/* Modal Action Buttons */}
+        {/* Modal Action Buttons & Direct Print Controls */}
         <div className={styles.footerBar}>
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={onClose}
-            disabled={printing}
-          >
-            Tutup
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            style={{ minWidth: '150px' }}
-            onClick={handlePrintAction}
-            disabled={printing}
-          >
-            {printing ? '⏳ Menyiapkan…' : '🖨️ Print Label Roll'}
-          </button>
+          {/* Status Alert Notification */}
+          {printStatus && (
+            <div
+              className={`${styles.statusMessage} ${
+                printStatus.type === 'success'
+                  ? styles.statusMessageSuccess
+                  : styles.statusMessageError
+              }`}
+            >
+              <span>{printStatus.message}</span>
+              <button
+                type="button"
+                className={styles.closeAlertBtn}
+                onClick={() => setPrintStatus(null)}
+                aria-label="Tutup notifikasi"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <div className={styles.footerControlsRow}>
+            {/* Printer Selection Dropdown */}
+            <div className={styles.printerSelectArea}>
+              <span className={styles.printerSelectIcon} title="Printer Tujuan">
+                🖨️
+              </span>
+              <label htmlFor="printer-select" className={styles.printerSelectLabel}>
+                Printer:
+              </label>
+              <select
+                id="printer-select"
+                className={styles.printerSelect}
+                value={selectedPrinter}
+                onChange={handlePrinterChange}
+                disabled={directPrinting || printing}
+              >
+                {printers.length > 0 ? (
+                  printers.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.isZebra ? '⚡ (ZPL Thermal)' : ''} {p.isDefault ? '★ Default' : ''}
+                    </option>
+                  ))
+                ) : (
+                  <option value={selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}>
+                    {selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}
+                  </option>
+                )}
+              </select>
+              <button
+                type="button"
+                className={styles.refreshPrintersBtn}
+                onClick={fetchPrinters}
+                title="Segarkan daftar printer terpasang"
+                disabled={loadingPrinters || directPrinting}
+              >
+                {loadingPrinters ? '⏳' : '🔄'}
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className={styles.footerActionButtons}>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={onClose}
+                disabled={directPrinting || printing}
+              >
+                Tutup
+              </button>
+
+              {/* Tombol Windows Print (Fallback) */}
+              <button
+                type="button"
+                className={styles.btnWindowsPrint}
+                onClick={handlePrintAction}
+                disabled={directPrinting || printing}
+                title="Buka dialog printer Windows / browser standar"
+              >
+                {printing ? '⏳ Menyiapkan…' : '📄 Windows Print'}
+              </button>
+
+              {/* TOMBOL CETAK LANGSUNG (Direct Print tanpa Windows Print Dialog) */}
+              <button
+                type="button"
+                className={styles.btnDirectPrint}
+                onClick={handleDirectPrintAction}
+                disabled={directPrinting || printing || !selectedPrinter}
+                title={`Cetak langsung ke ${selectedPrinter} tanpa dialog Windows`}
+              >
+                {directPrinting ? '⏳ Mencetak…' : '⚡ Cetak Langsung'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

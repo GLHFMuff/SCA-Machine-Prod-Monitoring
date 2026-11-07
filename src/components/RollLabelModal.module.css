@@ -443,12 +443,187 @@
 
 /* Modal Footer */
 .footerBar {
-  padding: 14px 20px;
+  padding: 12px 20px;
   border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   background: var(--bg, #0f172a);
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footerControlsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.printerSelectArea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  flex: 1;
+  min-width: 250px;
+}
+
+.printerSelectIcon {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.printerSelectLabel {
+  font-weight: 600;
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.printerSelect {
+  background: rgba(30, 41, 59, 0.9);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  max-width: 290px;
+  width: 100%;
+  transition: all 0.15s ease;
+}
+
+.printerSelect:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.refreshPrintersBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  font-size: 13px;
+}
+
+.refreshPrintersBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+}
+
+.refreshPrintersBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.footerActionButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btnDirectPrint {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: 1px solid #059669;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  white-space: nowrap;
+}
+
+.btnDirectPrint:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.btnDirectPrint:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btnWindowsPrint {
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btnWindowsPrint:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.btnWindowsPrint:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.statusMessage {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+.statusMessageSuccess {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.statusMessageError {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.closeAlertBtn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0.7;
+}
+
+.closeAlertBtn:hover {
+  opacity: 1;
 }
 
 /* ── Mobile Responsive Preview ── */
@@ -514,14 +689,34 @@
 
   .footerBar {
     padding: 10px 14px;
-    flex-direction: column-reverse;
     gap: 8px;
   }
 
-  .footerBar button {
+  .footerControlsRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .printerSelectArea {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .printerSelect {
+    max-width: 100%;
+  }
+
+  .footerActionButtons {
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .footerActionButtons button {
     width: 100%;
     justify-content: center;
-    padding: 11px 16px;
+    padding: 10px 14px;
   }
 }
 

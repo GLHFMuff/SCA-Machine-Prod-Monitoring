@@ -9,6 +9,7 @@ import authRouter from './routes/auth.js';
 import countingRouter from './routes/counting.js';
 import inventoryStatusRouter from './routes/inventory-status.js';
 import defectCodeRouter from './routes/defect-code.js';
+import printRouter from './routes/print.js';
 import { authenticateKey } from './middleware/auth.js';
 import { ensureSequenceTable } from './services/sequence.js';
 
@@ -86,6 +87,11 @@ app.get('/api', (req, res) => {
         list: 'GET /api/defect-code?search=...&limit=500&offset=0',
         detail: 'GET /api/defect-code/:code',
       },
+      print: {
+        listPrinters: 'GET /api/print/printers',
+        directPrint: 'POST /api/print/direct',
+        previewZpl: 'POST /api/print/preview-zpl',
+      },
     },
   });
 });
@@ -145,6 +151,9 @@ app.use('/api/inventory-status', inventoryStatusRouter);
 
 // Master data Defect Code (read-only select)
 app.use('/api/defect-code', defectCodeRouter);
+
+// Direct Printer endpoints (Raw ZPL / Thermal / Windows Spooler)
+app.use('/api/print', printRouter);
 
 // SPA fallback for frontend routes (non-API GET requests)
 app.use((req, res, next) => {
