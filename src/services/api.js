@@ -23,6 +23,7 @@ export function formatUser(rawUser, sessionKey = '') {
     machineType: `Loom Machine #${rawUser.machine_id}`,
     role: rawUser.role,
     sessionKey: sessionKey,
+    printerName: rawUser.printer_name || rawUser.printerName || '',
   };
 }
 
@@ -750,12 +751,16 @@ export async function getDefectCodeById(code) {
 
 /**
  * Ambil daftar printer yang terpasang di sistem untuk cetak langsung
- * @returns {Promise<{ printers: Array, defaultPrinter: string, zebraPrinter: string }>}
+ * @param {string|number} [machineId] - Opsional ID mesin untuk mengambil printer spesifik mesin
+ * @returns {Promise<{ printers: Array, defaultPrinter: string, zebraPrinter: string, machinePrinter?: string }>}
  */
-export async function getAvailablePrintersApi() {
-  const url = `${API_BASE}/api/print/printers`;
+export async function getAvailablePrintersApi(machineId = null) {
+  const url = new URL(`${API_BASE}/api/print/printers`, window.location.origin);
+  if (machineId) {
+    url.searchParams.set('machineId', String(machineId));
+  }
   try {
-    const res = await fetch(url);
+    const res = await fetch(url.toString());
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
       throw new Error(data?.message || 'Gagal mendeteksi daftar printer');
@@ -764,6 +769,27 @@ export async function getAvailablePrintersApi() {
   } catch (err) {
     console.error('[getAvailablePrintersApi] Error:', err);
     throw err;
+  }
+}
+
+/**
+ * Ambil printer khusus mesin dari machine_lists
+ * @param {string|number} machineId
+ * @returns {Promise<{ machineId: number, machineNum: number, printerName: string|null }>}
+ */
+export async function getMachinePrinterApi(machineId) {
+  if (!machineId) return null;
+  const url = `${API_BASE}/api/print/machine-printer/${encodeURIComponent(machineId)}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.warn('[getMachinePrinterApi] Error:', err);
+    return null;
   }
 }
 

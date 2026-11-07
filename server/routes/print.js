@@ -1,22 +1,67 @@
 import { Router } from 'express';
+import { pool } from '../config/db.js';
 import { listPrinters, printRollLabelDirect, generateRollLabelZpl } from '../services/printer.js';
 
 const router = Router();
 
 /**
  * GET /api/print/printers
- * List all available installed printers on the host machine
+ * List all available installed printers on the host machine.
+ * Optional query: ?machineId=1 -> also returns machinePrinter
  */
 router.get('/printers', async (req, res) => {
   try {
     const data = await listPrinters();
-    return res.json(data);
+    const machineId = req.query.machineId || req.query.machine_id;
+    let machinePrinter = null;
+
+    if (machineId) {
+      const q = await pool.query(
+        'SELECT printer_name, machine_num FROM machine_lists WHERE machine_id = $1 LIMIT 1',
+        [machineId]
+      );
+      if (q.rows.length && q.rows[0].printer_name) {
+        machinePrinter = q.rows[0].printer_name.trim();
+      }
+    }
+
+    return res.json({
+      ...data,
+      machinePrinter,
+    });
   } catch (err) {
     console.error('[Print Router] Error listing printers:', err);
     return res.status(500).json({
       success: false,
       message: 'Gagal mendeteksi daftar printer: ' + (err.message || 'Unknown error'),
     });
+  }
+});
+
+/**
+ * GET /api/print/machine-printer/:machineId
+ * Get printer assigned to a specific machine from machine_lists
+ */
+router.get('/machine-printer/:machineId', async (req, res) => {
+  try {
+    const { machineId } = req.params;
+    const q = await pool.query(
+      'SELECT machine_id, machine_num, printer_name FROM machine_lists WHERE machine_id = $1 LIMIT 1',
+      [machineId]
+    );
+    if (!q.rows.length) {
+      return res.status(404).json({ success: false, message: 'Mesin tidak ditemukan' });
+    }
+    const row = q.rows[0];
+    return res.json({
+      success: true,
+      machineId: row.machine_id,
+      machineNum: row.machine_num,
+      printerName: row.printer_name ? row.printer_name.trim() : null,
+    });
+  } catch (err) {
+    console.error('[Print Router] Error fetching machine printer:', err);
+    return res.status(500).json({ success: false, message: 'Gagal membaca printer mesin.' });
   }
 });
 

@@ -15,11 +15,34 @@ async function verifyPassword(plain, hash) {
 
 router.get('/machines', async (_req, res) => {
   try {
-    const result = await pool.query('SELECT machine_id, machine_num, user_active, autonic_table FROM machine_lists ORDER BY machine_num');
+    const result = await pool.query('SELECT machine_id, machine_num, user_active, autonic_table, printer_name FROM machine_lists ORDER BY machine_num');
     res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error('[Machine List Error]:', err);
-    res.status(500).json({ success: false, message: 'Gagal memuat daftar mesin.s' });
+    res.status(500).json({ success: false, message: 'Gagal memuat daftar mesin.' });
+  }
+});
+
+// Update printer assigned to a machine
+router.put('/machines/:machineId/printer', async (req, res) => {
+  try {
+    const { machineId } = req.params;
+    const { printer_name } = req.body || {};
+    const result = await pool.query(
+      'UPDATE machine_lists SET printer_name = $1 WHERE machine_id = $2 RETURNING machine_id, machine_num, printer_name',
+      [printer_name ? String(printer_name).trim() : null, machineId]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, message: `Mesin #${machineId} tidak ditemukan.` });
+    }
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: `Printer untuk Mesin #${result.rows[0].machine_num || machineId} berhasil disimpan: ${result.rows[0].printer_name || '(Dikosongkan)'}`,
+    });
+  } catch (err) {
+    console.error('[Update Machine Printer Error]:', err);
+    res.status(500).json({ success: false, message: 'Gagal memperbarui printer mesin.' });
   }
 });
 
@@ -48,7 +71,7 @@ router.post('/login', async (req, res) => {
         message: `User masih aktif di ${activeMachine.machine_num || `mesin ${activeMachine.machine_id}`}. Silakan logout terlebih dahulu.`,
       });
     }
-    const machineResult = await client.query(`UPDATE machine_lists SET user_active=$1 WHERE machine_id=$2 AND (user_active IS NULL OR BTRIM(user_active)='') RETURNING machine_id,machine_num,autonic_table`, [user.username, machine_id]);
+    const machineResult = await client.query(`UPDATE machine_lists SET user_active=$1 WHERE machine_id=$2 AND (user_active IS NULL OR BTRIM(user_active)='') RETURNING machine_id,machine_num,autonic_table,printer_name`, [user.username, machine_id]);
     if (!machineResult.rows.length) {
       await client.query('ROLLBACK');
       return res.status(409).json({ success: false, message: 'Mesin tidak tersedia atau sedang digunakan user lain.' });
@@ -60,7 +83,7 @@ router.post('/login', async (req, res) => {
     await client.query('UPDATE users SET last_login_at=NOW() WHERE id=$1', [user.id]);
     await client.query('COMMIT');
     const machine = machineResult.rows[0];
-    res.json({ success: true, data: { key: rawToken, expires_at: session.rows[0].expires_at, user: { id:user.id,username:user.username,email:user.email,full_name:user.full_name,role:user.role,is_active:user.is_active,machine_id:machine.machine_id,machine_num:machine.machine_num,autonic_table:machine.autonic_table } } });
+    res.json({ success: true, data: { key: rawToken, expires_at: session.rows[0].expires_at, user: { id:user.id,username:user.username,email:user.email,full_name:user.full_name,role:user.role,is_active:user.is_active,machine_id:machine.machine_id,machine_num:machine.machine_num,autonic_table:machine.autonic_table,printer_name:machine.printer_name } } });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[Login API Error]:', err);

@@ -66,6 +66,7 @@ export async function authenticateKey(req, res, next) {
         COALESCE(session_machine.machine_id, u.machine_id) AS machine_id,
         ml.machine_num,
         ml.autonic_table,
+        ml.printer_name,
         u.is_active,
         u.last_login_at
       FROM user_sessions s
@@ -113,6 +114,7 @@ export async function authenticateKey(req, res, next) {
       machine_id: row.machine_id,
       machine_num: row.machine_num,
       autonic_table: row.autonic_table,
+      printer_name: row.printer_name,
       is_active: row.is_active,
       last_login_at: row.last_login_at,
     };

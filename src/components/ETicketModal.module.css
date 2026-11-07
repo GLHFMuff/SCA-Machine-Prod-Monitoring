@@ -553,6 +553,37 @@
   cursor: not-allowed;
 }
 
+.printerMachineBadge {
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 6px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.unlockPrinterBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.unlockPrinterBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
 .footerActionButtons {
   display: flex;
   align-items: center;

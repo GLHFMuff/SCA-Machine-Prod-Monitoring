@@ -21,9 +21,16 @@ export default function ETicketModal({
   const printIframeRef = useRef(null)
 
   // ── State untuk Cetak Langsung (Direct Print tanpa Windows Print) ──
+  const currentMachineId = user?.machineId || user?.machine_id || prodData?.machineId || prodData?.noMesin || roll?.noMesin || null
+  const machineNum = user?.machine || user?.machine_num || (currentMachineId ? `Mesin ${currentMachineId}` : '')
+
+  const [machinePrinter, setMachinePrinter] = useState(() => {
+    return (user?.printerName || user?.printer_name || '').trim()
+  })
+  const [showAllPrinters, setShowAllPrinters] = useState(false)
   const [printers, setPrinters] = useState([])
   const [selectedPrinter, setSelectedPrinter] = useState(() => {
-    return localStorage.getItem('mpm_direct_printer') || 'ZDesigner ZD230-203dpi ZPL'
+    return (user?.printerName || user?.printer_name || '').trim() || localStorage.getItem('mpm_direct_printer') || 'ZDesigner ZD230-203dpi ZPL'
   })
   const [loadingPrinters, setLoadingPrinters] = useState(false)
   const [directPrinting, setDirectPrinting] = useState(false)
@@ -516,22 +523,31 @@ export default function ETicketModal({
   async function fetchPrinters() {
     setLoadingPrinters(true)
     try {
-      const res = await getAvailablePrintersApi()
+      const res = await getAvailablePrintersApi(currentMachineId)
       const list = res?.printers || []
       setPrinters(list)
 
-      const savedPrinter = localStorage.getItem('mpm_direct_printer')
-      const exists = list.some((p) => p.name === savedPrinter)
+      // Cek apakah mesin ini memiliki printer khusus yang ditugaskan di database (machine_lists)
+      const designatedPrinter = (res?.machinePrinter || user?.printerName || user?.printer_name || '').trim()
 
-      if (savedPrinter && exists) {
-        setSelectedPrinter(savedPrinter)
-      } else if (res?.zebraPrinter) {
-        setSelectedPrinter(res.zebraPrinter)
-        localStorage.setItem('mpm_direct_printer', res.zebraPrinter)
-      } else if (res?.defaultPrinter) {
-        setSelectedPrinter(res.defaultPrinter)
-      } else if (list.length > 0) {
-        setSelectedPrinter(list[0].name)
+      if (designatedPrinter) {
+        setMachinePrinter(designatedPrinter)
+        setSelectedPrinter(designatedPrinter)
+      } else {
+        setMachinePrinter('')
+        const savedPrinter = localStorage.getItem('mpm_direct_printer')
+        const exists = list.some((p) => p.name === savedPrinter)
+
+        if (savedPrinter && exists) {
+          setSelectedPrinter(savedPrinter)
+        } else if (res?.zebraPrinter) {
+          setSelectedPrinter(res.zebraPrinter)
+          localStorage.setItem('mpm_direct_printer', res.zebraPrinter)
+        } else if (res?.defaultPrinter) {
+          setSelectedPrinter(res.defaultPrinter)
+        } else if (list.length > 0) {
+          setSelectedPrinter(list[0].name)
+        }
       }
     } catch (err) {
       console.warn('Gagal memuat daftar printer:', err)
@@ -1058,34 +1074,86 @@ export default function ETicketModal({
               <label htmlFor="eticket-printer-select" className={styles.printerSelectLabel}>
                 Printer:
               </label>
-              <select
-                id="eticket-printer-select"
-                className={styles.printerSelect}
-                value={selectedPrinter}
-                onChange={handlePrinterChange}
-                disabled={directPrinting || printing}
-              >
-                {printers.length > 0 ? (
-                  printers.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name} {p.isZebra ? '⚡ (ZPL Thermal)' : ''} {p.isDefault ? '★ Default' : ''}
+
+              {machinePrinter && !showAllPrinters ? (
+                // JIKA MESIN MEMILIKI PRINTER DI machine_lists: Tampilkan printer itu saja (terkunci per mesin)
+                <>
+                  <select
+                    id="eticket-printer-select"
+                    className={styles.printerSelect}
+                    value={machinePrinter}
+                    disabled
+                    title={`Printer ini terikat otomatis untuk ${machineNum || 'mesin ini'} di tabel database`}
+                  >
+                    <option value={machinePrinter}>
+                      {machinePrinter}
                     </option>
-                  ))
-                ) : (
-                  <option value={selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}>
-                    {selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}
-                  </option>
-                )}
-              </select>
-              <button
-                type="button"
-                className={styles.refreshPrintersBtn}
-                onClick={fetchPrinters}
-                title="Segarkan daftar printer terpasang"
-                disabled={loadingPrinters || directPrinting}
-              >
-                {loadingPrinters ? '⏳' : '🔄'}
-              </button>
+                  </select>
+                  <span className={styles.printerMachineBadge} title={`Terkunci untuk ${machineNum}`}>
+                    🔒 {machineNum || 'Mesin'}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.unlockPrinterBtn}
+                    onClick={() => setShowAllPrinters(true)}
+                    title="Buka pilihan semua printer lain jika printer mesin bermasalah"
+                  >
+                    Ganti
+                  </button>
+                </>
+              ) : (
+                // JIKA BELUM DITENTUKAN DI DATABASE ATAU INGIN MEMILIH PRINTER LAIN:
+                <>
+                  <select
+                    id="eticket-printer-select"
+                    className={styles.printerSelect}
+                    value={selectedPrinter}
+                    onChange={handlePrinterChange}
+                    disabled={directPrinting || printing}
+                  >
+                    {machinePrinter && (
+                      <option value={machinePrinter}>
+                        ★ {machinePrinter} (Printer {machineNum})
+                      </option>
+                    )}
+                    {printers.length > 0 ? (
+                      printers
+                        .filter((p) => p.name !== machinePrinter)
+                        .map((p) => (
+                          <option key={p.name} value={p.name}>
+                            {p.name} {p.isZebra ? '⚡ (ZPL Thermal)' : ''} {p.isDefault ? '• Default' : ''}
+                          </option>
+                        ))
+                    ) : (
+                      <option value={selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}>
+                        {selectedPrinter || 'ZDesigner ZD230-203dpi ZPL'}
+                      </option>
+                    )}
+                  </select>
+                  {machinePrinter && (
+                    <button
+                      type="button"
+                      className={styles.unlockPrinterBtn}
+                      onClick={() => {
+                        setSelectedPrinter(machinePrinter)
+                        setShowAllPrinters(false)
+                      }}
+                      title="Kembalikan ke printer khusus mesin"
+                    >
+                      Kunci Mesin
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.refreshPrintersBtn}
+                    onClick={fetchPrinters}
+                    title="Segarkan daftar printer terpasang"
+                    disabled={loadingPrinters || directPrinting}
+                  >
+                    {loadingPrinters ? '⏳' : '🔄'}
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Action Buttons */}
