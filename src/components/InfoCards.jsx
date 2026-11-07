@@ -29,7 +29,7 @@ export default function InfoCards({ data, user, totalDefects, pendingDefectsCoun
         </div>
       </div>
 
-      {/* Grid: Kolom Kiri Jenis Kain (rowspan 2), Kolom Kanan Mesin & Total Cacat */}
+      {/* Grid: 3 Kolom (Jenis Kain, Mesin Operator, Total Cacat) */}
       <div className={styles.grid}>
         <div className={`${styles.card} ${styles.fabricCard}`}>
           <div className={styles.label}>Jenis Kain (Design)</div>

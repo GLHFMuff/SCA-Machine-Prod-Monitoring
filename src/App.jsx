@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import LoginPage from './pages/LoginPage.jsx'
 import MainPage from './pages/MainPage.jsx'
+import FullscreenBanner from './components/FullscreenBanner.jsx'
 import { getStoredSession, checkSessionApi, logoutApi } from './services/api.js'
 
 export default function App() {
@@ -54,41 +55,38 @@ export default function App() {
     setUser(null)
   }
 
-  if (checkingSession) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg)',
-        color: 'var(--text)',
-        fontFamily: 'sans-serif'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: '12px' }}>🏭</div>
-          <div style={{ fontSize: '14px', color: 'var(--muted)' }}>Memuat sesi...</div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <LoginPage
-        onLogin={setUser}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-      />
-    )
-  }
-
   return (
-    <MainPage
-      user={user}
-      onLogout={handleLogout}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-    />
+    <>
+      <FullscreenBanner />
+      {checkingSession ? (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--bg)',
+          color: 'var(--text)',
+          fontFamily: 'sans-serif'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>🏭</div>
+            <div style={{ fontSize: '14px', color: 'var(--muted)' }}>Memuat sesi...</div>
+          </div>
+        </div>
+      ) : !user ? (
+        <LoginPage
+          onLogin={setUser}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+      ) : (
+        <MainPage
+          user={user}
+          onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+      )}
+    </>
   )
 }

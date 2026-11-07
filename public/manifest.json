@@ -1,0 +1,21 @@
+{
+    "short_name": "ProdMon",
+    "name": "Production Monitoring System",
+    "icons": [
+        {
+            "src": "/192ico.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "/512ico.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": "/",
+    "display": "fullscreen",
+    "orientation": "any",
+    "theme_color": "#0f172a",
+    "background_color": "#0f172a"
+}

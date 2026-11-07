@@ -1,5 +1,6 @@
 .wrapper {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -11,8 +12,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 14px 20px;
-  max-width: 1020px;
+  padding: 10px 24px 10px;
+  max-width: min(1720px, 98vw);
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -30,8 +31,8 @@
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  padding-top: 10px;
-  padding-bottom: 4px;
+  padding-top: 8px;
+  padding-bottom: 2px;
   flex-shrink: 0;
 }
 
