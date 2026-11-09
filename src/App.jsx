@@ -1,10 +1,29 @@
 import { useState, useEffect } from 'react'
 import LoginPage from './pages/LoginPage.jsx'
 import MainPage from './pages/MainPage.jsx'
+import AdminPage from './pages/AdminPage.jsx'
 import FullscreenBanner from './components/FullscreenBanner.jsx'
 import { getStoredSession, checkSessionApi, logoutApi } from './services/api.js'
 
 export default function App() {
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
+
+  // Listen for browser navigation (back/forward & SPA navigations)
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname)
+    }
+    window.addEventListener('popstate', handleLocationChange)
+    return () => window.removeEventListener('popstate', handleLocationChange)
+  }, [])
+
+  function navigate(path) {
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path)
+      setCurrentPath(path)
+    }
+  }
+
   const [user, setUser] = useState(() => {
     // Check initial cached user from localStorage
     const stored = getStoredSession()
@@ -21,7 +40,7 @@ export default function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  // Validate session key with backend API on initial load
+  // Validate session key with backend API on initial load (hanya untuk rute produksi biasa)
   useEffect(() => {
     const stored = getStoredSession()
     if (!stored?.key) {
@@ -55,10 +74,21 @@ export default function App() {
     setUser(null)
   }
 
+  const isAdminRoute = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')
+
   return (
     <>
-      <FullscreenBanner />
-      {checkingSession ? (
+      {/* Force fullscreen banner hanya untuk operasional produksi loom, nonaktif di /admin */}
+      {!isAdminRoute && <FullscreenBanner />}
+
+      {/* Rute Khusus Administrator: /admin */}
+      {isAdminRoute ? (
+        <AdminPage
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onNavigate={navigate}
+        />
+      ) : checkingSession ? (
         <div style={{
           minHeight: '100vh',
           display: 'flex',
@@ -90,3 +120,4 @@ export default function App() {
     </>
   )
 }
+

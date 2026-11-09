@@ -181,6 +181,145 @@ export function clearStoredSession() {
   localStorage.removeItem('mpm_user');
 }
 
+export function clearStoredAdminSession() {
+  localStorage.removeItem('mpm_admin_session_key');
+  localStorage.removeItem('mpm_admin_user');
+}
+
+export function getStoredAdminSession() {
+  const key = localStorage.getItem('mpm_admin_session_key');
+  const userJson = localStorage.getItem('mpm_admin_user');
+
+  if (!key || !userJson) return null;
+
+  try {
+    const user = JSON.parse(userJson);
+    return { key, user };
+  } catch {
+    clearStoredAdminSession();
+    return null;
+  }
+}
+
+/**
+ * Login khusus administrator untuk URL /admin (tanpa pilih mesin atau shift)
+ */
+export async function adminLoginApi(username, password) {
+  const url = `${API_BASE}/api/auth/admin-login`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: username.trim(),
+        password: password,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.success) {
+      const errorMsg = data?.message || data?.error || `Login admin gagal (Status ${res.status})`;
+      throw new Error(errorMsg);
+    }
+
+    const { key, user } = data.data;
+    const formattedUser = {
+      ...user,
+      id: user.id,
+      username: user.username,
+      name: user.full_name || user.username,
+      email: user.email,
+      role: user.role,
+      sessionKey: key,
+    };
+
+    localStorage.setItem('mpm_admin_session_key', key);
+    localStorage.setItem('mpm_admin_user', JSON.stringify(formattedUser));
+
+    return {
+      success: true,
+      user: formattedUser,
+      key: key,
+    };
+  } catch (err) {
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      throw new Error('Tidak dapat terhubung ke server backend API (Port 5000). Pastikan backend aktif.');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Validasi session key admin dengan backend
+ */
+export async function checkAdminSessionApi(sessionKey) {
+  if (!sessionKey) return null;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${sessionKey}`,
+      },
+    });
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        clearStoredAdminSession();
+        return null;
+      }
+      throw new Error(`Session check failed (${res.status})`);
+    }
+
+    const data = await res.json();
+    if (data?.success && data?.data?.user) {
+      const rawUser = data.data.user;
+      if (String(rawUser.role || '').toLowerCase() !== 'admin') {
+        clearStoredAdminSession();
+        return null;
+      }
+      const user = {
+        ...rawUser,
+        name: rawUser.full_name || rawUser.username,
+        sessionKey,
+      };
+      localStorage.setItem('mpm_admin_user', JSON.stringify(user));
+      return user;
+    }
+    return null;
+  } catch (error) {
+    const stored = getStoredAdminSession();
+    if (stored?.key === sessionKey && String(stored?.user?.role || '').toLowerCase() === 'admin') {
+      return stored.user;
+    }
+    return null;
+  }
+}
+
+/**
+ * Logout admin session
+ */
+export async function adminLogoutApi(sessionKey) {
+  try {
+    if (sessionKey) {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sessionKey}`,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[Admin Logout API Error]:', err);
+  } finally {
+    clearStoredAdminSession();
+  }
+}
+
+
 /**
  * Read cached session from localStorage
  */
@@ -819,5 +958,213 @@ export async function directPrintRollLabelApi(payload) {
     throw err;
   }
 }
+
+/**
+ * Ambil daftar user sistem untuk Admin Panel
+ * @returns {Promise<Array>}
+ */
+export async function getUsersApi() {
+  const url = `${API_BASE}/api/auth/users`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || 'Gagal memuat daftar user');
+    }
+    return data.data || [];
+  } catch (err) {
+    console.error('[getUsersApi] Error:', err);
+    throw err;
+  }
+}
+
+/**
+ * Update printer yang di-assign ke mesin tertentu (khusus admin)
+ * @param {string|number} machineId
+ * @param {string} printerName
+ * @returns {Promise<object>}
+ */
+export async function updateMachinePrinterApi(machineId, printerName) {
+  const url = `${API_BASE}/api/auth/machines/${encodeURIComponent(machineId)}/printer`;
+  try {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ printer_name: printerName }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || 'Gagal memperbarui printer mesin');
+    }
+    return data;
+  } catch (err) {
+    console.error('[updateMachinePrinterApi] Error:', err);
+    throw err;
+  }
+}
+
+/**
+ * Tambah Mesin Baru
+ * @param {object} machineData - { machine_id, machine_num, autonic_table, printer_name }
+ * @returns {Promise<object>}
+ */
+export async function createMachineApi(machineData) {
+  const url = `${API_BASE}/api/auth/machines`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(machineData),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal menambahkan mesin baru.');
+  }
+  return data.data;
+}
+
+/**
+ * Update Detail Mesin / Reset Sesi Operator
+ * @param {string|number} machineId
+ * @param {object} machineData - { machine_num, autonic_table, printer_name, user_active }
+ * @returns {Promise<object>}
+ */
+export async function updateMachineApi(machineId, machineData) {
+  const url = `${API_BASE}/api/auth/machines/${encodeURIComponent(machineId)}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(machineData),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal memperbarui data mesin.');
+  }
+  return data.data;
+}
+
+/**
+ * Hapus Mesin
+ * @param {string|number} machineId
+ * @returns {Promise<object>}
+ */
+export async function deleteMachineApi(machineId) {
+  const url = `${API_BASE}/api/auth/machines/${encodeURIComponent(machineId)}`;
+  const res = await fetch(url, { method: 'DELETE' });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal menghapus mesin.');
+  }
+  return data.data;
+}
+
+/**
+ * Tambah Kode Cacat Baru ke master DefectCode
+ * @param {object} defectData - { Code, Defect }
+ * @returns {Promise<object>}
+ */
+export async function createDefectCodeApi(defectData) {
+  const url = `${API_BASE}/api/defect-code`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(defectData),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal menambahkan kode cacat.');
+  }
+  return data.data;
+}
+
+/**
+ * Update Kode Cacat
+ * @param {string} code
+ * @param {object} defectData - { newCode, Defect }
+ * @returns {Promise<object>}
+ */
+export async function updateDefectCodeApi(code, defectData) {
+  const url = `${API_BASE}/api/defect-code/${encodeURIComponent(code)}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(defectData),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal memperbarui kode cacat.');
+  }
+  return data.data;
+}
+
+/**
+ * Hapus Kode Cacat
+ * @param {string} code
+ * @returns {Promise<object>}
+ */
+export async function deleteDefectCodeApi(code) {
+  const url = `${API_BASE}/api/defect-code/${encodeURIComponent(code)}`;
+  const res = await fetch(url, { method: 'DELETE' });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal menghapus kode cacat.');
+  }
+  return data.data;
+}
+
+/**
+ * Tambah User Baru
+ * @param {object} userData - { username, password, email, full_name, role, machine_id, is_active }
+ * @returns {Promise<object>}
+ */
+export async function createUserApi(userData) {
+  const url = `${API_BASE}/api/auth/users`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal menambahkan user baru.');
+  }
+  return data.data;
+}
+
+/**
+ * Update User
+ * @param {string} id
+ * @param {object} userData - { username, password, email, full_name, role, machine_id, is_active }
+ * @returns {Promise<object>}
+ */
+export async function updateUserApi(id, userData) {
+  const url = `${API_BASE}/api/auth/users/${encodeURIComponent(id)}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal memperbarui user.');
+  }
+  return data.data;
+}
+
+/**
+ * Hapus User
+ * @param {string} id
+ * @returns {Promise<object>}
+ */
+export async function deleteUserApi(id) {
+  const url = `${API_BASE}/api/auth/users/${encodeURIComponent(id)}`;
+  const res = await fetch(url, { method: 'DELETE' });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal menghapus user.');
+  }
+  return data.data;
+}
+
+
 
 

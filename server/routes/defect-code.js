@@ -130,5 +130,119 @@ router.get('/:code', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/defect-code
+ * Tambah data defect code baru ke master DefectCode
+ */
+router.post('/', async (req, res) => {
+  try {
+    const { Code, Defect } = req.body || {};
+    const cleanCode = String(Code || '').trim();
+    const cleanDefect = String(Defect || '').trim();
+
+    if (!cleanCode) {
+      return res.status(400).json({ success: false, message: 'Kode cacat (Code) wajib diisi.' });
+    }
+
+    const checkExist = await pool.query(
+      `SELECT "Code" FROM "DefectCode" WHERE UPPER(BTRIM("Code")) = UPPER(BTRIM($1)) LIMIT 1`,
+      [cleanCode]
+    );
+
+    if (checkExist.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `Kode cacat '${cleanCode}' sudah terdaftar. Gunakan kode lain.`,
+      });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO "DefectCode" ("Code", "Defect") VALUES ($1, $2) RETURNING "Code", "Defect"`,
+      [cleanCode, cleanDefect || null]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `Kode cacat '${cleanCode}' berhasil ditambahkan.`,
+      data: insertResult.rows[0],
+    });
+  } catch (err) {
+    console.error('[Create Defect Code Error]:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Gagal menambahkan kode cacat.' });
+  }
+});
+
+/**
+ * PUT /api/defect-code/:code
+ * Perbarui data defect code
+ */
+router.put('/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { newCode, Defect } = req.body || {};
+    const targetCode = String(code || '').trim();
+    const updatedCode = newCode ? String(newCode).trim() : targetCode;
+    const cleanDefect = Defect !== undefined ? String(Defect).trim() : null;
+
+    if (!targetCode) {
+      return res.status(400).json({ success: false, message: 'Code target wajib diisi.' });
+    }
+
+    const result = await pool.query(
+      `UPDATE "DefectCode"
+       SET "Code" = $1, "Defect" = $2
+       WHERE UPPER(BTRIM("Code")) = UPPER(BTRIM($3))
+       RETURNING "Code", "Defect"`,
+      [updatedCode, cleanDefect, targetCode]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: `Kode cacat '${targetCode}' tidak ditemukan.` });
+    }
+
+    return res.json({
+      success: true,
+      message: `Kode cacat '${result.rows[0].Code}' berhasil diperbarui.`,
+      data: result.rows[0],
+    });
+  } catch (err) {
+    console.error('[Update Defect Code Error]:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Gagal memperbarui kode cacat.' });
+  }
+});
+
+/**
+ * DELETE /api/defect-code/:code
+ * Hapus data defect code
+ */
+router.delete('/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const targetCode = String(code || '').trim();
+
+    if (!targetCode) {
+      return res.status(400).json({ success: false, message: 'Code wajib diisi.' });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM "DefectCode" WHERE UPPER(BTRIM("Code")) = UPPER(BTRIM($1)) RETURNING "Code"`,
+      [targetCode]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: `Kode cacat '${targetCode}' tidak ditemukan.` });
+    }
+
+    return res.json({
+      success: true,
+      message: `Kode cacat '${targetCode}' berhasil dihapus.`,
+      data: result.rows[0],
+    });
+  } catch (err) {
+    console.error('[Delete Defect Code Error]:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Gagal menghapus kode cacat.' });
+  }
+});
+
 export default router;
 

@@ -19,7 +19,7 @@ export default function AppHeader({ user, onLogout, theme, onToggleTheme }) {
       <div className={styles.right}>
         <div className={styles.userBadge}>
           <span className={styles.dot} />
-          <span>{user.name}</span>
+          <span>{user.name || user.username}</span>
           <span className="chip">{user.machine}</span>
         </div>
         <button
@@ -60,3 +60,4 @@ export default function AppHeader({ user, onLogout, theme, onToggleTheme }) {
     </header>
   )
 }
+
