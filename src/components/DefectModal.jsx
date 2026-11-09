@@ -1,5 +1,5 @@
 import { DEFECT_CODES } from '../data/dummyData.js'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import styles from './DefectModal.module.css'
 import { getDefectCodeList } from '../services/api';
 
@@ -10,12 +10,56 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [defectOptions, setDefectOptions] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+
+  const dropdownRef = useRef(null)
+  const searchInputRef = useRef(null)
 
   useEffect(() => {
     getDefectCodeList()
-      .then(res => setDefectOptions(res.data))
-      .catch(err => console.error('[DefectModal] gagal load defect codes:', err))
+      .then(res => {
+        if (res?.data && res.data.length > 0) {
+          setDefectOptions(res.data)
+        } else {
+          setDefectOptions(
+            DEFECT_CODES.map(item => {
+              const [c, ...rest] = item.split('–')
+              return { Code: c.trim(), Defect: rest.join('–').trim() }
+            })
+          )
+        }
+      })
+      .catch(err => {
+        console.error('[DefectModal] gagal load defect codes:', err)
+        setDefectOptions(
+          DEFECT_CODES.map(item => {
+            const [c, ...rest] = item.split('–')
+            return { Code: c.trim(), Defect: rest.join('–').trim() }
+          })
+        )
+      })
   }, [])
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsDropdownOpen(false)
+      }
+    }
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 50)
+      return () => {
+        clearTimeout(timer)
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('touchstart', handleClickOutside)
+      }
+    }
+  }, [isDropdownOpen])
 
   function addDefect() {
     if (!yard) {
@@ -44,16 +88,32 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
       setError(`Posisi cacat to harus berupa angka lebih dari ${parsedYard}.`)
       return
     }
+    if (!code) {
+      setError('Pilih kode cacat terlebih dahulu.')
+      return
+    }
     setError('')
     setList(prev => [...prev, { id: Date.now() + Math.random(), yard: parsedYard, yardTo: parsedYardTo, code }])
     setYard('')
     setYardTo('')
+    setCode('')
+    setSearchQuery('')
+    setIsDropdownOpen(false)
   }
 
   function removeDefect(id) {
     setList(prev => prev.filter(d => d.id !== id))
   }
 
+  const selectedDefect = defectOptions.find(d => d.Code === code)
+
+  const filteredDefects = defectOptions.filter(d => {
+    const q = searchQuery.toLowerCase().trim()
+    if (!q) return true
+    const codeMatch = d.Code ? d.Code.toLowerCase().includes(q) : false
+    const defectMatch = d.Defect ? d.Defect.toLowerCase().includes(q) : false
+    return codeMatch || defectMatch
+  })
 
   return (
     <div className={styles.overlay}>
@@ -87,21 +147,28 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
             </p>
           ) : (
             <div className={styles.defectList}>
-              {list.map(d => (
-                <div className={styles.defectItem} key={d.id}>
-                  <div>
-                    <div className={styles.defectCode}>⚠️ {d.code}</div>
-                    <div className={styles.defectYard}>Posisi yard {d.yard}{d.yardTo != d.yard && ` sampai yard ${d.yardTo}`}</div>
+              {list.map(d => {
+                const defectDetail = defectOptions.find(o => o.Code === d.code)
+                return (
+                  <div className={styles.defectItem} key={d.id}>
+                    <div>
+                      <div className={styles.defectCode}>
+                        ⚠️ {d.code} {defectDetail?.Defect ? `– ${defectDetail.Defect}` : ''}
+                      </div>
+                      <div className={styles.defectYard}>
+                        Posisi yard {d.yard}{d.yardTo != d.yard && ` sampai yard ${d.yardTo}`}
+                      </div>
+                    </div>
+                    <button
+                      className={styles.deleteBtn}
+                      onClick={() => removeDefect(d.id)}
+                      aria-label="Hapus cacat"
+                    >
+                      🗑
+                    </button>
                   </div>
-                  <button
-                    className={styles.deleteBtn}
-                    onClick={() => removeDefect(d.id)}
-                    aria-label="Hapus cacat"
-                  >
-                    🗑
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -147,22 +214,105 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
               </div>
             </div>
 
-            <div style={{ margin: '0px 0px 10px 0px' }}>
+            {/* Searchable Select Kode Cacat */}
+            <div className={styles.selectWrapper} ref={dropdownRef}>
               <label className={styles.fieldLabel}>Kode Cacat</label>
-              <select
-                className={styles.fieldInput}
-                style={{ width: '100%' }}
-                value={code}
-                onChange={e => setCode(e.target.value)}
+              <button
+                type="button"
+                className={`${styles.selectTrigger} ${isDropdownOpen ? styles.selectTriggerActive : ''}`}
+                onClick={() => {
+                  setIsDropdownOpen(prev => !prev)
+                  setSearchQuery('')
+                }}
               >
-                <option value="">-- Pilih Kode Cacat --</option>
-                {defectOptions.map(d => (
-                  <option key={d.Code} value={d.Code}>
-                    {d.Code} – {d.Defect}
-                  </option>
-                ))}
-              </select>
+                <span className={code ? styles.selectedText : styles.placeholderText}>
+                  {selectedDefect
+                    ? `${selectedDefect.Code} – ${selectedDefect.Defect}`
+                    : '-- Pilih / Cari Kode Cacat --'}
+                </span>
+                <span className={styles.triggerIcons}>
+                  {code && (
+                    <span
+                      className={styles.clearIcon}
+                      title="Hapus pilihan"
+                      onClick={e => {
+                        e.stopPropagation()
+                        setCode('')
+                      }}
+                    >
+                      ✕
+                    </span>
+                  )}
+                  <span className={styles.arrowIcon}>{isDropdownOpen ? '▲' : '▼'}</span>
+                </span>
+              </button>
+
+              {isDropdownOpen && (
+                <div className={styles.dropdownMenu}>
+                  <div className={styles.searchBox}>
+                    <span className={styles.searchIcon}>🔍</span>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className={styles.searchInput}
+                      placeholder="Ketik kode atau nama cacat..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Escape') {
+                          setIsDropdownOpen(false)
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault()
+                          if (filteredDefects.length > 0) {
+                            setCode(filteredDefects[0].Code)
+                            setIsDropdownOpen(false)
+                            setSearchQuery('')
+                            setError('')
+                          }
+                        }
+                      }}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className={styles.clearSearchBtn}
+                        onClick={() => setSearchQuery('')}
+                        title="Hapus pencarian"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className={styles.optionsList}>
+                    {filteredDefects.length === 0 ? (
+                      <div className={styles.noOption}>Tidak ada kode cacat yang cocok</div>
+                    ) : (
+                      filteredDefects.map(d => {
+                        const isSelected = d.Code === code
+                        return (
+                          <div
+                            key={d.Code}
+                            className={`${styles.optionItem} ${isSelected ? styles.optionSelected : ''}`}
+                            onClick={() => {
+                              setCode(d.Code)
+                              setIsDropdownOpen(false)
+                              setSearchQuery('')
+                              setError('')
+                            }}
+                          >
+                            <span className={styles.optionCode}>{d.Code}</span>
+                            <span className={styles.optionDefect}>{d.Defect}</span>
+                            {isSelected && <span className={styles.checkmark}>✓</span>}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
             <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addDefect}>
               ＋ Tambah Titik Cacat
             </button>
