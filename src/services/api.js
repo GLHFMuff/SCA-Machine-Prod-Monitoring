@@ -527,7 +527,9 @@ export async function saveCountingData(payload) {
 
     if (!res.ok || !data?.success) {
       const errorMsg = data?.message || data?.error || `Gagal menyimpan data (Status ${res.status})`;
-      throw new Error(errorMsg);
+      const error = new Error(errorMsg);
+      error.status = res.status;
+      throw error;
     }
 
     return data;

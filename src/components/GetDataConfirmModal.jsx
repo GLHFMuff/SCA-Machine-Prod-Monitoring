@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { getNextRollInfo } from '../services/api.js'
 import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js'
+import { computeNextRollNumber } from '../utils/rollNumberHelpers.js'
 import styles from './GetDataConfirmModal.module.css'
 
 export default function GetDataConfirmModal({
@@ -8,11 +10,76 @@ export default function GetDataConfirmModal({
   prodNumber,
   length,
   pendingDefectsCount = 0,
+  rolls = [],
+  rollsByMachine = {},
+  existingDbRolls = [],
+  allDbRollNumbers = [],
+  maxRollNumber = 0,
+  machineMaxRoll = 0,
+  startRollNumber = null,
   onConfirm,
   onClose,
   loading = false,
 }) {
   const [transDate, setTransDate] = useState(getTodayYYYYMMDD())
+  const [resolvedRollId, setResolvedRollId] = useState(targetRollId || 1)
+  const [loadingDb, setLoadingDb] = useState(false)
+
+  useEffect(() => {
+    setResolvedRollId(targetRollId || 1)
+  }, [targetRollId])
+
+  // Sinkronisasi langsung dengan database CountingKainLines saat modal konfirmasi dibuka
+  // agar Target Nomor Roll mengabaikan status soft delete roll sebelumnya
+  useEffect(() => {
+    let isMounted = true
+
+    async function syncTargetRollFromDb() {
+      if (!prodNumber || !machineId) return
+      setLoadingDb(true)
+      try {
+        const stats = await getNextRollInfo(prodNumber, machineId)
+        if (!isMounted || !stats) return
+
+        const { nextRollId } = computeNextRollNumber({
+          currentMachineId: machineId,
+          rolls,
+          rollsByMachine: stats.rollsByMachine || rollsByMachine,
+          existingDbRolls: stats.lines || existingDbRolls,
+          allDbRollNumbers: Array.isArray(stats.allRollNumbers)
+            ? stats.allRollNumbers
+            : allDbRollNumbers,
+          maxRollNumber: Math.max(maxRollNumber || 0, stats.maxRoll || 0),
+          machineMaxRoll: Math.max(machineMaxRoll || 0, stats.machineMaxRoll || 0),
+          startRollNumber,
+        })
+
+        setResolvedRollId(nextRollId || targetRollId || 1)
+      } catch (err) {
+        console.warn('Gagal sinkronisasi target roll Get Data:', err)
+      } finally {
+        if (isMounted) setLoadingDb(false)
+      }
+    }
+
+    syncTargetRollFromDb()
+
+    return () => {
+      isMounted = false
+    }
+  }, [
+    prodNumber,
+    machineId,
+    targetRollId,
+    rolls,
+    rollsByMachine,
+    existingDbRolls,
+    allDbRollNumbers,
+    maxRollNumber,
+    machineMaxRoll,
+    startRollNumber,
+  ])
+
   return (
     <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
       <div className={styles.box} onClick={(e) => e.stopPropagation()}>
@@ -47,7 +114,9 @@ export default function GetDataConfirmModal({
             </div>
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>Target Nomor Roll</span>
-              <span className={styles.infoValBadge}>Roll #{targetRollId}</span>
+              <span className={styles.infoValBadge}>
+                {loadingDb ? '🔄 Memeriksa…' : `Roll #${resolvedRollId}`}
+              </span>
             </div>
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>Panjang Hasil Sensor</span>
@@ -85,7 +154,7 @@ export default function GetDataConfirmModal({
             <div className={styles.pendingDefectBox}>
               <div className={styles.pendingDefectIcon}>📝</div>
               <div className={styles.pendingDefectText}>
-                <strong>{pendingDefectsCount} titik inspeksi sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{targetRollId}</strong> dan tersimpan ke sistem.
+                <strong>{pendingDefectsCount} titik inspeksi sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{resolvedRollId}</strong> dan tersimpan ke sistem.
               </div>
             </div>
           )}
@@ -113,8 +182,8 @@ export default function GetDataConfirmModal({
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => onConfirm(toDDMMYYYY(transDate))}
-            disabled={loading}
+            onClick={() => onConfirm(toDDMMYYYY(transDate), resolvedRollId)}
+            disabled={loading || loadingDb}
           >
             {loading ? (
               <>

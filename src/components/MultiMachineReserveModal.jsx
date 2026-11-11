@@ -7,6 +7,7 @@ export default function MultiMachineReserveModal({
   currentStartRoll,
   firstMachineId,
   existingRolls = [],
+  usedRollNumbers = [],
   rollsByMachine = {},
   maxRollNumber = 0,
   maxOtherRollNumber = 0,
@@ -36,8 +37,11 @@ export default function MultiMachineReserveModal({
     }
   }, [recommendedDefault])
 
-  // Check if roll number already exists
-  const existingSet = new Set(existingRolls.map((r) => Number(r.RoolNumber || r.id)))
+  // Check if roll number already exists (baik aktif maupun yang sudah dihapus/soft delete)
+  const existingSet = new Set([
+    ...existingRolls.map((r) => Number(r.RoolNumber || r.id)).filter((n) => n > 0),
+    ...(usedRollNumbers || []).map((n) => Number(n)).filter((n) => n > 0),
+  ])
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -50,8 +54,8 @@ export default function MultiMachineReserveModal({
 
     if (existingSet.has(val)) {
       const match = existingRolls.find((r) => Number(r.RoolNumber || r.id) === val)
-      const usedBy = match?.NoMesin ? `Mesin ${match.NoMesin}` : 'mesin lain'
-      setError(`Roll #${val} sudah terdaftar untuk ${usedBy}. Nomor roll tidak boleh duplikat!`)
+      const usedBy = match?.NoMesin ? `Mesin ${match.NoMesin}` : 'order ini (termasuk riwayat hapus)'
+      setError(`Roll #${val} sudah terdaftar pada ${usedBy}. Nomor roll tidak boleh duplikat!`)
       return
     }
 

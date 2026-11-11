@@ -29,6 +29,11 @@ import {
   areJoinedPiecesEqual,
   splitInspectionsByType,
 } from '../utils/inspectionHelpers.js'
+import {
+  collectUsedRollNumbers,
+  computeNextRollNumber,
+  computeNextCoProductNumber,
+} from '../utils/rollNumberHelpers.js'
 import styles from './MainPage.module.css'
 
 function parseFormattedNumber(val) {
@@ -105,6 +110,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   const [lastStatsUpdatedAt, setLastStatsUpdatedAt] = useState(null)
   const [refreshingStats, setRefreshingStats] = useState(false)
   const [maxRollNumber, setMaxRollNumber] = useState(0)
+  const [machineMaxRoll, setMachineMaxRoll] = useState(0)
+  const [allDbRollNumbers, setAllDbRollNumbers] = useState([])
+  const [maxCoProductRoll, setMaxCoProductRoll] = useState(0)
+  const [allDbCoProductNumbers, setAllDbCoProductNumbers] = useState([])
   const [maxOtherRollNumber, setMaxOtherRollNumber] = useState(0)
   const [mandatoryReserveModal, setMandatoryReserveModal] = useState(null)
 
@@ -162,9 +171,29 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       if (reqId !== statsReqSeqRef.current) return null
       if (activeProdIdRef.current && activeProdIdRef.current !== cleanProdId) return null
       if (stats) {
-        setExistingDbRolls(stats.lines || [])
+        const linesList = stats.lines || []
+        setExistingDbRolls(linesList)
         setRollsByMachine(stats.rollsByMachine || {})
         setMaxRollNumber(stats.maxRoll || 0)
+        setMachineMaxRoll(stats.machineMaxRoll || 0)
+        setAllDbRollNumbers(
+          Array.isArray(stats.allRollNumbers)
+            ? stats.allRollNumbers
+            : linesList
+                .filter((l) => Number(l.ProductType ?? 5) === 5)
+                .map((l) => Number(l.RoolNumber))
+        )
+        setMaxCoProductRoll(stats.maxCoProductRoll || 0)
+        setAllDbCoProductNumbers(
+          Array.isArray(stats.allCoProductNumbers)
+            ? stats.allCoProductNumbers
+            : linesList
+                .filter((l) => Number(l.ProductType ?? 5) === 1)
+                .map((l) => Number(l.RoolNumber))
+        )
+        if (stats.maxOtherRoll !== undefined) {
+          setMaxOtherRollNumber(stats.maxOtherRoll || 0)
+        }
         setMachineSummary(Array.isArray(stats.machineSummary) ? stats.machineSummary : [])
         setLastStatsUpdatedAt(new Date())
         lastStatsFetchMsRef.current = Date.now()
@@ -316,14 +345,15 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       // 3. Ambil statistik multi-mesin untuk order ini
       const multiStats = await refreshMultiMachineStats(targetProdId)
 
-      // Cari roll tertinggi milik mesin lain
+      // Cari roll tertinggi milik mesin lain (mengabaikan status soft delete)
       const allDbLines = dbRecord?.allLines || multiStats?.lines || []
       const otherMachineLines = allDbLines.filter(
         (l) => Number(l.ProductType ?? 5) === 5 && String(l.NoMesin || '').trim() !== machineId
       )
-      const maxOtherRoll = otherMachineLines.length > 0
+      const activeMaxOtherRoll = otherMachineLines.length > 0
         ? Math.max(...otherMachineLines.map((l) => l.RoolNumber || 0))
         : 0
+      const maxOtherRoll = Math.max(activeMaxOtherRoll, multiStats?.maxOtherRoll || 0)
       setMaxOtherRollNumber(maxOtherRoll)
 
       if (dbRecord && (dbRecord.lines?.length > 0 || headerSaveSuccess || allDbLines.length > 0)) {
@@ -424,11 +454,12 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         const isOtherMachineOwner = Boolean(firstMachineId && firstMachineId !== String(machineId).trim())
 
         // WAJIB ISI STARTING ROLL JIKA:
-        // 1. Sudah ada roll dari mesin lain (allDbLines.length > 0) dan untuk mesin ini masih 0
+        // 1. Sudah ada roll dari mesin lain (allDbLines.length > 0) dan untuk mesin ini masih 0 (termasuk riwayat hapus)
         // ATAU
         // 2. Belum ada roll sama sekali, TAPI order ini dibuka pertama kali oleh mesin lain (isOtherMachineOwner === true)!
-        const shouldTriggerMandatoryReserve = loadedRolls.length === 0 && (
-          allDbLines.length > 0 || isOtherMachineOwner
+        const hasMachineHistory = (multiStats?.machineMaxRoll || 0) > 0
+        const shouldTriggerMandatoryReserve = loadedRolls.length === 0 && !hasMachineHistory && (
+          allDbLines.length > 0 || isOtherMachineOwner || (multiStats?.maxRoll || 0) > 0
         )
 
         if (shouldTriggerMandatoryReserve) {
@@ -622,35 +653,32 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     const lengthVal = parseFloat(sensorData?.Length ?? sensorData?.length) || 0
     const finalTransDate = customTransDate ? toDDMMYYYY(customTransDate) : getTodayDDMMYYYY()
 
-    // Tentukan nomor roll berikutnya
-    let nextId = assignedRollId
-    if (!nextId) {
-      const allUsedRolls = new Set([
-        ...rolls.map((r) => r.id),
-        ...existingDbRolls
-          .filter((line) => Number(line.ProductType ?? 5) === 5)
-          .map((line) => Number(line.RoolNumber)),
-      ])
-      const machineRolls = rolls.filter(
-        (r) => String(r.noMesin || machineId) === String(machineId)
-      )
-      const localMachineMax = machineRolls.length > 0 ? Math.max(...machineRolls.map((r) => r.id)) : 0
-      const dbMachineRolls = (rollsByMachine[machineId]?.rolls) || []
-      const dbMachineMax = dbMachineRolls.length > 0 ? Math.max(...dbMachineRolls) : 0
-      const activeMachineMax = Math.max(localMachineMax, dbMachineMax)
+    // Sinkronkan statistik terbaru agar nomor roll selalu mengikuti nomor roll terakhir
+    // (mengabaikan status soft delete pada roll sebelumnya)
+    const freshStats = await getNextRollInfo(prodId, machineId).catch(() => null)
+    const effectiveRollsByMachine = freshStats?.rollsByMachine || rollsByMachine
+    const effectiveExistingDbRolls = freshStats?.lines || existingDbRolls
+    const effectiveAllDbRollNumbers = Array.isArray(freshStats?.allRollNumbers)
+      ? freshStats.allRollNumbers
+      : allDbRollNumbers
+    const effectiveMaxRoll = Math.max(maxRollNumber || 0, freshStats?.maxRoll || 0)
+    const effectiveMachineMaxRoll = Math.max(machineMaxRoll || 0, freshStats?.machineMaxRoll || 0)
 
-      if (startRollNumber) {
-        nextId = startRollNumber
-      } else if (activeMachineMax > 0) {
-        nextId = activeMachineMax + 1
-      } else {
-        const globalMax = Math.max(
-          rolls.length > 0 ? Math.max(...rolls.map((r) => r.id)) : 0,
-          maxRollNumber || 0
-        )
-        nextId = machineId === '1' && globalMax === 0 ? 1 : (globalMax > 0 ? globalMax + 1 : 1)
-      }
+    const { nextRollId: computedNextId, allUsedRolls } = computeNextRollNumber({
+      currentMachineId: machineId,
+      rolls,
+      rollsByMachine: effectiveRollsByMachine,
+      existingDbRolls: effectiveExistingDbRolls,
+      allDbRollNumbers: effectiveAllDbRollNumbers,
+      maxRollNumber: effectiveMaxRoll,
+      machineMaxRoll: effectiveMachineMaxRoll,
+      startRollNumber,
+    })
 
+    // Tentukan nomor roll berikutnya (hindari bentrok dengan roll aktif maupun yang sudah dihapus)
+    let nextId = assignedRollId ? Number(assignedRollId) : computedNextId
+    if (!nextId || allUsedRolls.has(nextId)) {
+      nextId = Math.max(nextId || 0, computedNextId)
       while (allUsedRolls.has(nextId)) {
         nextId += 1
       }
@@ -709,6 +737,9 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
     // Update state frontend
     setRolls((prev) => [...prev, createdRoll])
+    setMachineMaxRoll((prev) => Math.max(prev, nextId))
+    setMaxRollNumber((prev) => Math.max(prev, nextId))
+    setAllDbRollNumbers((prev) => (prev.includes(nextId) ? prev : [...prev, nextId]))
     if (startRollNumber !== null && nextId >= startRollNumber) {
       updateStartRollNumber(nextId + 1)
     }
@@ -757,11 +788,17 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
    */
   async function handleDeleteRoll(rollId) {
     const prodId = prodData.prodNumber
+    const numericRollId = Number(rollId) || 0
 
     try {
       await deleteRollApi(prodId, rollId)
 
       setRolls((prev) => prev.filter((r) => r.id !== rollId))
+      if (numericRollId > 0) {
+        setMachineMaxRoll((prev) => Math.max(prev, numericRollId))
+        setMaxRollNumber((prev) => Math.max(prev, numericRollId))
+        setAllDbRollNumbers((prev) => (prev.includes(numericRollId) ? prev : [...prev, numericRollId]))
+      }
       setDefects((prev) => {
         const next = { ...prev }
         delete next[rollId]
@@ -823,15 +860,18 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     const prodId = prodData.prodNumber
     const machineId = String(user?.machine_id || user?.machineId || '1')
 
-    const allUsedRolls = new Set([
-      ...rolls.map((r) => Number(r.id)),
-      ...existingDbRolls
-        .filter((line) => Number(line.ProductType ?? 5) === 5)
-        .map((line) => Number(line.RoolNumber)),
-    ])
+    const freshStats = await getNextRollInfo(prodId, machineId).catch(() => null)
+    const allUsedRolls = collectUsedRollNumbers({
+      rolls,
+      existingDbRolls: freshStats?.lines || existingDbRolls,
+      allDbRollNumbers: Array.isArray(freshStats?.allRollNumbers)
+        ? freshStats.allRollNumbers
+        : allDbRollNumbers,
+      productType: 5,
+    })
 
-    if (allUsedRolls.has(newRoll.id)) {
-      showToast(`⚠️ Nomor Roll #${newRoll.id} sudah ada dalam daftar order ini!`)
+    if (allUsedRolls.has(Number(newRoll.id))) {
+      showToast(`⚠️ Nomor Roll #${newRoll.id} sudah pernah digunakan dalam daftar order ini!`)
       return
     }
 
@@ -888,8 +928,11 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       }
 
       setRolls((prev) => [...prev, savedRoll])
+      setMachineMaxRoll((prev) => Math.max(prev, fullRoll.id))
+      setMaxRollNumber((prev) => Math.max(prev, fullRoll.id))
+      setAllDbRollNumbers((prev) => (prev.includes(fullRoll.id) ? prev : [...prev, fullRoll.id]))
       if (startRollNumber !== null && fullRoll.id >= startRollNumber) {
-        setStartRollNumber(fullRoll.id + 1)
+        updateStartRollNumber(fullRoll.id + 1)
       }
 
       // Jika ada catatan inspeksi sementara saat roll belum terbentuk, simpan ke roll manual ini
@@ -911,6 +954,11 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       await refreshMultiMachineStats(prodId)
     } catch (err) {
       console.error('Error saat simpan roll manual:', err)
+      if (err?.status === 400 || err?.status === 409) {
+        showToast(`⚠️ ${err.message}`)
+        await refreshMultiMachineStats(prodId)
+        return
+      }
       setRolls((prev) => [...prev, fullRoll])
       showToast(`Roll #${fullRoll.id} ditambahkan ke daftar lokal (${err.message})`)
     }
@@ -920,14 +968,15 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     const prodId = prodData.prodNumber
     const machineId = String(user?.machine_id || user?.machineId || '1')
     const transDate = item.transDate ? toDDMMYYYY(item.transDate) : getTodayDDMMYYYY()
-    const usedCoProductNumbers = new Set([
-      ...coProducts.map((line) => Number(line.id)),
-      ...existingDbRolls
-        .filter((line) => Number(line.ProductType ?? 5) === 1)
-        .map((line) => Number(line.RoolNumber)),
-    ])
-    let id = 9001
-    while (usedCoProductNumbers.has(id)) id += 1
+    const freshStats = await getNextRollInfo(prodId, machineId).catch(() => null)
+    const { nextCoProductId: id } = computeNextCoProductNumber({
+      coProducts,
+      existingDbRolls: freshStats?.lines || existingDbRolls,
+      allDbCoProductNumbers: Array.isArray(freshStats?.allCoProductNumbers)
+        ? freshStats.allCoProductNumbers
+        : allDbCoProductNumbers,
+      maxCoProductRoll: Math.max(maxCoProductRoll || 0, freshStats?.maxCoProductRoll || 0),
+    })
     try {
       const result = await saveCountingData({
         ProdId: prodId, NoMesin: machineId, UserId: user?.username || user?.name || 'operator',
@@ -944,15 +993,22 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         throw new Error(`Nomor roll #${id} sudah digunakan. Silakan coba lagi.`)
       }
       setCoProducts(prev => [...prev, { ...item, id, noMesin: machineId, ProductType: 1, InventStatus: item.inventStatus, transDate: saved?.TransDate || transDate }])
+      setMaxCoProductRoll((prev) => Math.max(prev, id))
+      setAllDbCoProductNumbers((prev) => (prev.includes(id) ? prev : [...prev, id]))
       await refreshMultiMachineStats(prodId)
       showToast(`Co-Product #${id} (${item.inventStatus}) berhasil disimpan.`)
     } catch (err) { showToast(`Gagal menyimpan Co-Product: ${err.message}`); throw err }
   }
 
   async function handleDeleteCoProduct(id) {
+    const numericId = Number(id) || 0
     try {
       await deleteRollApi(prodData.prodNumber, id)
       setCoProducts(prev => prev.filter(item => item.id !== id))
+      if (numericId >= 9001) {
+        setMaxCoProductRoll((prev) => Math.max(prev, numericId))
+        setAllDbCoProductNumbers((prev) => (prev.includes(numericId) ? prev : [...prev, numericId]))
+      }
       await refreshMultiMachineStats(prodData.prodNumber)
     } catch (err) { showToast(`Gagal menghapus Co-Product: ${err.message}`) }
   }
@@ -1315,6 +1371,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     setLastStatsUpdatedAt(null)
     setRefreshingStats(false)
     setMaxRollNumber(0)
+    setMachineMaxRoll(0)
+    setAllDbRollNumbers([])
+    setMaxCoProductRoll(0)
+    setAllDbCoProductNumbers([])
     setMaxOtherRollNumber(0)
     setMandatoryReserveModal(null)
     setProdData(SCAN_DATA)
@@ -1379,7 +1439,10 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               existingDbRolls={existingDbRolls}
               rollsByMachine={rollsByMachine}
               maxRollNumber={maxRollNumber}
+              machineMaxRoll={machineMaxRoll}
+              allDbRollNumbers={allDbRollNumbers}
               maxOtherRollNumber={maxOtherRollNumber}
+              onRefreshStats={() => refreshMultiMachineStats(prodData.prodNumber)}
               joinedPieces={joinedPieces}
               onCatatCacat={(roll) => setDefectModal(roll)}
               onCatatCacatPreRoll={(targetId) => setDefectModal({ isPreRoll: true, id: targetId })}
@@ -1487,6 +1550,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           currentStartRoll={mandatoryReserveModal.suggestedStart}
           firstMachineId={mandatoryReserveModal.firstMachineId}
           existingRolls={existingDbRolls}
+          usedRollNumbers={allDbRollNumbers}
           rollsByMachine={rollsByMachine}
           maxRollNumber={maxRollNumber}
           maxOtherRollNumber={mandatoryReserveModal.maxOtherRoll}

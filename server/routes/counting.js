@@ -322,19 +322,30 @@ async function checkShouldBeStock(client, prodId, explicitIsStock = false) {
  */
 async function upsertLineQuery(client, line) {
   const check = await client.query(
-    `SELECT "IsExecute", "QrNum", "isStock", "ProductType", "InventStatus", "TransDate"
+    `SELECT "IsExecute", "QrNum", "isStock", "ProductType", "InventStatus", "TransDate",
+            COALESCE("isDeleted", false) AS "isDeleted"
      FROM "CountingKainLines"
-     WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+     WHERE "ProdId" = $1 AND "RoolNumber" = $2
+     ORDER BY COALESCE("isDeleted", false) ASC
      LIMIT 1`,
     [line.ProdId, line.RoolNumber]
   );
 
   if (check.rows.length > 0) {
+    const existing = check.rows[0];
+    if (existing.isDeleted) {
+      const err = new Error(
+        `Nomor Roll #${line.RoolNumber} pada order '${line.ProdId}' sudah dihapus dan tidak dapat digunakan ulang.`
+      );
+      err.statusCode = 409;
+      throw err;
+    }
     if (line.ProductType === 1) {
-      throw new Error(`Nomor Co-Product #${line.RoolNumber} sudah terdaftar.`)
+      const err = new Error(`Nomor Co-Product #${line.RoolNumber} sudah terdaftar.`);
+      err.statusCode = 409;
+      throw err;
     }
     // ATURAN: Ketika update lines jika isExecute = true di update jadi false
-    const existing = check.rows[0];
     const currentIsExecute = Boolean(existing.IsExecute);
     let finalIsExecute = line.IsExecute;
     if (currentIsExecute === true) {
@@ -450,9 +461,10 @@ router.post('/upsert', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[Counting Upsert Error]:', err);
-    return res.status(500).json({
+    const status = err.statusCode || 500;
+    return res.status(status).json({
       success: false,
-      error: 'Internal Server Error',
+      error: status === 409 ? 'Conflict' : (status === 400 ? 'Bad Request' : 'Internal Server Error'),
       message: err.message,
     });
   } finally {
@@ -802,9 +814,10 @@ router.post('/lines', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[Upsert Lines Error]:', err);
-    return res.status(400).json({
+    const status = err.statusCode || 400;
+    return res.status(status).json({
       success: false,
-      error: 'Bad Request',
+      error: status === 409 ? 'Conflict' : 'Bad Request',
       message: err.message,
     });
   } finally {
@@ -1391,9 +1404,10 @@ router.get('/next-roll/:prodId', async (req, res) => {
         "QrNum",
         "ProductType",
         "InventStatus",
-        "TransDate"
+        "TransDate",
+        COALESCE("isDeleted", false) AS "isDeleted"
       FROM "CountingKainLines"
-      WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
+      WHERE "ProdId" = $1
       ORDER BY "RoolNumber" ASC
     `;
 
@@ -1410,29 +1424,48 @@ router.get('/next-roll/:prodId', async (req, res) => {
 
     const headerRow = headerRes.rows[0] || null;
     const headerMachine = String(headerRow?.NoMesin || '').trim();
-    const lines = linesResult.rows.map((line) => ({
+    const allLines = linesResult.rows.map((line) => ({
       ...line,
       NoMesin: String(line.NoMesin || headerMachine || 'Unknown').trim() || 'Unknown',
+      isDeleted: Boolean(line.isDeleted),
     }));
 
+    // Baris aktif untuk tampilan ringkasan/stok/tabel, sedangkan seluruh baris (termasuk soft delete)
+    // dipakai untuk menentukan nomor roll terakhir & nomor roll berikutnya.
+    const lines = allLines
+      .filter((line) => !line.isDeleted)
+      .map(({ isDeleted: _del, ...rest }) => rest);
+
+    const allRollLines = allLines.filter((line) => Number(line.ProductType ?? 5) === 5);
     const rollLines = lines.filter((line) => Number(line.ProductType ?? 5) === 5);
+    const allCoProductLines = allLines.filter((line) => Number(line.ProductType ?? 5) === 1);
     const coProductLines = lines.filter((line) => Number(line.ProductType ?? 5) === 1);
 
-    const maxRoll = rollLines.length > 0 ? Math.max(...rollLines.map((l) => l.RoolNumber || 0)) : 0;
+    const maxRoll = allRollLines.length > 0 ? Math.max(...allRollLines.map((l) => Number(l.RoolNumber) || 0)) : 0;
     const nextSuggestedRoll = maxRoll + 1;
 
-    // Aggregate rolls by machine (ProductType = 5)
+    const maxRollByMachine = {};
+    for (const line of allRollLines) {
+      const m = line.NoMesin;
+      const rollNum = Number(line.RoolNumber) || 0;
+      if (rollNum > (maxRollByMachine[m] || 0)) {
+        maxRollByMachine[m] = rollNum;
+      }
+    }
+
+    // Aggregate active rolls by machine (ProductType = 5), keeping maxRoll/nextRoll inclusive of soft-deleted rolls
     const rollsByMachine = {};
     for (const line of rollLines) {
       const m = line.NoMesin;
       if (!rollsByMachine[m]) {
+        const machineMax = maxRollByMachine[m] || 0;
         rollsByMachine[m] = {
           machine: m,
           count: 0,
           totalLength: 0,
           rolls: [],
-          maxRoll: 0,
-          nextRoll: 1,
+          maxRoll: machineMax,
+          nextRoll: machineMax + 1,
         };
       }
       rollsByMachine[m].count += 1;
@@ -1480,23 +1513,29 @@ router.get('/next-roll/:prodId', async (req, res) => {
       return String(a.machine).localeCompare(String(b.machine), undefined, { numeric: true });
     });
 
-    // Hitung khusus untuk targetMachine jika disediakan
-    let machineMaxRoll = 0;
-    let machineNextRoll = 1;
-    let machineRollsCount = 0;
+    // Hitung khusus untuk targetMachine jika disediakan (mengabaikan status soft delete)
+    const machineMaxRoll = targetMachine ? (maxRollByMachine[targetMachine] || 0) : 0;
+    const machineNextRoll = machineMaxRoll + 1;
+    const machineRollsCount = targetMachine ? (rollsByMachine[targetMachine]?.count || 0) : 0;
 
-    if (targetMachine) {
-      const mData = rollsByMachine[targetMachine];
-      if (mData) {
-        machineMaxRoll = mData.maxRoll;
-        machineNextRoll = mData.nextRoll;
-        machineRollsCount = mData.count;
-      } else {
-        machineMaxRoll = 0;
-        machineNextRoll = 1;
-        machineRollsCount = 0;
-      }
-    }
+    const otherRollLines = targetMachine
+      ? allRollLines.filter((l) => l.NoMesin !== targetMachine)
+      : [];
+    const maxOtherRoll = otherRollLines.length > 0
+      ? Math.max(...otherRollLines.map((l) => Number(l.RoolNumber) || 0))
+      : 0;
+
+    const allRollNumbers = Array.from(
+      new Set(allRollLines.map((l) => Number(l.RoolNumber) || 0).filter((n) => n > 0))
+    ).sort((a, b) => a - b);
+
+    const maxCoProductRoll = allCoProductLines.length > 0
+      ? Math.max(...allCoProductLines.map((l) => Number(l.RoolNumber) || 0))
+      : 0;
+    const nextCoProductRoll = maxCoProductRoll >= 9001 ? maxCoProductRoll + 1 : 9001;
+    const allCoProductNumbers = Array.from(
+      new Set(allCoProductLines.map((l) => Number(l.RoolNumber) || 0).filter((n) => n >= 9001))
+    ).sort((a, b) => a - b);
 
     // Ambil info OrderQty & RecidSalesId untuk verifikasi kuota order
     let orderQty = 0;
@@ -1549,11 +1588,17 @@ router.get('/next-roll/:prodId', async (req, res) => {
         machineMaxRoll,
         machineNextRoll,
         machineRollsCount,
+        maxOtherRoll,
+        maxRollByMachine,
+        maxCoProductRoll,
+        nextCoProductRoll,
         totalRolls: rollLines.length,
         totalCoProducts: coProductLines.length,
         rollsByMachine,
         machineSummary,
         existingRollNumbers: rollLines.map((l) => l.RoolNumber),
+        allRollNumbers,
+        allCoProductNumbers,
         lines,
         orderQty,
         recidSalesId,

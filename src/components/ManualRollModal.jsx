@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getNextRollInfo } from '../services/api.js'
 import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js'
+import { collectUsedRollNumbers, computeNextRollNumber } from '../utils/rollNumberHelpers.js'
 import styles from './ManualRollModal.module.css'
 
 export default function ManualRollModal({
@@ -8,12 +9,19 @@ export default function ManualRollModal({
   prodId,
   machineId,
   rolls = [],
+  rollsByMachine = {},
+  existingDbRolls = [],
+  allDbRollNumbers = [],
+  maxRollNumber = 0,
+  machineMaxRoll = 0,
+  startRollNumber = null,
   onSave,
   onClose,
 }) {
   const [rollId, setRollId] = useState(defaultRollId || 1)
   const [loadingDb, setLoadingDb] = useState(false)
-  const [isManuallyEdited, setIsManuallyEdited] = useState(false)
+  const isManuallyEditedRef = useRef(false)
+  const [dbStats, setDbStats] = useState(null)
   const [length, setLength] = useState('')
   const [bsQty, setBsQty] = useState('0')
   const [isStock, setIsStock] = useState(false)
@@ -22,6 +30,7 @@ export default function ManualRollModal({
   const [error, setError] = useState('')
 
   // Sinkronisasi otomatis roll number sesuai mesin & prodId dari database CountingKainLines
+  // (mengabaikan status soft delete roll sebelumnya)
   useEffect(() => {
     let isMounted = true
 
@@ -31,30 +40,24 @@ export default function ManualRollModal({
       try {
         const stats = await getNextRollInfo(prodId, machineId)
         if (!isMounted || !stats) return
+        setDbStats(stats)
 
-        // 1. Max roll dari database CountingKainLines untuk mesin ini
-        const dbMachineMax = stats.machineMaxRoll || 0
+        const { nextRollId } = computeNextRollNumber({
+          currentMachineId: machineId,
+          rolls,
+          rollsByMachine: stats.rollsByMachine || rollsByMachine,
+          existingDbRolls: stats.lines || existingDbRolls,
+          allDbRollNumbers: Array.isArray(stats.allRollNumbers) ? stats.allRollNumbers : allDbRollNumbers,
+          maxRollNumber: Math.max(maxRollNumber || 0, stats.maxRoll || 0),
+          machineMaxRoll: Math.max(machineMaxRoll || 0, stats.machineMaxRoll || 0),
+          startRollNumber,
+        })
 
-        // 2. Max roll dari state rolls lokal untuk mesin ini
-        const localMachineRolls = (rolls || []).filter(
-          (r) => String(r.noMesin || machineId) === String(machineId)
-        )
-        const localMachineMax =
-          localMachineRolls.length > 0 ? Math.max(...localMachineRolls.map((r) => r.id)) : 0
-
-        const activeMachineMax = Math.max(dbMachineMax, localMachineMax)
-
-        if (!isManuallyEdited) {
-          if (activeMachineMax > 0) {
-            setRollId(activeMachineMax + 1)
-          } else if (defaultRollId) {
-            setRollId(defaultRollId)
-          } else if (stats.machineNextRoll) {
-            setRollId(stats.machineNextRoll)
-          }
+        if (!isManuallyEditedRef.current) {
+          setRollId(nextRollId || defaultRollId || 1)
         }
 
-        // 3. Deteksi otomatis kuota OrderQty vs total produksi
+        // Deteksi otomatis kuota OrderQty vs total produksi
         if (stats.isOrderExceeded) {
           setIsStock(true)
           setStockInfo({
@@ -74,7 +77,18 @@ export default function ManualRollModal({
     return () => {
       isMounted = false
     }
-  }, [prodId, machineId, defaultRollId, isManuallyEdited, rolls])
+  }, [
+    prodId,
+    machineId,
+    defaultRollId,
+    rolls,
+    rollsByMachine,
+    existingDbRolls,
+    allDbRollNumbers,
+    maxRollNumber,
+    machineMaxRoll,
+    startRollNumber,
+  ])
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -84,6 +98,18 @@ export default function ManualRollModal({
 
     if (isNaN(parsedRollId) || parsedRollId <= 0) {
       setError('Nomor roll harus berupa angka positif mulai dari 1.')
+      return
+    }
+
+    const usedRollNumbers = collectUsedRollNumbers({
+      rolls,
+      existingDbRolls: dbStats?.lines || existingDbRolls,
+      allDbRollNumbers: Array.isArray(dbStats?.allRollNumbers) ? dbStats.allRollNumbers : allDbRollNumbers,
+      productType: 5,
+    })
+
+    if (usedRollNumbers.has(parsedRollId)) {
+      setError(`Nomor Roll #${parsedRollId} sudah pernah digunakan dalam daftar order ini.`)
       return
     }
 
@@ -150,7 +176,7 @@ export default function ManualRollModal({
                   value={rollId}
                   onChange={(e) => {
                     setRollId(e.target.value)
-                    setIsManuallyEdited(true)
+                    isManuallyEditedRef.current = true
                     setError('')
                   }}
                   required

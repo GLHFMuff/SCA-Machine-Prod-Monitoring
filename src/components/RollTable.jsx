@@ -10,6 +10,8 @@ import MultiMachineReserveModal from './MultiMachineReserveModal.jsx'
 import EditRollModal from './EditRollModal.jsx'
 import JoinedPieceModal from './JoinedPieceModal.jsx'
 import { getAutonicData } from '../services/autonicService.js'
+import { getNextRollInfo } from '../services/api.js'
+import { computeNextRollNumber } from '../utils/rollNumberHelpers.js'
 import styles from './RollTable.module.css'
 
 export default function RollTable({
@@ -22,7 +24,10 @@ export default function RollTable({
   existingDbRolls = [],
   rollsByMachine = {},
   maxRollNumber = 0,
+  machineMaxRoll = 0,
+  allDbRollNumbers = [],
   maxOtherRollNumber = 0,
+  onRefreshStats,
   onCatatCacat,
   onCatatCacatPreRoll,
   onFetchSensor,
@@ -74,38 +79,17 @@ export default function RollTable({
 
   const currentMachineId = String(user?.machine_id || user?.machineId || '1')
 
-  // Hitung nomor roll berikutnya KHUSUS SESUAI MESIN AKTIF:
-  // 1. Dari rolls lokal yang ada di state tabel untuk mesin ini
-  const currentMachineRolls = rolls.filter(
-    (r) => String(r.noMesin || currentMachineId) === currentMachineId
-  )
-  const localMachineMax = currentMachineRolls.length > 0
-    ? Math.max(...currentMachineRolls.map((r) => r.id))
-    : 0
-
-  // 2. Dari database CountingKainLines untuk mesin ini (rollsByMachine)
-  const dbMachineRolls = rollsByMachine[currentMachineId]?.rolls || []
-  const dbMachineMax = dbMachineRolls.length > 0
-    ? Math.max(...dbMachineRolls)
-    : 0
-
-  // Max roll yang sudah tercatat untuk mesin ini
-  const activeMachineMax = Math.max(localMachineMax, dbMachineMax)
-
-  // Max roll global untuk referensi fallback jika mesin belum punya roll
-  const localGlobalMax = rolls.length > 0 ? Math.max(...rolls.map((r) => r.id)) : 0
-  const effectiveMax = Math.max(localGlobalMax, maxRollNumber || 0)
-
-  // Tentukan nomor roll berikutnya sesuai mesin aktif:
-  let nextRollId
-  if (startRollNumber) {
-    nextRollId = startRollNumber
-  } else if (activeMachineMax > 0) {
-    nextRollId = activeMachineMax + 1
-  } else {
-    // Mesin belum pernah punya roll di OP ini
-    nextRollId = currentMachineId === '1' && effectiveMax === 0 ? 1 : (effectiveMax > 0 ? effectiveMax + 1 : 1)
-  }
+  // Hitung nomor roll berikutnya KHUSUS SESUAI MESIN AKTIF (mengabaikan status soft delete roll sebelumnya)
+  const { nextRollId, effectiveMax } = computeNextRollNumber({
+    currentMachineId,
+    rolls,
+    rollsByMachine,
+    existingDbRolls,
+    allDbRollNumbers,
+    maxRollNumber,
+    machineMaxRoll,
+    startRollNumber,
+  })
 
   useEffect(() => {
     if (rolls.length > prevCountRef.current && containerRef.current) {
@@ -176,20 +160,46 @@ export default function RollTable({
   async function handleGetDataClick() {
     setIsFetchingSensor(true)
     try {
-      let sensorResult
-      if (onFetchSensor) {
-        sensorResult = await onFetchSensor(currentMachineId)
-      } else {
-        sensorResult = await getAutonicData(currentMachineId)
-      }
+      const fetchSensorPromise = onFetchSensor
+        ? onFetchSensor(currentMachineId)
+        : getAutonicData(currentMachineId)
+      const fetchNextRollPromise = prodData?.prodNumber
+        ? getNextRollInfo(prodData.prodNumber, currentMachineId).catch(() => null)
+        : Promise.resolve(null)
+      const refreshPromise = onRefreshStats
+        ? Promise.resolve(onRefreshStats()).catch(() => null)
+        : Promise.resolve(null)
+
+      const [sensorResult, freshStats] = await Promise.all([
+        fetchSensorPromise,
+        fetchNextRollPromise,
+        refreshPromise,
+      ])
 
       const lengthVal = parseFloat(sensorResult?.Length ?? sensorResult?.length)
       if (isNaN(lengthVal)) {
         throw new Error('Data panjang dari sensor mesin tidak ditemukan / tidak valid.')
       }
 
-      // Sukses: simpan data sensor dan buka modal konfirmasi
-      setPendingSensorData({ ...sensorResult, length: lengthVal })
+      const { nextRollId: resolvedRollId } = computeNextRollNumber({
+        currentMachineId,
+        rolls,
+        rollsByMachine: freshStats?.rollsByMachine || rollsByMachine,
+        existingDbRolls: freshStats?.lines || existingDbRolls,
+        allDbRollNumbers: Array.isArray(freshStats?.allRollNumbers)
+          ? freshStats.allRollNumbers
+          : allDbRollNumbers,
+        maxRollNumber: Math.max(maxRollNumber || 0, freshStats?.maxRoll || 0),
+        machineMaxRoll: Math.max(machineMaxRoll || 0, freshStats?.machineMaxRoll || 0),
+        startRollNumber,
+      })
+
+      // Sukses: simpan data sensor + target roll terbaru dan buka modal konfirmasi
+      setPendingSensorData({
+        ...sensorResult,
+        length: lengthVal,
+        targetRollId: resolvedRollId,
+      })
       setShowGetDataConfirm(true)
     } catch (err) {
       console.error('Error saat menarik data sensor:', err)
@@ -205,14 +215,15 @@ export default function RollTable({
   }
 
   // Step 2: Konfirmasi Ambil Data -> Simpan ke tabel countinglines dan flush antrean
-  async function handleConfirmGetData(selectedTransDate) {
+  async function handleConfirmGetData(selectedTransDate, confirmedRollId) {
     if (!pendingSensorData) return
     setLoadingGetData(true)
     try {
+      const finalRollId = confirmedRollId || pendingSensorData?.targetRollId || nextRollId
       if (onSaveRollFromSensor) {
-        await onSaveRollFromSensor(pendingSensorData, nextRollId, selectedTransDate)
+        await onSaveRollFromSensor(pendingSensorData, finalRollId, selectedTransDate)
       } else if (onGetData) {
-        await onGetData(pendingSensorData, nextRollId, selectedTransDate)
+        await onGetData(pendingSensorData, finalRollId, selectedTransDate)
       }
       setShowGetDataConfirm(false)
       setPendingSensorData(null)
@@ -610,11 +621,18 @@ export default function RollTable({
       {/* ── Modal Konfirmasi Get Data ── */}
       {showGetDataConfirm && (
         <GetDataConfirmModal
-          machineId={user?.machine_id || '1'}
-          targetRollId={nextRollId}
+          machineId={currentMachineId}
+          targetRollId={pendingSensorData?.targetRollId || nextRollId}
           prodNumber={prodData?.prodNumber}
           length={pendingSensorData?.length}
           pendingDefectsCount={pendingDefects.length}
+          rolls={rolls}
+          rollsByMachine={rollsByMachine}
+          existingDbRolls={existingDbRolls}
+          allDbRollNumbers={allDbRollNumbers}
+          maxRollNumber={maxRollNumber}
+          machineMaxRoll={machineMaxRoll}
+          startRollNumber={startRollNumber}
           loading={loadingGetData}
           onConfirm={handleConfirmGetData}
           onClose={() => {
@@ -642,6 +660,12 @@ export default function RollTable({
           prodId={prodData?.prodNumber}
           machineId={currentMachineId}
           rolls={rolls}
+          rollsByMachine={rollsByMachine}
+          existingDbRolls={existingDbRolls}
+          allDbRollNumbers={allDbRollNumbers}
+          maxRollNumber={maxRollNumber}
+          machineMaxRoll={machineMaxRoll}
+          startRollNumber={startRollNumber}
           onSave={(newRoll) => {
             if (onAddRoll) onAddRoll(newRoll)
             setShowManualModal(false)
@@ -693,6 +717,7 @@ export default function RollTable({
           currentMachineId={user?.machine_id || '1'}
           currentStartRoll={startRollNumber || nextRollId}
           existingRolls={existingDbRolls.length > 0 ? existingDbRolls : rolls}
+          usedRollNumbers={allDbRollNumbers}
           rollsByMachine={rollsByMachine}
           maxRollNumber={effectiveMax}
           maxOtherRollNumber={maxOtherRollNumber}
