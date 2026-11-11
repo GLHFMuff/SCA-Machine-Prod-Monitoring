@@ -1,11 +1,12 @@
 import { DEFECT_CODES } from '../data/dummyData.js'
 import { useEffect, useRef, useState } from 'react'
 import styles from './DefectModal.module.css'
-import { getDefectCodeList } from '../services/api'
+import { getDefectCodeList, getRollDefectsApi, getJoinedPiecesApi } from '../services/api'
 import {
   buildInitialInspectionList,
   ensureJpDefectOption,
   extractDefectCode,
+  getNextChildLineNumber,
   isJoinedPieceCode,
   splitInspectionsByType,
   validateAndBuildInspectionItem,
@@ -20,14 +21,33 @@ function parseDummyDefectCodes() {
 
 export default function DefectModal({
   roll,
+  prodId = '',
   isPreRoll = false,
   initDefects,
   initJoinedPieces = [],
+  maxDefectLine = 0,
+  maxJoinedPieceLine = 0,
   onSave,
   onClose,
 }) {
   const [list, setList] = useState(() =>
     buildInitialInspectionList(initDefects, initJoinedPieces, isPreRoll)
+  )
+  const [dbMaxDefectLine, setDbMaxDefectLine] = useState(() =>
+    Math.max(
+      Number(maxDefectLine) || 0,
+      ...(Array.isArray(initDefects) ? initDefects : [])
+        .filter((d) => !isJoinedPieceCode(d?.code))
+        .map((d) => Number(d?.lineNumber ?? d?.LineNumber) || 0)
+    )
+  )
+  const [dbMaxJpLine, setDbMaxJpLine] = useState(() =>
+    Math.max(
+      Number(maxJoinedPieceLine) || 0,
+      ...(Array.isArray(initJoinedPieces) ? initJoinedPieces : []).map(
+        (jp) => Number(jp?.lineNumber ?? jp?.LineNumber) || 0
+      )
+    )
   )
   const [yard, setYard] = useState('')
   const [yardTo, setYardTo] = useState('')
@@ -54,6 +74,31 @@ export default function DefectModal({
         setDefectOptions(ensureJpDefectOption(parseDummyDefectCodes()))
       })
   }, [])
+
+  // Sinkronkan max LineNumber dari DB (termasuk baris yang di-soft-delete) agar line baru tidak memakai ulang LineNumber terhapus
+  useEffect(() => {
+    let isMounted = true
+    if (isPreRoll || !prodId || !roll?.id) return
+
+    Promise.all([
+      getRollDefectsApi(prodId, roll.id).catch(() => null),
+      getJoinedPiecesApi(prodId, roll.id).catch(() => null),
+    ]).then(([defRes, jpRes]) => {
+      if (!isMounted) return
+      const serverDefMax = Number(defRes?.maxLineNumber ?? defRes?.maxLineNumberByRoll?.[roll.id]) || 0
+      const serverJpMax = Number(jpRes?.maxLineNumber ?? jpRes?.maxLineNumberByRoll?.[roll.id]) || 0
+      if (serverDefMax > 0) {
+        setDbMaxDefectLine((prev) => Math.max(prev, serverDefMax))
+      }
+      if (serverJpMax > 0) {
+        setDbMaxJpLine((prev) => Math.max(prev, serverJpMax))
+      }
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [isPreRoll, prodId, roll?.id])
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -100,7 +145,12 @@ export default function DefectModal({
     }
 
     setError('')
-    setList(prev => [...prev, result.item])
+    const { defects: currentDefects, joinedPieces: currentJps } = splitInspectionsByType(list)
+    const nextLineNumber = result.item.isJoinedPiece
+      ? getNextChildLineNumber(currentJps, dbMaxJpLine)
+      : getNextChildLineNumber(currentDefects, dbMaxDefectLine)
+
+    setList(prev => [...prev, { ...result.item, lineNumber: nextLineNumber }])
     setYard('')
     setYardTo('')
     setCode('')
@@ -185,6 +235,7 @@ export default function DefectModal({
                         {isJp && <span className={styles.jpBadge}>Joined Piece</span>}
                       </div>
                       <div className={styles.defectYard}>
+                        {d.lineNumber ? `Line #${d.lineNumber} • ` : ''}
                         {isJp
                           ? `Panjang / Posisi yard ${d.yard}`
                           : `Posisi yard ${d.yard}${d.yardTo > 0 && d.yardTo != d.yard ? ` sampai yard ${d.yardTo}` : ''}`}

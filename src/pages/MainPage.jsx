@@ -27,6 +27,8 @@ import { toDDMMYYYY, getTodayDDMMYYYY } from '../utils/dateUtils.js'
 import {
   areDefectsEqual,
   areJoinedPiecesEqual,
+  mapDbDefectToUi,
+  mapDbJoinedPieceToUi,
   splitInspectionsByType,
 } from '../utils/inspectionHelpers.js'
 import {
@@ -97,6 +99,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   const [defectModal, setDefectModal] = useState(null) // roll object | null
   const [defects, setDefects] = useState({}) // { rollId: [{id, yard, code}] }
   const [joinedPieces, setJoinedPieces] = useState({}) // { rollId: [{id, yard}] }
+  const [maxDefectLineByRoll, setMaxDefectLineByRoll] = useState({})
+  const [maxJoinedPieceLineByRoll, setMaxJoinedPieceLineByRoll] = useState({})
   const [pendingDefects, setPendingDefects] = useState([]) // Catatan cacat sementara saat roll belum terbentuk
   const [toastMsg, setToastMsg] = useState('')
   const [saving, setSaving] = useState(false)
@@ -414,17 +418,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           for (const d of dbRecord.defects) {
             const rId = d.RoolNumber
             if (!loadedDefects[rId]) loadedDefects[rId] = []
-            const displayCode = d.Description && d.Description !== d.Code
-              ? `${d.Code} – ${d.Description}`
-              : d.Code
-            loadedDefects[rId].push({
-              id: d.LineNumber || Date.now() + Math.random(),
-              yard: parseFloat(d.LengthPoint) || 0,
-              code: displayCode,
-              isExecuted: Boolean(d.IsExecuted),
-              lineNumber: d.LineNumber,
-              yardTo: parseFloat(d.LengthPointTo) || 0,
-            })
+            loadedDefects[rId].push(mapDbDefectToUi(d))
           }
         }
 
@@ -434,11 +428,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           for (const jp of dbRecord.joinedPieces) {
             const rId = jp.RoolNumber
             if (!loadedJoinedPieces[rId]) loadedJoinedPieces[rId] = []
-            loadedJoinedPieces[rId].push({
-              id: jp.LineNumber || Date.now() + Math.random(),
-              yard: parseFloat(jp.LengthPoint) || 0,
-              lineNumber: jp.LineNumber,
-            })
+            loadedJoinedPieces[rId].push(mapDbJoinedPieceToUi(jp))
           }
         }
 
@@ -446,6 +436,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         setCoProducts(loadedCoProducts)
         setDefects(loadedDefects)
         setJoinedPieces(loadedJoinedPieces)
+        setMaxDefectLineByRoll(dbRecord.maxDefectLineByRoll || {})
+        setMaxJoinedPieceLineByRoll(dbRecord.maxJoinedPieceLineByRoll || {})
         setScanned(true)
 
         // ATURAN MULTI-MESIN:
@@ -1146,43 +1138,64 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       yard: parseFloat(d.yard) || 0,
       code: d.code,
       isExecuted: false,
-      lineNumber: idx + 1,
+      lineNumber: Number(d.lineNumber) > 0 ? Number(d.lineNumber) : idx + 1,
       yardTo: parseFloat(d.yardTo) || 0,
     }))
 
     const jpToSave = pendingJpPieces.map((jp, idx) => ({
       id: jp.id || Date.now() + idx,
       yard: parseFloat(jp.yard) || 0,
-      lineNumber: idx + 1,
+      lineNumber: Number(jp.lineNumber) > 0 ? Number(jp.lineNumber) : idx + 1,
     }))
 
     const tasks = []
     if (defectsToSave.length > 0) {
-      tasks.push(saveRollDefectsApi(prodId, rollId, defectsToSave))
+      tasks.push({ type: 'defect', promise: saveRollDefectsApi(prodId, rollId, defectsToSave) })
     }
     if (jpToSave.length > 0) {
-      tasks.push(saveJoinedPiecesApi(prodId, rollId, jpToSave))
+      tasks.push({ type: 'joinedPiece', promise: saveJoinedPiecesApi(prodId, rollId, jpToSave) })
     }
 
-    const results = await Promise.allSettled(tasks)
+    const results = await Promise.allSettled(tasks.map((t) => t.promise))
     const errors = []
-    for (const r of results) {
+    let savedDefectsState = defectsToSave
+    let savedJpState = jpToSave
+    results.forEach((r, idx) => {
       if (r.status === 'rejected') {
         console.error('Error saat menyimpan inspeksi sementara:', r.reason)
         errors.push(r.reason?.message || 'Gagal simpan')
+        return
       }
-    }
+      const payload = r.value
+      if (tasks[idx].type === 'defect' && Array.isArray(payload?.data)) {
+        savedDefectsState = payload.data.map(mapDbDefectToUi)
+        if (payload.maxLineNumber) {
+          setMaxDefectLineByRoll((prev) => ({
+            ...prev,
+            [rollId]: Math.max(prev[rollId] || 0, Number(payload.maxLineNumber) || 0),
+          }))
+        }
+      } else if (tasks[idx].type === 'joinedPiece' && Array.isArray(payload?.data)) {
+        savedJpState = payload.data.map(mapDbJoinedPieceToUi)
+        if (payload.maxLineNumber) {
+          setMaxJoinedPieceLineByRoll((prev) => ({
+            ...prev,
+            [rollId]: Math.max(prev[rollId] || 0, Number(payload.maxLineNumber) || 0),
+          }))
+        }
+      }
+    })
 
     if (defectsToSave.length > 0) {
       setDefects((prev) => ({
         ...prev,
-        [rollId]: defectsToSave,
+        [rollId]: savedDefectsState,
       }))
     }
     if (jpToSave.length > 0) {
       setJoinedPieces((prev) => ({
         ...prev,
-        [rollId]: jpToSave,
+        [rollId]: savedJpState,
       }))
     }
     updatePendingDefects([])
@@ -1237,6 +1250,25 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       if (res.status === 'rejected') {
         console.error(`Error saat menyimpan ${tasks[idx].type}:`, res.reason)
         failed.push(res.reason?.message || 'Gagal simpan')
+        return
+      }
+      const payload = res.value
+      if (tasks[idx].type === 'defect' && Array.isArray(payload?.data)) {
+        setDefects((prev) => ({ ...prev, [rollId]: payload.data.map(mapDbDefectToUi) }))
+        if (payload.maxLineNumber !== undefined) {
+          setMaxDefectLineByRoll((prev) => ({
+            ...prev,
+            [rollId]: Math.max(prev[rollId] || 0, Number(payload.maxLineNumber) || 0),
+          }))
+        }
+      } else if (tasks[idx].type === 'joinedPiece' && Array.isArray(payload?.data)) {
+        setJoinedPieces((prev) => ({ ...prev, [rollId]: payload.data.map(mapDbJoinedPieceToUi) }))
+        if (payload.maxLineNumber !== undefined) {
+          setMaxJoinedPieceLineByRoll((prev) => ({
+            ...prev,
+            [rollId]: Math.max(prev[rollId] || 0, Number(payload.maxLineNumber) || 0),
+          }))
+        }
       }
     })
 
@@ -1272,7 +1304,16 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     if (!prodId) return
 
     try {
-      await saveJoinedPiecesApi(prodId, rollId, list)
+      const res = await saveJoinedPiecesApi(prodId, rollId, list)
+      if (Array.isArray(res?.data)) {
+        setJoinedPieces((prev) => ({ ...prev, [rollId]: res.data.map(mapDbJoinedPieceToUi) }))
+      }
+      if (res?.maxLineNumber !== undefined) {
+        setMaxJoinedPieceLineByRoll((prev) => ({
+          ...prev,
+          [rollId]: Math.max(prev[rollId] || 0, Number(res.maxLineNumber) || 0),
+        }))
+      }
       showToast(
         list.length > 0
           ? `✓ Joined piece Roll #${rollId} (${list.length} titik) berhasil disimpan.`
@@ -1361,6 +1402,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     setScanned(false)
     setDefects({})
     setJoinedPieces({})
+    setMaxDefectLineByRoll({})
+    setMaxJoinedPieceLineByRoll({})
     setRolls([])
     setCoProducts([])
     updatePendingDefects([])
@@ -1444,6 +1487,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               maxOtherRollNumber={maxOtherRollNumber}
               onRefreshStats={() => refreshMultiMachineStats(prodData.prodNumber)}
               joinedPieces={joinedPieces}
+              maxJoinedPieceLineByRoll={maxJoinedPieceLineByRoll}
               onCatatCacat={(roll) => setDefectModal(roll)}
               onCatatCacatPreRoll={(targetId) => setDefectModal({ isPreRoll: true, id: targetId })}
               onCatatJoinedPiece={handleSaveJoinedPieces}
@@ -1508,9 +1552,12 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       {defectModal && (
         <DefectModal
           roll={defectModal}
+          prodId={prodData.prodNumber}
           isPreRoll={Boolean(defectModal.isPreRoll)}
           initDefects={defectModal.isPreRoll ? pendingDefects : (defects[defectModal.id] || [])}
           initJoinedPieces={defectModal.isPreRoll ? [] : (joinedPieces[defectModal.id] || [])}
+          maxDefectLine={defectModal.isPreRoll ? 0 : (maxDefectLineByRoll[defectModal.id] || 0)}
+          maxJoinedPieceLine={defectModal.isPreRoll ? 0 : (maxJoinedPieceLineByRoll[defectModal.id] || 0)}
           onSave={(defectList, joinedPieceList = []) => {
             if (defectModal.isPreRoll) {
               const combinedPending = [
@@ -1520,6 +1567,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
                   yard: parseFloat(jp.yard) || 0,
                   yardTo: parseFloat(jp.yard) || 0,
                   code: 'JP',
+                  ...(Number(jp.lineNumber) > 0 ? { lineNumber: Number(jp.lineNumber) } : {}),
                 })),
               ]
               updatePendingDefects(combinedPending)

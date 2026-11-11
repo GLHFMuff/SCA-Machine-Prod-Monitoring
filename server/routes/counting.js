@@ -38,6 +38,31 @@ function matchChildRows(existingRows, incomingItems, isSameContent) {
 }
 
 /**
+ * Ambil LineNumber tertinggi per RoolNumber untuk tabel child (CountingKainDefect / CountingKainJoinedPiece),
+ * mengabaikan status soft delete (isDeleted).
+ */
+async function getChildMaxLineByRoll(executor, tableName, prodId, targetRoll = 0) {
+  const params = [prodId];
+  let query = `
+    SELECT "RoolNumber", COALESCE(MAX("LineNumber"), 0) AS max_line
+    FROM "${tableName}"
+    WHERE "ProdId" = $1
+  `;
+  if (targetRoll > 0) {
+    params.push(targetRoll);
+    query += ` AND "RoolNumber" = $${params.length}`;
+  }
+  query += ' GROUP BY "RoolNumber"';
+
+  const res = await executor.query(query, params);
+  const byRoll = {};
+  for (const row of res.rows) {
+    byRoll[row.RoolNumber] = Number(row.max_line) || 0;
+  }
+  return byRoll;
+}
+
+/**
  * Normalizer helper to extract field values regardless of casing
  */
 function normalizeHeader(body, user) {
@@ -577,23 +602,25 @@ router.get('/headers/:prodId', async (req, res) => {
       ? allLines.filter((l) => String(l.NoMesin || '').trim() === targetMachine)
       : allLines;
 
-    // Ambil seluruh titik cacat kain aktif untuk ProdId ini
-    const defectsRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
-       FROM "CountingKainDefect"
-       WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
-       ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
-      [prodId]
-    );
-
-    // Ambil seluruh joined pieces aktif untuk ProdId ini
-    const joinedPiecesRes = await pool.query(
-      `SELECT "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
-       FROM "CountingKainJoinedPiece"
-       WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
-       ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
-      [prodId]
-    );
+    // Ambil seluruh titik cacat kain & joined pieces aktif beserta max LineNumber (abaikan soft delete)
+    const [defectsRes, joinedPiecesRes, maxDefectLineByRoll, maxJoinedPieceLineByRoll] = await Promise.all([
+      pool.query(
+        `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
+         FROM "CountingKainDefect"
+         WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
+         ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
+        [prodId]
+      ),
+      pool.query(
+        `SELECT "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
+         FROM "CountingKainJoinedPiece"
+         WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
+         ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
+        [prodId]
+      ),
+      getChildMaxLineByRoll(pool, 'CountingKainDefect', prodId),
+      getChildMaxLineByRoll(pool, 'CountingKainJoinedPiece', prodId),
+    ]);
 
     return res.status(200).json({
       success: true,
@@ -603,6 +630,8 @@ router.get('/headers/:prodId', async (req, res) => {
         allLines,
         defects: defectsRes.rows,
         joinedPieces: joinedPiecesRes.rows,
+        maxDefectLineByRoll,
+        maxJoinedPieceLineByRoll,
         targetMachine: targetMachine || null,
         machineLinesCount: lines.length,
         totalLinesCount: allLines.length,
@@ -1224,7 +1253,10 @@ router.get('/defects/:prodId', async (req, res) => {
 
     query += ' ORDER BY "RoolNumber" ASC, "LineNumber" ASC';
 
-    const result = await pool.query(query, params);
+    const [result, maxLineNumberByRoll] = await Promise.all([
+      pool.query(query, params),
+      getChildMaxLineByRoll(pool, 'CountingKainDefect', prodId, targetRoll),
+    ]);
 
     // Group defects by RoolNumber for easy frontend consumption
     const grouped = {};
@@ -1238,6 +1270,8 @@ router.get('/defects/:prodId', async (req, res) => {
       count: result.rows.length,
       data: result.rows,
       grouped,
+      maxLineNumberByRoll,
+      ...(targetRoll > 0 ? { maxLineNumber: maxLineNumberByRoll[targetRoll] || 0 } : {}),
     });
   } catch (err) {
     console.error('[Get Defects Error]:', err);
@@ -1275,19 +1309,27 @@ router.post('/defects', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Ambil seluruh titik cacat aktif saat ini untuk roll ini
+    // 1. Ambil seluruh titik cacat (aktif & soft-deleted) untuk roll ini agar LineNumber
+    //    tetap berlanjut dan mengabaikan status soft delete pada line sebelumnya
     const existingRes = await client.query(
-      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"
+      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo",
+              COALESCE("isDeleted", false) AS "isDeleted"
        FROM "CountingKainDefect"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2
        ORDER BY "LineNumber" ASC
        FOR UPDATE`,
       [prodId, roolNumber]
     );
 
+    const activeExistingRows = existingRes.rows.filter((r) => !r.isDeleted);
+    let maxLineNumber = existingRes.rows.reduce(
+      (max, r) => Math.max(max, Number(r.LineNumber) || 0),
+      0
+    );
+
     const normalizedList = rawDefects.map((raw, i) => normalizeDefect(raw, prodId, roolNumber, i + 1));
     const { matchedPairs, toSoftDelete } = matchChildRows(
-      existingRes.rows,
+      activeExistingRows,
       normalizedList,
       (ex, norm) =>
         String(ex.Code || '').trim().toUpperCase() === norm.Code.toUpperCase() &&
@@ -1305,35 +1347,34 @@ router.post('/defects', async (req, res) => {
       );
     }
 
-    // 3. Pertahankan baris yang cocok (update LineNumber/Description jika bergeser) & insert baris baru
+    // 3. Pertahankan LineNumber baris aktif yang cocok & beri LineNumber lanjutan untuk baris baru
     const savedRows = [];
     for (let i = 0; i < normalizedList.length; i++) {
       const norm = normalizedList[i];
       const matched = matchedPairs.get(i);
       if (matched) {
-        if (
-          Number(matched.LineNumber) !== norm.LineNumber ||
-          String(matched.Description || '').trim() !== norm.Description
-        ) {
+        if (String(matched.Description || '').trim() !== norm.Description) {
           const updRes = await client.query(
             `UPDATE "CountingKainDefect"
-             SET "LineNumber" = $2, "Description" = $3
+             SET "Description" = $2
              WHERE ctid = $1
              RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"`,
-            [matched.ctid, norm.LineNumber, norm.Description]
+            [matched.ctid, norm.Description]
           );
           savedRows.push(updRes.rows[0]);
         } else {
-          const { ctid: _ctid, ...rest } = matched;
+          const { ctid: _ctid, isDeleted: _isDeleted, ...rest } = matched;
           savedRows.push(rest);
         }
       } else {
+        maxLineNumber += 1;
+        const nextLineNumber = maxLineNumber;
         const insRes = await client.query(
           `INSERT INTO "CountingKainDefect"
            ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "DeletedAt", "isDeleted")
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamp, false)
            RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"`,
-          [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, false, norm.LineNumber, norm.LengthPointTo, DEFAULT_DELETED_AT]
+          [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, false, nextLineNumber, norm.LengthPointTo, DEFAULT_DELETED_AT]
         );
         savedRows.push(insRes.rows[0]);
       }
@@ -1345,6 +1386,7 @@ router.post('/defects', async (req, res) => {
       success: true,
       message: `Berhasil menyimpan ${savedRows.length} titik inspeksi untuk Roll #${roolNumber}.`,
       count: savedRows.length,
+      maxLineNumber,
       data: savedRows,
     });
   } catch (err) {
@@ -1784,7 +1826,10 @@ router.get('/joined-pieces/:prodId', async (req, res) => {
 
     query += ' ORDER BY "RoolNumber" ASC, "LineNumber" ASC';
 
-    const result = await pool.query(query, params);
+    const [result, maxLineNumberByRoll] = await Promise.all([
+      pool.query(query, params),
+      getChildMaxLineByRoll(pool, 'CountingKainJoinedPiece', prodId, targetRoll),
+    ]);
 
     // Group joined pieces by RoolNumber for easy frontend consumption
     const grouped = {};
@@ -1798,6 +1843,8 @@ router.get('/joined-pieces/:prodId', async (req, res) => {
       count: result.rows.length,
       data: result.rows,
       grouped,
+      maxLineNumberByRoll,
+      ...(targetRoll > 0 ? { maxLineNumber: maxLineNumberByRoll[targetRoll] || 0 } : {}),
     });
   } catch (err) {
     console.error('[Get Joined Pieces Error]:', err);
@@ -1835,23 +1882,31 @@ router.post('/joined-pieces', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Ambil seluruh joined pieces aktif saat ini untuk roll ini
+    // 1. Ambil seluruh joined pieces (aktif & soft-deleted) untuk roll ini agar LineNumber
+    //    tetap berlanjut dan mengabaikan status soft delete pada line sebelumnya
     const existingRes = await client.query(
-      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
+      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber",
+              COALESCE("isDeleted", false) AS "isDeleted"
        FROM "CountingKainJoinedPiece"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2
        ORDER BY "LineNumber" ASC
        FOR UPDATE`,
       [prodId, roolNumber]
     );
 
+    const activeExistingRows = existingRes.rows.filter((r) => !r.isDeleted);
+    let maxLineNumber = existingRes.rows.reduce(
+      (max, r) => Math.max(max, Number(r.LineNumber) || 0),
+      0
+    );
+
     const normalizedPieces = rawPieces.map((raw, i) => ({
       LengthPoint: parseFloat(raw.yard ?? raw.LengthPoint ?? raw.lengthPoint ?? 0),
-      LineNumber: i + 1,
+      LineNumber: parseInt(raw.LineNumber ?? raw.lineNumber ?? (i + 1), 10),
     }));
 
     const { matchedPairs, toSoftDelete } = matchChildRows(
-      existingRes.rows,
+      activeExistingRows,
       normalizedPieces,
       (ex, norm) => Math.abs((Number(ex.LengthPoint) || 0) - norm.LengthPoint) < 0.0001
     );
@@ -1866,32 +1921,23 @@ router.post('/joined-pieces', async (req, res) => {
       );
     }
 
-    // 3. Pertahankan baris yang cocok (update LineNumber jika bergeser) & insert baris baru
+    // 3. Pertahankan LineNumber baris aktif yang cocok & beri LineNumber lanjutan untuk baris baru
     const savedRows = [];
     for (let i = 0; i < normalizedPieces.length; i++) {
       const piece = normalizedPieces[i];
       const matched = matchedPairs.get(i);
       if (matched) {
-        if (Number(matched.LineNumber) !== piece.LineNumber) {
-          const updRes = await client.query(
-            `UPDATE "CountingKainJoinedPiece"
-             SET "LineNumber" = $2
-             WHERE ctid = $1
-             RETURNING "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"`,
-            [matched.ctid, piece.LineNumber]
-          );
-          savedRows.push(updRes.rows[0]);
-        } else {
-          const { ctid: _ctid, ...rest } = matched;
-          savedRows.push(rest);
-        }
+        const { ctid: _ctid, isDeleted: _isDeleted, ...rest } = matched;
+        savedRows.push(rest);
       } else {
+        maxLineNumber += 1;
+        const nextLineNumber = maxLineNumber;
         const insRes = await client.query(
           `INSERT INTO "CountingKainJoinedPiece"
            ("ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber", "DeletedAt", "isDeleted")
            VALUES ($1, $2, $3, $4, $5, $6::timestamp, false)
            RETURNING "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"`,
-          [prodId, roolNumber, piece.LengthPoint, false, piece.LineNumber, DEFAULT_DELETED_AT]
+          [prodId, roolNumber, piece.LengthPoint, false, nextLineNumber, DEFAULT_DELETED_AT]
         );
         savedRows.push(insRes.rows[0]);
       }
@@ -1903,6 +1949,7 @@ router.post('/joined-pieces', async (req, res) => {
       success: true,
       message: `Berhasil menyimpan ${savedRows.length} joined piece(s) untuk Roll #${roolNumber}.`,
       count: savedRows.length,
+      maxLineNumber,
       data: savedRows,
     });
   } catch (err) {

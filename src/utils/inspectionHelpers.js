@@ -219,3 +219,50 @@ export function areJoinedPiecesEqual(a = [], b = []) {
   })
 }
 
+/**
+ * Hitung LineNumber berikutnya untuk item child (Defect / Joined Piece),
+ * mengabaikan status soft delete pada line sebelumnya.
+ *
+ * @param {Array} items
+ * @param {number} [knownMaxLineNumber]
+ * @returns {number}
+ */
+export function getNextChildLineNumber(items = [], knownMaxLineNumber = 0) {
+  let maxLine = Number(knownMaxLineNumber) || 0
+  for (const item of Array.isArray(items) ? items : []) {
+    const ln = Number(item?.lineNumber ?? item?.LineNumber) || 0
+    if (ln > maxLine) maxLine = ln
+  }
+  return maxLine + 1
+}
+
+/**
+ * Map row CountingKainDefect dari API/DB menjadi objek UI state.
+ * @param {object} d
+ */
+export function mapDbDefectToUi(d) {
+  const displayCode = d?.Description && d.Description !== d.Code
+    ? `${d.Code} – ${d.Description}`
+    : d?.Code
+  return {
+    id: d?.LineNumber || Date.now() + Math.random(),
+    yard: parseFloat(d?.LengthPoint) || 0,
+    code: displayCode,
+    isExecuted: Boolean(d?.IsExecuted),
+    lineNumber: Number(d?.LineNumber) || undefined,
+    yardTo: parseFloat(d?.LengthPointTo) || 0,
+  }
+}
+
+/**
+ * Map row CountingKainJoinedPiece dari API/DB menjadi objek UI state.
+ * @param {object} jp
+ */
+export function mapDbJoinedPieceToUi(jp) {
+  return {
+    id: jp?.LineNumber || Date.now() + Math.random(),
+    yard: parseFloat(jp?.LengthPoint) || 0,
+    lineNumber: Number(jp?.LineNumber) || undefined,
+  }
+}
+

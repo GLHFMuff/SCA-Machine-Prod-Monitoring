@@ -45,6 +45,7 @@ export default function RollTable({
   onSetStartRoll,
   onCatatJoinedPiece,
   joinedPieces = {},
+  maxJoinedPieceLineByRoll = {},
   showToast,
 }) {
   // alert(window.innerWidth)
@@ -748,7 +749,9 @@ export default function RollTable({
       {joinedPieceModalRoll && (
         <JoinedPieceModal
           roll={joinedPieceModalRoll}
+          prodId={prodData?.prodNumber}
           initJoinedPieces={joinedPieces[joinedPieceModalRoll.id] || []}
+          maxLineNumber={maxJoinedPieceLineByRoll?.[joinedPieceModalRoll.id] || 0}
           onSave={(list) => {
             if (onCatatJoinedPiece) {
               onCatatJoinedPiece(joinedPieceModalRoll, list)

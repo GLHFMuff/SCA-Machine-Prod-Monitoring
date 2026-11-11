@@ -734,10 +734,10 @@ export async function saveRollDefectsApi(prodId, roolNumber, defects = []) {
       body: JSON.stringify({
         ProdId: String(prodId).trim(),
         RoolNumber: parseInt(roolNumber, 10),
-        defects: defects.map((d, index) => ({
+        defects: defects.map((d) => ({
           yard: parseFloat(d.yard) || 0,
           code: d.code || '',
-          lineNumber: index + 1,
+          ...(Number(d.lineNumber) > 0 ? { lineNumber: Number(d.lineNumber) } : {}),
           yardTo: parseFloat(d.yardTo) || 0,
         })),
       }),
@@ -936,9 +936,9 @@ export async function saveJoinedPiecesApi(prodId, roolNumber, pieces = []) {
       body: JSON.stringify({
         ProdId: String(prodId).trim(),
         RoolNumber: parseInt(roolNumber, 10),
-        pieces: pieces.map((p, index) => ({
+        pieces: pieces.map((p) => ({
           yard: parseFloat(p.yard) || 0,
-          lineNumber: index + 1,
+          ...(Number(p.lineNumber) > 0 ? { lineNumber: Number(p.lineNumber) } : {}),
         })),
       }),
     });

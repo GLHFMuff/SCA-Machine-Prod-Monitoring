@@ -1,10 +1,47 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getJoinedPiecesApi } from '../services/api.js'
+import { getNextChildLineNumber } from '../utils/inspectionHelpers.js'
 import styles from './DefectModal.module.css'
 
-export default function JoinedPieceModal({ roll, initJoinedPieces, onSave, onClose }) {
+export default function JoinedPieceModal({
+  roll,
+  prodId = '',
+  initJoinedPieces,
+  maxLineNumber = 0,
+  onSave,
+  onClose,
+}) {
   const [list, setList] = useState(initJoinedPieces || [])
+  const [dbMaxLine, setDbMaxLine] = useState(() =>
+    Math.max(
+      Number(maxLineNumber) || 0,
+      ...(Array.isArray(initJoinedPieces) ? initJoinedPieces : []).map(
+        (jp) => Number(jp?.lineNumber ?? jp?.LineNumber) || 0
+      )
+    )
+  )
   const [yard, setYard] = useState('')
   const [error, setError] = useState('')
+
+  // Sinkronkan max LineNumber dari DB (mengabaikan status soft delete pada line sebelumnya)
+  useEffect(() => {
+    let isMounted = true
+    if (!prodId || !roll?.id) return
+
+    getJoinedPiecesApi(prodId, roll.id)
+      .then((res) => {
+        if (!isMounted || !res) return
+        const serverMax = Number(res?.maxLineNumber ?? res?.maxLineNumberByRoll?.[roll.id]) || 0
+        if (serverMax > 0) {
+          setDbMaxLine((prev) => Math.max(prev, serverMax))
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      isMounted = false
+    }
+  }, [prodId, roll?.id])
 
   function addJoinedPiece() {
     if (!yard) {
@@ -26,7 +63,8 @@ export default function JoinedPieceModal({ roll, initJoinedPieces, onSave, onClo
       return
     }
     setError('')
-    setList(prev => [...prev, { id: Date.now() + Math.random(), yard: parsedYard }])
+    const nextLineNumber = getNextChildLineNumber(list, dbMaxLine)
+    setList(prev => [...prev, { id: Date.now() + Math.random(), yard: parsedYard, lineNumber: nextLineNumber }])
     setYard('')
   }
 
@@ -64,7 +102,9 @@ export default function JoinedPieceModal({ roll, initJoinedPieces, onSave, onClo
                 <div className={styles.defectItem} key={d.id}>
                   <div>
                     <div className={styles.defectCode}>🧵 Joined Piece</div>
-                    <div className={styles.defectYard}>Panjang yard {d.yard}</div>
+                    <div className={styles.defectYard}>
+                      {d.lineNumber ? `Line #${d.lineNumber} • ` : ''}Panjang yard {d.yard}
+                    </div>
                   </div>
                   <button
                     className={styles.deleteBtn}
