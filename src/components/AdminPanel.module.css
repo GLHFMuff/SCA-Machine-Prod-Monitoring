@@ -743,4 +743,190 @@
   }
 }
 
+/* ── App Setting Tab ── */
+.settingsStack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settingsSection {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  background: var(--surface2);
+}
+
+.settingsSectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.settingsSectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.settingsSectionDesc {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.settingHelp {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.presetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.presetBtn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 99px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.presetBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.presetBtnActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.toggleLabel input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.shiftPreviewBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+}
+
+.shiftPreviewWarn {
+  background: rgba(217, 119, 6, 0.12);
+  color: var(--warning);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.shiftRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shiftRowCard {
+  display: grid;
+  grid-template-columns: 95px minmax(150px, 1.4fr) 130px 130px auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.shiftOvernightTag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.14);
+  color: #6366f1;
+}
+
+.settingsFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.settingsMeta {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.settingsActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.activityMeta {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.activityMetaWarn {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+@media (max-width: 820px) {
+  .shiftRowCard {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
 

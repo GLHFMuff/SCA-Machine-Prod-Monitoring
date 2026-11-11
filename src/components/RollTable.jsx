@@ -55,6 +55,7 @@ export default function RollTable({
   const [pendingSensorData, setPendingSensorData] = useState(null)
   const [showGetDataConfirm, setShowGetDataConfirm] = useState(false)
   const [rollToDelete, setRollToDelete] = useState(null)
+  const [deletingRoll, setDeletingRoll] = useState(false)
   const [rollToEdit, setRollToEdit] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [showManualModal, setShowManualModal] = useState(false)
@@ -225,11 +226,15 @@ export default function RollTable({
     }
   }
 
-  function handleConfirmDelete() {
-    if (rollToDelete && onDeleteRoll) {
-      onDeleteRoll(rollToDelete.id)
+  async function handleConfirmDelete() {
+    if (!rollToDelete || !onDeleteRoll || deletingRoll) return
+    setDeletingRoll(true)
+    try {
+      await onDeleteRoll(rollToDelete.id)
+      setRollToDelete(null)
+    } finally {
+      setDeletingRoll(false)
     }
-    setRollToDelete(null)
   }
 
   async function handlePrintTicket(roll) {
@@ -257,7 +262,7 @@ export default function RollTable({
             <span>{isFetchingSensor ? 'Menarik Sensor…' : (loadingGetData ? 'Menyimpan…' : 'Get Data')}</span>
           </button>
 
-          {/* Tombol Catat Cacat Sebelum Doffing / Roll Belum Terbentuk */}
+          {/* Tombol Catat Inspeksi Sebelum Doffing / Roll Belum Terbentuk */}
           <button
             type="button"
             className={`${styles.tempDefectBtn} ${pendingDefects.length > 0 ? styles.tempDefectActive : ''}`}
@@ -268,13 +273,13 @@ export default function RollTable({
                 onCatatCacat({ isPreRoll: true, id: nextRollId })
               }
             }}
-            title="Catat titik cacat saat roll belum terbentuk (otomatis tersimpan saat Get Data)"
+            title="Catat titik inspeksi saat roll belum terbentuk (otomatis tersimpan saat Get Data)"
           >
             <span>⚠️</span>
             <span>
               {pendingDefects.length > 0
-                ? `Cacat Berjalan (${pendingDefects.length})`
-                : '+ Cacat (Roll Berjalan)'}
+                ? `Inspeksi Berjalan (${pendingDefects.length})`
+                : '+ Inspeksi (Roll Berjalan)'}
             </span>
             {pendingDefects.length > 0 && <span className={styles.tempDefectBadgePulse} />}
           </button>
@@ -316,13 +321,13 @@ export default function RollTable({
         <span className={styles.badge}>{rolls.length} Roll Terinput</span>
       </div>
 
-      {/* Banner Cacat Sementara jika ada cacat yang dicatat saat roll belum terbentuk */}
+      {/* Banner Inspeksi Sementara jika ada inspeksi yang dicatat saat roll belum terbentuk */}
       {pendingDefects.length > 0 && (
         <div className={styles.pendingDefectsBanner}>
           <div className={styles.pendingDefectsContent}>
             <span className={styles.pendingDefectsIcon}>⚠️</span>
             <div className={styles.pendingDefectsText}>
-              <strong>{pendingDefects.length} catatan cacat sementara</strong> telah dicatat untuk Roll berjalan (<strong>#{nextRollId}</strong>). Catatan ini akan otomatis masuk ke daftar roll saat Anda klik <strong>Get Data</strong>.
+              <strong>{pendingDefects.length} catatan inspeksi sementara</strong> telah dicatat untuk Roll berjalan (<strong>#{nextRollId}</strong>). Catatan ini akan otomatis masuk ke daftar roll saat Anda klik <strong>Get Data</strong>.
             </div>
           </div>
           <button
@@ -335,9 +340,9 @@ export default function RollTable({
                 onCatatCacat({ isPreRoll: true, id: nextRollId })
               }
             }}
-            title="Lihat atau edit catatan cacat sementara"
+            title="Lihat atau edit catatan inspeksi sementara"
           >
-            ✏️ Kelola Cacat
+            ✏️ Kelola Inspeksi
           </button>
         </div>
       )}
@@ -372,51 +377,51 @@ export default function RollTable({
       <div className={styles.tablesLayout}>
         <div id="rolls-panel" role="tabpanel" aria-labelledby="rolls-tab" hidden={activeTableTab !== 'rolls'} className={`${styles.tableCard} ${styles.rollCard}`}>
           <div className={styles.tableContainer} ref={containerRef}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th style={{ width: '85px' }}>No. Roll</th>
-              <th style={{ width: '80px' }}>Mesin</th>
-              <th>Panjang</th>
-              {/* <th>BS Qty</th> */}
-              <th style={{ width: '80px' }}>Stock</th>
-              <th style={{ width: '105px' }}>Date</th>
-              <th>Status</th>
-              <th className={styles.center} style={{ width: '320px' }}>
-                Aksi
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rolls.length === 0 ? (
-              <tr>
-                <td colSpan="7" className={styles.emptyState}>
-                  Tidak ada data roll. Klik <strong>Get Data</strong> atau{' '}
-                  <strong>Input Roll</strong> untuk menambahkan roll produksi.
-                </td>
-              </tr>
-            ) : (
-              rolls.map((roll) => {
-                const rollDefects = defects[roll.id] || []
-                const hasDefect = rollDefects.length > 0
-                const machineNo = roll.noMesin || user?.machine_id || '1'
-
-                return (
-                  <tr key={roll.id}>
-                    <td>
-                      <span className={styles.rollNum}>#{roll.id}</span>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th style={{ width: '85px' }}>No. Roll</th>
+                  <th style={{ width: '80px' }}>Mesin</th>
+                  <th>Panjang</th>
+                  {/* <th>BS Qty</th> */}
+                  <th style={{ width: '80px' }}>Stock</th>
+                  <th style={{ width: '105px' }}>Date</th>
+                  <th>Status</th>
+                  <th className={styles.center} style={{ width: '320px' }}>
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rolls.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className={styles.emptyState}>
+                      Tidak ada data roll. Klik <strong>Get Data</strong> atau{' '}
+                      <strong>Input Roll</strong> untuk menambahkan roll produksi.
                     </td>
+                  </tr>
+                ) : (
+                  rolls.map((roll) => {
+                    const rollDefects = defects[roll.id] || []
+                    const hasDefect = rollDefects.length > 0
+                    const machineNo = roll.noMesin || user?.machine_id || '1'
 
-                    <td>
-                      <span className={styles.machineBadge}>M-{machineNo}</span>
-                    </td>
+                    return (
+                      <tr key={roll.id}>
+                        <td>
+                          <span className={styles.rollNum}>#{roll.id}</span>
+                        </td>
 
-                    <td>
-                      <span className={styles.lengthVal}>{roll.length}</span>{' '}
-                      <span className={styles.lengthUnit}>yard</span>
-                    </td>
+                        <td>
+                          <span className={styles.machineBadge}>M-{machineNo}</span>
+                        </td>
 
-                    {/* <td
+                        <td>
+                          <span className={styles.lengthVal}>{roll.length}</span>{' '}
+                          <span className={styles.lengthUnit}>yard</span>
+                        </td>
+
+                        {/* <td
                       className={styles.bsCell}
                       onDoubleClick={() => startEditingBs(roll)}
                       title="Double click untuk edit BS QTY (< panjang roll)"
@@ -468,88 +473,88 @@ export default function RollTable({
                       )}
                     </td> */}
 
-                    {/* Kolom Stock (isStock checkbox & indikator) */}
-                    <td className={styles.stockCell}>
-                      <label
-                        className={styles.stockLabel}
-                        title={roll.isStock ? 'Kain Stock (Format S)' : 'Order Non-Stock (Format O)'}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={Boolean(roll.isStock)}
-                          onChange={(e) => handleToggleStock(roll, e.target.checked)}
-                          className={styles.stockCheckbox}
-                        />
-                      </label>
-                    </td>
+                        {/* Kolom Stock (isStock checkbox & indikator) */}
+                        <td className={styles.stockCell}>
+                          <label
+                            className={styles.stockLabel}
+                            title={roll.isStock ? 'Kain Stock (Format S)' : 'Order Non-Stock (Format O)'}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={Boolean(roll.isStock)}
+                              onChange={(e) => handleToggleStock(roll, e.target.checked)}
+                              className={styles.stockCheckbox}
+                            />
+                          </label>
+                        </td>
 
-                    {/* Kolom Date */}
-                    <td>
-                      <span className={styles.dateBadge}>{roll.transDate || '-'}</span>
-                    </td>
+                        {/* Kolom Date */}
+                        <td>
+                          <span className={styles.dateBadge}>{roll.transDate || '-'}</span>
+                        </td>
 
-                    {/* Kolom Status (mewakili ada/tidaknya cacat & jumlah titik) */}
-                    <td>
-                      {hasDefect ? (
-                        <span className={styles.statusWarn}>
-                          <span className={styles.dotWarn} /> Cacat ({rollDefects.length})
-                        </span>
-                      ) : (
-                        <span className={styles.statusOk}>
-                          <span className={styles.dotOk} /> OK
-                        </span>
-                      )}
-                    </td>
+                        {/* Kolom Status (mewakili ada/tidaknya inspeksi & jumlah titik) */}
+                        <td>
+                          {hasDefect ? (
+                            <span className={styles.statusWarn}>
+                              <span className={styles.dotWarn} /> Inspeksi ({rollDefects.length})
+                            </span>
+                          ) : (
+                            <span className={styles.statusOk}>
+                              <span className={styles.dotOk} /> OK
+                            </span>
+                          )}
+                        </td>
 
-                    {/* Kolom Aksi */}
-                    <td className={styles.center}>
-                      <div className={styles.actionGroup}>
-                        <button
-                          type="button"
-                          className={styles.editRowBtn}
-                          onClick={() => setRollToEdit(roll)}
-                          title={`Edit Panjang & BS Qty Roll #${roll.id}`}
-                        >
-                          <span className={styles.btnIcon}>✏️</span>
-                          <span className={styles.btnLabel}>Edit</span>
-                        </button>
+                        {/* Kolom Aksi */}
+                        <td className={styles.center}>
+                          <div className={styles.actionGroup}>
+                            <button
+                              type="button"
+                              className={styles.editRowBtn}
+                              onClick={() => setRollToEdit(roll)}
+                              title={`Edit Panjang & BS Qty Roll #${roll.id}`}
+                            >
+                              <span className={styles.btnIcon}>✏️</span>
+                              <span className={styles.btnLabel}>Edit</span>
+                            </button>
 
-                        <button
-                          type="button"
-                          className={`${styles.defectBtn} ${hasDefect ? styles.defectBtnActive : ''}`}
-                          onClick={() => onCatatCacat(roll)}
-                          title="Catat titik cacat kain"
-                        >
-                          <span className={styles.btnIcon}>{hasDefect ? '✏️' : '➕'}</span>
-                          <span className={styles.btnLabel}>Cacat</span>
-                        </button>
+                            <button
+                              type="button"
+                              className={`${styles.defectBtn} ${hasDefect ? styles.defectBtnActive : ''}`}
+                              onClick={() => onCatatCacat(roll)}
+                              title="Catat titik inspeksi kain"
+                            >
+                              <span className={styles.btnIcon}>{hasDefect ? '✏️' : '➕'}</span>
+                              <span className={styles.btnLabel}>Inspeksi</span>
+                            </button>
 
 
-                        <button
-                          type="button"
-                          className={`${styles.printLabelBtn}`}
-                          onClick={() => setJoinedPieceModalRoll(roll)}
-                          title="Input detail joined piece"
-                        >
-                          <span className={styles.btnIcon}>🧵</span>
-                          <span className={styles.btnLabel}>
-                            {(joinedPieces[roll.id] || []).length > 0
-                              ? `JP (${(joinedPieces[roll.id] || []).length})`
-                              : 'JP'}
-                          </span>
-                        </button>
+                            <button
+                              type="button"
+                              className={`${styles.printLabelBtn}`}
+                              onClick={() => setJoinedPieceModalRoll(roll)}
+                              title="Input detail joined piece"
+                            >
+                              <span className={styles.btnIcon}>🧵</span>
+                              <span className={styles.btnLabel}>
+                                {(joinedPieces[roll.id] || []).length > 0
+                                  ? `JP (${(joinedPieces[roll.id] || []).length})`
+                                  : 'JP'}
+                              </span>
+                            </button>
 
-                        <button
-                          type="button"
-                          className={styles.printTicketBtn}
-                          onClick={() => setTicketModalRoll(roll)}
-                          title="Cetak E-Ticket 7x11 cm (Portrait)"
-                        >
-                          <span className={styles.btnIcon}>🖨️</span>
-                          <span className={styles.btnLabel}>E-Ticket Cunda</span>
-                        </button>
+                            <button
+                              type="button"
+                              className={styles.printTicketBtn}
+                              onClick={() => setTicketModalRoll(roll)}
+                              title="Cetak E-Ticket 7x11 cm (Portrait)"
+                            >
+                              <span className={styles.btnIcon}>🖨️</span>
+                              <span className={styles.btnLabel}>E-Ticket Cunda</span>
+                            </button>
 
-                        {/* <button
+                            {/* <button
                           type="button"
                           className={styles.printLabel100Btn}
                           onClick={() => setLabel100Roll(roll)}
@@ -559,35 +564,35 @@ export default function RollTable({
                           <span className={styles.btnLabel}>Label Cust</span>
                         </button> */}
 
-                        <button
-                          type="button"
-                          className={styles.printLabelBtn}
-                          onClick={() => setLabelModalRoll(roll)}
-                          title="Print Label Roll"
-                        >
-                          <span className={styles.btnIcon}>🏷️</span>
-                          <span className={styles.btnLabel}>Label Roll</span>
-                        </button>
+                            <button
+                              type="button"
+                              className={styles.printLabelBtn}
+                              onClick={() => setLabelModalRoll(roll)}
+                              title="Print Label Roll"
+                            >
+                              <span className={styles.btnIcon}>🏷️</span>
+                              <span className={styles.btnLabel}>Label Roll</span>
+                            </button>
 
-                        <button
-                          type="button"
-                          className={styles.deleteRowBtn}
-                          onClick={() => setRollToDelete(roll)}
-                          title={`Hapus Roll #${roll.id} `}
-                          aria-label={`Hapus Roll #${roll.id}`}
-                        >
-                          <span className={styles.btnIcon}>🗑️</span>
-                          <span className={styles.btnLabel}>Hapus</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                            <button
+                              type="button"
+                              className={styles.deleteRowBtn}
+                              onClick={() => setRollToDelete(roll)}
+                              title={`Hapus Roll #${roll.id} `}
+                              aria-label={`Hapus Roll #${roll.id}`}
+                            >
+                              <span className={styles.btnIcon}>🗑️</span>
+                              <span className={styles.btnLabel}>Hapus</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Co-Products table */}
@@ -624,8 +629,9 @@ export default function RollTable({
         <ConfirmDeleteModal
           roll={rollToDelete}
           defectCount={(defects[rollToDelete.id] || []).length}
+          loading={deletingRoll}
           onConfirm={handleConfirmDelete}
-          onCancel={() => setRollToDelete(null)}
+          onCancel={() => !deletingRoll && setRollToDelete(null)}
         />
       )}
 

@@ -75,8 +75,8 @@ export default function GetDataConfirmModal({
             </div>
             {pendingDefectsCount > 0 && (
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Catatan Cacat Sementara</span>
-                <span className={styles.infoValWarn}>⚠️ {pendingDefectsCount} Titik Cacat</span>
+                <span className={styles.infoLabel}>Catatan Inspeksi Sementara</span>
+                <span className={styles.infoValWarn}>⚠️ {pendingDefectsCount} Titik Inspeksi</span>
               </div>
             )}
           </div>
@@ -85,7 +85,7 @@ export default function GetDataConfirmModal({
             <div className={styles.pendingDefectBox}>
               <div className={styles.pendingDefectIcon}>📝</div>
               <div className={styles.pendingDefectText}>
-                <strong>{pendingDefectsCount} titik cacat sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{targetRollId}</strong> dan tersimpan ke sistem.
+                <strong>{pendingDefectsCount} titik inspeksi sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{targetRollId}</strong> dan tersimpan ke sistem.
               </div>
             </div>
           )}

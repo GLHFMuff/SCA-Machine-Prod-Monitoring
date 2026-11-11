@@ -1,10 +1,10 @@
 import styles from './ConfirmDeleteModal.module.css'
 
-export default function ConfirmDeleteModal({ roll, defectCount, onConfirm, onCancel }) {
+export default function ConfirmDeleteModal({ roll, defectCount, loading = false, onConfirm, onCancel }) {
   if (!roll) return null
 
   return (
-    <div className={styles.overlay} onClick={onCancel} role="dialog" aria-modal="true">
+    <div className={styles.overlay} onClick={() => !loading && onCancel?.()} role="dialog" aria-modal="true">
       <div className={styles.box} onClick={e => e.stopPropagation()}>
         <div className={styles.head}>
           <div className={styles.iconWrap}>🗑️</div>
@@ -26,10 +26,10 @@ export default function ConfirmDeleteModal({ roll, defectCount, onConfirm, onCan
 
           {defectCount > 0 ? (
             <div className={styles.warningBox}>
-              ⚠️ <strong>Perhatian:</strong> Roll ini memiliki <strong>{defectCount} cacat</strong> yang juga akan ikut terhapus.
+              ⚠️ <strong>Perhatian:</strong> Roll ini memiliki <strong>{defectCount} inspeksi</strong> yang juga akan ikut dihapus dari data aktif.
             </div>
           ) : (
-            <p className={styles.note}>Data roll ini akan dihapus dari antrean produksi saat ini.</p>
+            <p className={styles.note}>Data roll ini akan dihapus dari daftar produksi aktif.</p>
           )}
         </div>
 
@@ -38,6 +38,7 @@ export default function ConfirmDeleteModal({ roll, defectCount, onConfirm, onCan
             type="button"
             className="btn btn-outline btn-sm"
             onClick={onCancel}
+            disabled={loading}
           >
             Batal
           </button>
@@ -45,8 +46,9 @@ export default function ConfirmDeleteModal({ roll, defectCount, onConfirm, onCan
             type="button"
             className={`btn btn-sm ${styles.confirmBtn}`}
             onClick={onConfirm}
+            disabled={loading}
           >
-            🗑️ Ya, Hapus Baris
+            {loading ? 'Menghapus...' : '🗑️ Ya, Hapus Baris'}
           </button>
         </div>
       </div>

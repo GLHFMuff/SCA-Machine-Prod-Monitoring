@@ -141,7 +141,7 @@ router.post('/', async (req, res) => {
     const cleanDefect = String(Defect || '').trim();
 
     if (!cleanCode) {
-      return res.status(400).json({ success: false, message: 'Kode cacat (Code) wajib diisi.' });
+      return res.status(400).json({ success: false, message: 'Kode inspeksi (Code) wajib diisi.' });
     }
 
     const checkExist = await pool.query(
@@ -152,7 +152,7 @@ router.post('/', async (req, res) => {
     if (checkExist.rows.length > 0) {
       return res.status(409).json({
         success: false,
-        message: `Kode cacat '${cleanCode}' sudah terdaftar. Gunakan kode lain.`,
+        message: `Kode inspeksi '${cleanCode}' sudah terdaftar. Gunakan kode lain.`,
       });
     }
 
@@ -163,12 +163,12 @@ router.post('/', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `Kode cacat '${cleanCode}' berhasil ditambahkan.`,
+      message: `Kode inspeksi '${cleanCode}' berhasil ditambahkan.`,
       data: insertResult.rows[0],
     });
   } catch (err) {
     console.error('[Create Defect Code Error]:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Gagal menambahkan kode cacat.' });
+    return res.status(500).json({ success: false, message: err.message || 'Gagal menambahkan kode inspeksi.' });
   }
 });
 
@@ -197,17 +197,17 @@ router.put('/:code', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: `Kode cacat '${targetCode}' tidak ditemukan.` });
+      return res.status(404).json({ success: false, message: `Kode inspeksi '${targetCode}' tidak ditemukan.` });
     }
 
     return res.json({
       success: true,
-      message: `Kode cacat '${result.rows[0].Code}' berhasil diperbarui.`,
+      message: `Kode inspeksi '${result.rows[0].Code}' berhasil diperbarui.`,
       data: result.rows[0],
     });
   } catch (err) {
     console.error('[Update Defect Code Error]:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Gagal memperbarui kode cacat.' });
+    return res.status(500).json({ success: false, message: err.message || 'Gagal memperbarui kode inspeksi.' });
   }
 });
 
@@ -230,17 +230,17 @@ router.delete('/:code', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: `Kode cacat '${targetCode}' tidak ditemukan.` });
+      return res.status(404).json({ success: false, message: `Kode inspeksi '${targetCode}' tidak ditemukan.` });
     }
 
     return res.json({
       success: true,
-      message: `Kode cacat '${targetCode}' berhasil dihapus.`,
+      message: `Kode inspeksi '${targetCode}' berhasil dihapus.`,
       data: result.rows[0],
     });
   } catch (err) {
     console.error('[Delete Defect Code Error]:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Gagal menghapus kode cacat.' });
+    return res.status(500).json({ success: false, message: err.message || 'Gagal menghapus kode inspeksi.' });
   }
 });
 

@@ -436,7 +436,7 @@ export default function RollLabelModal({
                         <span class="colonCell">:</span>
                         <span class="valueCell">${dateStr}</span>
 
-                        <span class="labelCell">LENGTH</span>
+                        <span class="labelCell">WIDTH</span>
                         <span class="colonCell">:</span>
                         <span class="valueCell">${lengthInchStr}</span>
 
@@ -761,7 +761,7 @@ export default function RollLabelModal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Length (Lebar) (Readonly)</label>
+                  <label className={styles.editLabel}>Width (Lebar) (Readonly)</label>
                   <input
                     type="text"
                     className={styles.editInput}
@@ -900,7 +900,7 @@ export default function RollLabelModal({
                       <span className={styles.colonCell}>:</span>
                       <span className={styles.valueCell}>{dateStr}</span>
 
-                      <span className={styles.labelCell}>LENGTH</span>
+                      <span className={styles.labelCell}>WIDTH</span>
                       <span className={styles.colonCell}>:</span>
                       <span className={styles.valueCell}>{lengthInchStr}</span>
 
@@ -938,11 +938,10 @@ export default function RollLabelModal({
           {/* Status Alert Notification */}
           {printStatus && (
             <div
-              className={`${styles.statusMessage} ${
-                printStatus.type === 'success'
+              className={`${styles.statusMessage} ${printStatus.type === 'success'
                   ? styles.statusMessageSuccess
                   : styles.statusMessageError
-              }`}
+                }`}
             >
               <span>{printStatus.message}</span>
               <button

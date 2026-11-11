@@ -1,10 +1,34 @@
 import { DEFECT_CODES } from '../data/dummyData.js'
 import { useEffect, useRef, useState } from 'react'
 import styles from './DefectModal.module.css'
-import { getDefectCodeList } from '../services/api';
+import { getDefectCodeList } from '../services/api'
+import {
+  buildInitialInspectionList,
+  ensureJpDefectOption,
+  extractDefectCode,
+  isJoinedPieceCode,
+  splitInspectionsByType,
+  validateAndBuildInspectionItem,
+} from '../utils/inspectionHelpers.js'
 
-export default function DefectModal({ roll, isPreRoll = false, initDefects, onSave, onClose }) {
-  const [list, setList] = useState(initDefects || [])
+function parseDummyDefectCodes() {
+  return DEFECT_CODES.map(item => {
+    const [c, ...rest] = item.split('–')
+    return { Code: c.trim(), Defect: rest.join('–').trim() }
+  })
+}
+
+export default function DefectModal({
+  roll,
+  isPreRoll = false,
+  initDefects,
+  initJoinedPieces = [],
+  onSave,
+  onClose,
+}) {
+  const [list, setList] = useState(() =>
+    buildInitialInspectionList(initDefects, initJoinedPieces, isPreRoll)
+  )
   const [yard, setYard] = useState('')
   const [yardTo, setYardTo] = useState('')
   const [code, setCode] = useState('')
@@ -20,24 +44,14 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
     getDefectCodeList()
       .then(res => {
         if (res?.data && res.data.length > 0) {
-          setDefectOptions(res.data)
+          setDefectOptions(ensureJpDefectOption(res.data))
         } else {
-          setDefectOptions(
-            DEFECT_CODES.map(item => {
-              const [c, ...rest] = item.split('–')
-              return { Code: c.trim(), Defect: rest.join('–').trim() }
-            })
-          )
+          setDefectOptions(ensureJpDefectOption(parseDummyDefectCodes()))
         }
       })
       .catch(err => {
         console.error('[DefectModal] gagal load defect codes:', err)
-        setDefectOptions(
-          DEFECT_CODES.map(item => {
-            const [c, ...rest] = item.split('–')
-            return { Code: c.trim(), Defect: rest.join('–').trim() }
-          })
-        )
+        setDefectOptions(ensureJpDefectOption(parseDummyDefectCodes()))
       })
   }, [])
 
@@ -61,39 +75,32 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
     }
   }, [isDropdownOpen])
 
-  function addDefect() {
-    if (!yard) {
-      setError('Masukkan posisi cacat dalam yard.')
-      return
-    }
-    const parsedYard = parseFloat(yard)
-    if (isNaN(parsedYard) || parsedYard <= 0) {
-      setError('Posisi cacat harus berupa angka lebih dari 0.')
-      return
-    }
-    if (!isPreRoll && roll?.length && parsedYard >= roll.length) {
-      setError(`Posisi cacat (${parsedYard} yd) harus di bawah panjang roll (${roll.length} yd).`)
-      return
-    }
-    const parsedYardTo = parseFloat(yardTo)
-    if (isNaN(parsedYardTo) || parsedYardTo <= 0) {
-      setError('Posisi cacat to harus berupa angka lebih dari 0.')
-      return
-    }
-    if (!isPreRoll && roll?.length && parsedYardTo >= roll.length) {
-      setError(`Posisi cacat to (${parsedYardTo} yd) harus di bawah panjang roll (${roll.length} yd).`)
-      return
-    }
-    if (parsedYardTo < parsedYard) {
-      setError(`Posisi cacat to harus berupa angka lebih dari ${parsedYard}.`)
-      return
-    }
-    if (!code) {
-      setError('Pilih kode cacat terlebih dahulu.')
-      return
-    }
+  function selectDefectCode(nextCode) {
+    setCode(nextCode)
+    setIsDropdownOpen(false)
+    setSearchQuery('')
     setError('')
-    setList(prev => [...prev, { id: Date.now() + Math.random(), yard: parsedYard, yardTo: parsedYardTo, code }])
+    if (isJoinedPieceCode(nextCode)) {
+      setYardTo('')
+    }
+  }
+
+  function addDefect() {
+    const result = validateAndBuildInspectionItem({
+      yard,
+      yardTo,
+      code,
+      isPreRoll,
+      rollLength: roll?.length,
+    })
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    setError('')
+    setList(prev => [...prev, result.item])
     setYard('')
     setYardTo('')
     setCode('')
@@ -101,11 +108,19 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
     setIsDropdownOpen(false)
   }
 
-  function removeDefect(id) {
-    setList(prev => prev.filter(d => d.id !== id))
+  function removeDefect(itemKey) {
+    setList(prev => prev.filter(d => (d._uid || d.id) !== itemKey))
   }
 
-  const selectedDefect = defectOptions.find(d => d.Code === code)
+  function handleSave() {
+    const { defects, joinedPieces } = splitInspectionsByType(list)
+    onSave(defects, joinedPieces)
+  }
+
+  const isJpSelected = isJoinedPieceCode(code)
+  const selectedDefect = defectOptions.find(
+    d => String(d.Code || '').trim().toUpperCase() === extractDefectCode(code).toUpperCase()
+  )
 
   const filteredDefects = defectOptions.filter(d => {
     const q = searchQuery.toLowerCase().trim()
@@ -124,8 +139,8 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
           <div>
             <div className={styles.title}>
               {isPreRoll
-                ? 'Catat Cacat — Roll Belum Terbentuk'
-                : `Catat Cacat — Roll #${roll?.id}`}
+                ? 'Catat Inspeksi — Roll Belum Terbentuk'
+                : `Catat Inspeksi — Roll #${roll?.id}`}
             </div>
             <div className={styles.headSub}>
               {isPreRoll
@@ -138,31 +153,47 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
 
         {/* Body */}
         <div className={styles.body}>
-          {/* Existing defect list */}
+          {/* Existing defect & joined piece list */}
           {list.length === 0 ? (
             <p className={styles.empty}>
               {isPreRoll
-                ? 'Belum ada catatan cacat sementara pada roll yang sedang berjalan'
-                : 'Belum ada catatan cacat pada roll ini'}
+                ? 'Belum ada catatan inspeksi sementara pada roll yang sedang berjalan'
+                : 'Belum ada catatan inspeksi pada roll ini'}
             </p>
           ) : (
             <div className={styles.defectList}>
               {list.map(d => {
-                const defectDetail = defectOptions.find(o => o.Code === d.code)
+                const itemKey = d._uid || d.id
+                const isJp = isJoinedPieceCode(d.code) || Boolean(d.isJoinedPiece)
+                const baseCode = extractDefectCode(d.code)
+                const defectDetail = defectOptions.find(
+                  o => String(o.Code || '').trim().toUpperCase() === baseCode.toUpperCase()
+                )
+                const hasDescInCode = /\s+[–-]\s+/.test(String(d.code || ''))
+                const resolvedDesc = !hasDescInCode
+                  ? (defectDetail?.Defect || (isJp ? 'Joined Piece' : ''))
+                  : ''
+
                 return (
-                  <div className={styles.defectItem} key={d.id}>
+                  <div className={styles.defectItem} key={itemKey}>
                     <div>
-                      <div className={styles.defectCode}>
-                        ⚠️ {d.code} {defectDetail?.Defect ? `– ${defectDetail.Defect}` : ''}
+                      <div className={`${styles.defectCode} ${isJp ? styles.jpCode : ''}`}>
+                        <span>
+                          {isJp ? '🧵' : '⚠️'} {d.code}
+                          {resolvedDesc ? ` – ${resolvedDesc}` : ''}
+                        </span>
+                        {isJp && <span className={styles.jpBadge}>Joined Piece</span>}
                       </div>
                       <div className={styles.defectYard}>
-                        Posisi yard {d.yard}{d.yardTo != d.yard && ` sampai yard ${d.yardTo}`}
+                        {isJp
+                          ? `Panjang / Posisi yard ${d.yard}`
+                          : `Posisi yard ${d.yard}${d.yardTo > 0 && d.yardTo != d.yard ? ` sampai yard ${d.yardTo}` : ''}`}
                       </div>
                     </div>
                     <button
                       className={styles.deleteBtn}
-                      onClick={() => removeDefect(d.id)}
-                      aria-label="Hapus cacat"
+                      onClick={() => removeDefect(itemKey)}
+                      aria-label={isJp ? 'Hapus joined piece' : 'Hapus inspeksi'}
                     >
                       🗑
                     </button>
@@ -172,13 +203,15 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
             </div>
           )}
 
-          {/* Add new defect form */}
+          {/* Add new defect / joined piece form */}
           <div className={styles.addForm}>
-            <div className={styles.addFormLabel}>+ Tambah Titik Cacat</div>
+            <div className={styles.addFormLabel}>+ Tambah Titik Inspeksi</div>
             {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
             <div className={styles.formRow}>
               <div>
-                <label className={styles.fieldLabel}>Posisi From(Yard)</label>
+                <label className={styles.fieldLabel}>
+                  {isJpSelected ? 'From Length / Posisi (Yard)' : 'Posisi From (Yard)'}
+                </label>
                 <input
                   className={styles.fieldInput}
                   type="number"
@@ -189,20 +222,20 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                   step="0.1"
                   onChange={e => {
                     setYard(e.target.value)
-                    if (!yardTo || yardTo == 0) {
-                      setYardTo(e.target.value)
-                    }
                     setError('')
                   }}
                 />
               </div>
               <div>
-                <label className={styles.fieldLabel}>Posisi To(Yard)</label>
+                <label className={styles.fieldLabel}>
+                  Posisi To (Yard) <span className={styles.optionalHint}>(Opsional)</span>
+                </label>
                 <input
                   className={styles.fieldInput}
                   type="number"
-                  placeholder="mis. 45.5"
-                  value={yardTo}
+                  placeholder={isJpSelected ? 'Tidak diperlukan untuk JP' : 'Opsional'}
+                  value={isJpSelected ? '' : yardTo}
+                  disabled={isJpSelected}
                   min="0.1"
                   {...(!isPreRoll && roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
                   step="0.1"
@@ -214,9 +247,9 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
               </div>
             </div>
 
-            {/* Searchable Select Kode Cacat */}
+            {/* Searchable Select Kode Inspeksi */}
             <div className={styles.selectWrapper} ref={dropdownRef}>
-              <label className={styles.fieldLabel}>Kode Cacat</label>
+              <label className={styles.fieldLabel}>Kode Inspeksi</label>
               <button
                 type="button"
                 className={`${styles.selectTrigger} ${isDropdownOpen ? styles.selectTriggerActive : ''}`}
@@ -228,7 +261,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                 <span className={code ? styles.selectedText : styles.placeholderText}>
                   {selectedDefect
                     ? `${selectedDefect.Code} – ${selectedDefect.Defect}`
-                    : '-- Pilih / Cari Kode Cacat --'}
+                    : (code || '-- Pilih / Cari Kode Inspeksi --')}
                 </span>
                 <span className={styles.triggerIcons}>
                   {code && (
@@ -238,6 +271,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                       onClick={e => {
                         e.stopPropagation()
                         setCode('')
+                        setError('')
                       }}
                     >
                       ✕
@@ -255,7 +289,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                       ref={searchInputRef}
                       type="text"
                       className={styles.searchInput}
-                      placeholder="Ketik kode atau nama cacat..."
+                      placeholder="Ketik kode atau nama inspeksi..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                       onKeyDown={e => {
@@ -264,10 +298,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
                         } else if (e.key === 'Enter') {
                           e.preventDefault()
                           if (filteredDefects.length > 0) {
-                            setCode(filteredDefects[0].Code)
-                            setIsDropdownOpen(false)
-                            setSearchQuery('')
-                            setError('')
+                            selectDefectCode(filteredDefects[0].Code)
                           }
                         }
                       }}
@@ -286,20 +317,17 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
 
                   <div className={styles.optionsList}>
                     {filteredDefects.length === 0 ? (
-                      <div className={styles.noOption}>Tidak ada kode cacat yang cocok</div>
+                      <div className={styles.noOption}>Tidak ada kode inspeksi yang cocok</div>
                     ) : (
                       filteredDefects.map(d => {
-                        const isSelected = d.Code === code
+                        const isSelected =
+                          String(d.Code || '').trim().toUpperCase() ===
+                          extractDefectCode(code).toUpperCase()
                         return (
                           <div
                             key={d.Code}
                             className={`${styles.optionItem} ${isSelected ? styles.optionSelected : ''}`}
-                            onClick={() => {
-                              setCode(d.Code)
-                              setIsDropdownOpen(false)
-                              setSearchQuery('')
-                              setError('')
-                            }}
+                            onClick={() => selectDefectCode(d.Code)}
                           >
                             <span className={styles.optionCode}>{d.Code}</span>
                             <span className={styles.optionDefect}>{d.Defect}</span>
@@ -313,8 +341,14 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
               )}
             </div>
 
+            {isJpSelected && (
+              <div className={styles.jpNotice}>
+                🧵 Kode <strong>JP</strong> akan disimpan ke <strong>Joined Piece</strong> (hanya menggunakan From length).
+              </div>
+            )}
+
             <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addDefect}>
-              ＋ Tambah Titik Cacat
+              {isJpSelected ? '＋ Tambah Joined Piece' : '＋ Tambah Titik Inspeksi'}
             </button>
           </div>
         </div>
@@ -322,7 +356,7 @@ export default function DefectModal({ roll, isPreRoll = false, initDefects, onSa
         {/* Footer */}
         <div className={styles.footer}>
           <button className="btn btn-outline btn-sm" onClick={onClose}>Batal</button>
-          <button className="btn btn-primary btn-sm" onClick={() => onSave(list)}>
+          <button className="btn btn-primary btn-sm" onClick={handleSave}>
             {isPreRoll ? '💾 Simpan Catatan Sementara' : '💾 Simpan'}
           </button>
         </div>

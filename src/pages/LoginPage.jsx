@@ -1,21 +1,74 @@
-import { useCallback, useEffect, useState } from 'react'
-import { getMachinesApi, loginApi } from '../services/api.js'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { getAppSettingsApi, getMachinesApi, loginApi } from '../services/api.js'
 import { isFullscreen, toggleFullscreen, requestFullscreen, onFullscreenChange } from '../utils/fullscreen.js'
+import { DEFAULT_SHIFT_LIST, detectActiveShift, formatClockHHMM } from '../utils/shiftUtils.js'
 import styles from './LoginPage.module.css'
 
-export default function LoginPage({ onLogin, theme, onToggleTheme }) {
+export default function LoginPage({ onLogin, theme, onToggleTheme, sessionNotice, onDismissNotice }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [machineId, setMachineId] = useState('')
-  const [shift, setShift] = useState('')
+  const [shifts, setShifts] = useState(DEFAULT_SHIFT_LIST)
+  const [detectedShift, setDetectedShift] = useState(() => detectActiveShift(DEFAULT_SHIFT_LIST, new Date()))
+  const [shift, setShift] = useState(() => {
+    const initial = detectActiveShift(DEFAULT_SHIFT_LIST, new Date())
+    return initial ? String(initial.id) : ''
+  })
+  const [clockLabel, setClockLabel] = useState(() => formatClockHHMM(new Date()))
   const [machines, setMachines] = useState([])
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
   const [isFs, setIsFs] = useState(() => isFullscreen())
 
+  const shiftTouchedRef = useRef(false)
+  const serverOffsetMsRef = useRef(0)
+
   useEffect(() => {
     return onFullscreenChange(setIsFs)
   }, [])
+
+  const applyShiftDetection = useCallback((shiftList, offsetMs, serverActiveShift = null) => {
+    const nowAdjusted = new Date(Date.now() + offsetMs)
+    const active = detectActiveShift(shiftList, nowAdjusted) || serverActiveShift || null
+    setDetectedShift((prev) =>
+      prev?.id === active?.id && prev?.name === active?.name && prev?.start === active?.start && prev?.end === active?.end
+        ? prev
+        : active
+    )
+    setClockLabel(formatClockHHMM(nowAdjusted))
+
+    setShift((prevShift) => {
+      const stillExists = shiftList.some((item) => String(item.id) === String(prevShift))
+      if (!shiftTouchedRef.current || (prevShift && !stillExists)) {
+        shiftTouchedRef.current = false
+        return active ? String(active.id) : ''
+      }
+      return prevShift
+    })
+  }, [])
+
+  const loadShiftSettings = useCallback(async () => {
+    try {
+      const data = await getAppSettingsApi()
+      const configuredShifts = Array.isArray(data?.settings?.shifts) && data.settings.shifts.length > 0
+        ? data.settings.shifts
+        : DEFAULT_SHIFT_LIST
+
+      let offsetMs = 0
+      if (data?.serverNow) {
+        const parsedServerMs = Date.parse(data.serverNow)
+        if (Number.isFinite(parsedServerMs)) {
+          offsetMs = parsedServerMs - Date.now()
+        }
+      }
+      serverOffsetMsRef.current = offsetMs
+      setShifts(configuredShifts)
+      applyShiftDetection(configuredShifts, offsetMs, data?.activeShift || null)
+    } catch {
+      // Fall back to locally detected shift from current shift list if settings API is unavailable
+      applyShiftDetection(DEFAULT_SHIFT_LIST, serverOffsetMsRef.current, null)
+    }
+  }, [applyShiftDetection])
 
   const refreshMachines = useCallback(async () => {
     try {
@@ -31,10 +84,32 @@ export default function LoginPage({ onLogin, theme, onToggleTheme }) {
   }, [])
 
   useEffect(() => {
+    loadShiftSettings()
     refreshMachines()
-    const intervalId = window.setInterval(refreshMachines, 5000)
-    return () => window.clearInterval(intervalId)
-  }, [refreshMachines])
+    const machinesIntervalId = window.setInterval(refreshMachines, 5000)
+    const settingsIntervalId = window.setInterval(loadShiftSettings, 30000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadShiftSettings()
+        refreshMachines()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.clearInterval(machinesIntervalId)
+      window.clearInterval(settingsIntervalId)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [loadShiftSettings, refreshMachines])
+
+  // Re-evaluate configured shift setting every second (in-memory only) so boundary transitions switch at :00
+  useEffect(() => {
+    const clockIntervalId = window.setInterval(() => {
+      applyShiftDetection(shifts, serverOffsetMsRef.current, null)
+    }, 1000)
+    return () => window.clearInterval(clockIntervalId)
+  }, [shifts, applyShiftDetection])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -69,6 +144,7 @@ export default function LoginPage({ onLogin, theme, onToggleTheme }) {
           machineId,
           shift: Number(shift),
         }))
+        onDismissNotice?.()
         onLogin(sessionUser)
       }
     } catch (error) {
@@ -142,15 +218,56 @@ export default function LoginPage({ onLogin, theme, onToggleTheme }) {
             <div className={styles.sectionEyebrow}>02 / OPERATOR</div>
             <h2 id="login-heading" className={styles.title}>Selamat datang</h2>
             <p className={styles.sub}>Masuk dengan akun operator Anda.</p>
+            {sessionNotice && (
+              <div className={styles.noticeBanner} role="status">
+                <span>⚠️ {sessionNotice}</span>
+                {onDismissNotice && (
+                  <button
+                    type="button"
+                    className={styles.noticeCloseBtn}
+                    onClick={onDismissNotice}
+                    aria-label="Tutup pemberitahuan"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <fieldset className={styles.shiftGroup}>
-                <legend className={styles.label}>Pilih shift</legend>
+                <legend className={styles.label}>
+                  Pilih shift
+                  <span className={styles.shiftAutoHint}>
+                    {' '}({clockLabel} • {detectedShift ? `Otomatis: ${detectedShift.name}` : 'Pilih manual'})
+                  </span>
+                </legend>
                 <div className={styles.shiftOptions}>
-                  {[1, 2, 3].map((value) => <label key={value} className={`${styles.shiftOption} ${Number(shift) === value ? styles.shiftSelected : ''}`}>
-                    <input type="radio" name="shift" value={value} checked={Number(shift) === value}
-                      onChange={(event) => setShift(event.target.value)} />
-                    <span>Shift {value}</span>
-                  </label>)}
+                  {shifts.map((item) => {
+                    const isSelected = Number(shift) === Number(item.id)
+                    const isAutoDefault = Number(detectedShift?.id) === Number(item.id)
+                    return (
+                      <label key={item.id} className={`${styles.shiftOption} ${isSelected ? styles.shiftSelected : ''}`}>
+                        <input
+                          type="radio"
+                          name="shift"
+                          value={item.id}
+                          checked={isSelected}
+                          onChange={(event) => {
+                            shiftTouchedRef.current = true
+                            setShift(event.target.value)
+                            setErr('')
+                          }}
+                        />
+                        <span className={styles.shiftNameRow}>
+                          <span>{item.name || `Shift ${item.id}`}</span>
+                          {isAutoDefault && <span className={styles.shiftDefaultBadge}>Auto</span>}
+                        </span>
+                        {item.start && item.end && (
+                          <span className={styles.shiftTime}>{item.start}–{item.end}</span>
+                        )}
+                      </label>
+                    )
+                  })}
                 </div>
               </fieldset>
               <div className={styles.formGroup}>

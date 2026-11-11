@@ -10,8 +10,10 @@ import countingRouter from './routes/counting.js';
 import inventoryStatusRouter from './routes/inventory-status.js';
 import defectCodeRouter from './routes/defect-code.js';
 import printRouter from './routes/print.js';
+import settingsRouter from './routes/settings.js';
 import { authenticateKey } from './middleware/auth.js';
 import { ensureSequenceTable } from './services/sequence.js';
+import { cleanupExpiredAndIdleSessions } from './services/sessionCleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -155,6 +157,9 @@ app.use('/api/defect-code', defectCodeRouter);
 // Direct Printer endpoints (Raw ZPL / Thermal / Windows Spooler)
 app.use('/api/print', printRouter);
 
+// App Settings endpoints (JSON-backed configuration)
+app.use('/api/settings', settingsRouter);
+
 // SPA fallback for frontend routes (non-API GET requests)
 app.use((req, res, next) => {
   if (req.method === 'GET' && !req.path.startsWith('/api')) {
@@ -278,6 +283,17 @@ if (!server) {
 ensureSequenceTable().catch((err) => {
   console.warn('[Sequence Table Warning]:', err.message);
 });
+
+// Sweep idle & expired sessions periodically so inactive machines are released even if browsers closed
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 1000;
+cleanupExpiredAndIdleSessions().catch((err) => {
+  console.warn('[Initial Session Cleanup Warning]:', err.message);
+});
+setInterval(() => {
+  cleanupExpiredAndIdleSessions().catch((err) => {
+    console.warn('[Session Cleanup Warning]:', err.message);
+  });
+}, SESSION_CLEANUP_INTERVAL_MS).unref?.();
 
 export { app, authenticateKey };
 export default app;

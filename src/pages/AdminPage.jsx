@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getStoredAdminSession,
-  checkAdminSessionApi,
+  checkAdminSessionDetailedApi,
+  getAppSettingsApi,
   adminLoginApi,
   adminLogoutApi,
 } from '../services/api.js'
 import AdminPanel from '../components/AdminPanel.jsx'
+import IdleWarningModal from '../components/IdleWarningModal.jsx'
 import Toast from '../components/Toast.jsx'
+import { useIdleSession } from '../hooks/useIdleSession.js'
 import { isFullscreen, exitFullscreen, toggleFullscreen, onFullscreenChange } from '../utils/fullscreen.js'
 import styles from './AdminPage.module.css'
 
@@ -16,6 +19,12 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
     return stored?.user?.role === 'admin' ? stored.user : null
   })
   const [checking, setChecking] = useState(true)
+  const [initialServerIdleMs, setInitialServerIdleMs] = useState(null)
+  const [sessionSettings, setSessionSettings] = useState({
+    idleTimeoutMinutes: 120,
+    idleWarningSeconds: 60,
+    applyIdleToAdmin: false,
+  })
 
   // Login form state
   const [username, setUsername] = useState('')
@@ -41,20 +50,44 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
     window.setTimeout(() => setToastMsg(''), 4000)
   }
 
+  const syncAppSettings = useCallback(async () => {
+    try {
+      const data = await getAppSettingsApi()
+      if (data?.settings?.session) {
+        setSessionSettings((prev) => ({
+          ...prev,
+          ...data.settings.session,
+        }))
+      }
+    } catch {
+      // ignore transient error
+    }
+  }, [])
+
   // Validate admin session with backend on mount
   useEffect(() => {
+    syncAppSettings()
     const stored = getStoredAdminSession()
     if (!stored?.key) {
       setChecking(false)
       return
     }
 
-    checkAdminSessionApi(stored.key)
-      .then((validatedUser) => {
-        if (validatedUser && String(validatedUser.role || '').toLowerCase() === 'admin') {
-          setAdminUser(validatedUser)
+    checkAdminSessionDetailedApi(stored.key)
+      .then((res) => {
+        if ((res?.status === 'valid' || res?.status === 'offline') && String(res.user?.role || '').toLowerCase() === 'admin') {
+          setAdminUser(res.user)
+          setInitialServerIdleMs(
+            typeof res.session?.idle_elapsed_ms === 'number'
+              ? res.session.idle_elapsed_ms
+              : null
+          )
         } else {
           setAdminUser(null)
+          setInitialServerIdleMs(null)
+          if (res?.status === 'unauthorized' && res.reason) {
+            setErr(res.reason)
+          }
         }
       })
       .catch(() => {
@@ -63,7 +96,7 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
       .finally(() => {
         setChecking(false)
       })
-  }, [])
+  }, [syncAppSettings])
 
   // Handle Admin Login submission
   async function handleAdminLogin(e) {
@@ -81,6 +114,7 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
           setErr('Akses ditolak: Akun ini tidak memiliki hak akses Administrator.')
           return
         }
+        setInitialServerIdleMs(0)
         setAdminUser(result.user)
         showToast(`Selamat datang, Administrator ${result.user.name || result.user.username}`)
       }
@@ -92,12 +126,29 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
   }
 
   // Handle Admin Logout
-  async function handleAdminLogout() {
+  const handleAdminLogout = useCallback(async (reason = '') => {
     const sessionKey = adminUser?.sessionKey || localStorage.getItem('mpm_admin_session_key')
     await adminLogoutApi(sessionKey)
     setAdminUser(null)
-    showToast('Berhasil keluar dari sesi Administrator.')
-  }
+    setInitialServerIdleMs(null)
+    if (typeof reason === 'string' && reason.trim()) {
+      setErr(reason)
+    } else {
+      showToast('Berhasil keluar dari sesi Administrator.')
+    }
+  }, [adminUser?.sessionKey])
+
+  const { warningRemainingSec, extendSession } = useIdleSession({
+    enabled: !checking && Boolean(adminUser?.sessionKey),
+    sessionKey: adminUser?.sessionKey || '',
+    storageKey: 'mpm_admin_last_activity_at',
+    idleTimeoutMinutes: sessionSettings.applyIdleToAdmin ? sessionSettings.idleTimeoutMinutes : 0,
+    idleWarningSeconds: sessionSettings.idleWarningSeconds,
+    initialServerIdleMs,
+    checkSessionFn: checkAdminSessionDetailedApi,
+    onSettingsSync: syncAppSettings,
+    onAutoLogout: (reason) => handleAdminLogout(reason),
+  })
 
   if (checking) {
     return (
@@ -224,11 +275,22 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
       <AdminPanel
         user={adminUser}
         onBackToProduction={() => onNavigate('/')}
-        onLogout={handleAdminLogout}
+        onLogout={() => handleAdminLogout('')}
+        onSettingsUpdated={(nextSettings) => {
+          if (nextSettings?.session) {
+            setSessionSettings((prev) => ({ ...prev, ...nextSettings.session }))
+          }
+        }}
         showToast={showToast}
+      />
+      <IdleWarningModal
+        remainingSeconds={warningRemainingSec}
+        idleTimeoutMinutes={sessionSettings.idleTimeoutMinutes}
+        machineLabel="Portal Admin"
+        onContinue={extendSession}
+        onLogoutNow={() => handleAdminLogout('')}
       />
       {toastMsg && <Toast message={toastMsg} />}
     </div>
   )
 }
-

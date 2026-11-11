@@ -5,6 +5,28 @@
 // Use relative path for Vite proxy, or fallback to backend port 5000 if needed
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+export const SESSION_ACTIVITY_EVENT = 'mpm:activity';
+
+export function emitUserActivity() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_ACTIVITY_EVENT));
+  }
+}
+
+export function clearOperatorOrderSnapshots() {
+  if (typeof window === 'undefined') return;
+  for (const storage of [localStorage, sessionStorage]) {
+    const staleKeys = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key?.startsWith('mpm_active_order_') || key?.startsWith('pending_defects_')) {
+        staleKeys.push(key);
+      }
+    }
+    staleKeys.forEach((key) => storage.removeItem(key));
+  }
+}
+
 /**
  * Format backend user payload to match frontend UI component props
  * (AppHeader, InfoCards, ScanIdle expect user.name, user.machine, user.machineType)
@@ -63,17 +85,22 @@ export async function loginApi(username, password, machineId) {
       throw new Error(errorMsg);
     }
 
-    const { key, user } = data.data;
+    const { key, user, expires_at, last_used_at } = data.data;
     const formattedUser = formatUser(user, key);
 
     // Save session in localStorage
     localStorage.setItem('mpm_session_key', key);
     localStorage.setItem('mpm_user', JSON.stringify(formattedUser));
+    localStorage.setItem('mpm_last_activity_at', String(Date.now()));
 
     return {
       success: true,
       user: formattedUser,
       key: key,
+      session: {
+        expires_at,
+        last_used_at,
+      },
     };
   } catch (err) {
     // If backend is unreachable
@@ -85,12 +112,12 @@ export async function loginApi(username, password, machineId) {
 }
 
 /**
- * Validate active session key with backend
- * @param {string} sessionKey 
- * @returns {Promise<object>} formatted user object
+ * Validate active session key with backend (returns status details so callers can detect 401 idle/revoked)
+ * @param {string} sessionKey
+ * @returns {Promise<{ status: 'valid'|'unauthorized'|'offline'|'none', user?: object|null, session?: object, reason?: string, code?: string }>}
  */
-export async function checkSessionApi(sessionKey) {
-  if (!sessionKey) return null;
+export async function checkSessionDetailedApi(sessionKey) {
+  if (!sessionKey) return { status: 'none', user: null };
 
   try {
     const res = await fetch(`${API_BASE}/api/auth/me`, {
@@ -99,46 +126,102 @@ export async function checkSessionApi(sessionKey) {
       },
     });
 
+    const data = await res.json().catch(() => null);
+
     if (!res.ok) {
-      // Only discard the cached login for an explicitly invalid/expired token.
+      // Only discard the cached login for an explicitly invalid/expired/idle token.
       if (res.status === 401 || res.status === 403) {
-        clearStoredSession()
-        return null
+        clearStoredSession();
+        return {
+          status: 'unauthorized',
+          user: null,
+          code: data?.code || 'SESSION_INVALID',
+          reason: data?.message || 'Sesi berakhir atau tidak valid.',
+        };
       }
-      throw new Error(`Session check failed (${res.status})`)
+      throw new Error(`Session check failed (${res.status})`);
     }
 
-    const data = await res.json();
     if (data?.success && data?.data?.user) {
-      const cachedUser = JSON.parse(localStorage.getItem('mpm_user') || 'null')
+      const cachedUser = JSON.parse(localStorage.getItem('mpm_user') || 'null');
       const user = {
         ...formatUser(data.data.user, sessionKey),
         // Machine choice and shift are session selections, not returned by /me.
         machineId: cachedUser?.machineId || data.data.user.machine_id,
         shift: cachedUser?.shift,
-      }
-      localStorage.setItem('mpm_user', JSON.stringify(user))
-      return user;
+      };
+      localStorage.setItem('mpm_user', JSON.stringify(user));
+      return {
+        status: 'valid',
+        user,
+        session: data.data.session || null,
+      };
     }
-    return null;
+    return { status: 'none', user: null };
   } catch (error) {
     // Keep local login and machine assignment intact on temporary API/server failures.
-    const stored = getStoredSession()
+    const stored = getStoredSession();
     if (stored?.key === sessionKey) {
-      console.warn('[Session Restore Warning]: using cached session:', error.message)
-      return stored.user
+      console.warn('[Session Restore Warning]: using cached session:', error.message);
+      return { status: 'offline', user: stored.user };
     }
-    console.error('[Session Restore Error]:', error.message)
-    return null
+    console.error('[Session Restore Error]:', error.message);
+    return { status: 'none', user: null };
+  }
+}
+
+/**
+ * Validate active session key with backend
+ * @param {string} sessionKey
+ * @returns {Promise<object>} formatted user object
+ */
+export async function checkSessionApi(sessionKey) {
+  const result = await checkSessionDetailedApi(sessionKey);
+  return result.user || null;
+}
+
+/**
+ * Send active heartbeat so backend updates user_sessions.last_used_at
+ * @param {string} sessionKey
+ */
+export async function sendHeartbeatApi(sessionKey) {
+  if (!sessionKey) return { status: 'none' };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/heartbeat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${sessionKey}`,
+      },
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        return {
+          status: 'unauthorized',
+          code: data?.code || 'SESSION_INVALID',
+          reason: data?.message || 'Sesi berakhir atau tidak valid.',
+        };
+      }
+      return { status: 'offline' };
+    }
+
+    return {
+      status: 'valid',
+      session: data?.data?.session || null,
+    };
+  } catch {
+    return { status: 'offline' };
   }
 }
 
 /**
  * Logout and invalidate session in backend
- * @param {string} sessionKey 
+ * @param {string} sessionKey
  */
 export async function logoutApi(sessionKey) {
-  let logoutSucceeded = false
+  let logoutSucceeded = false;
   try {
     if (sessionKey) {
       const res = await fetch(`${API_BASE}/api/auth/logout`, {
@@ -146,31 +229,19 @@ export async function logoutApi(sessionKey) {
         headers: {
           Authorization: `Bearer ${sessionKey}`,
         },
-      })
-      const data = await res.json().catch(() => null)
+      });
+      const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
-        throw new Error(data?.message || `Logout server gagal (Status ${res.status})`)
+        throw new Error(data?.message || `Logout server gagal (Status ${res.status})`);
       }
-      logoutSucceeded = true
+      logoutSucceeded = true;
     }
   } catch (err) {
-    console.error('Logout API call failed; machine may remain occupied:', err)
+    console.error('Logout API call failed; machine may remain occupied:', err);
   } finally {
-    clearStoredSession()
-    sessionStorage.removeItem('mpm_login_session')
-    // Drop operator-specific order snapshots so the next login starts at scan.
-    for (const storage of [localStorage, sessionStorage]) {
-      const staleKeys = []
-      for (let index = 0; index < storage.length; index += 1) {
-        const key = storage.key(index)
-        if (key?.startsWith('mpm_active_order_') || key?.startsWith('pending_defects_')) {
-          staleKeys.push(key)
-        }
-      }
-      staleKeys.forEach((key) => storage.removeItem(key))
-    }
+    clearStoredSession();
   }
-  return logoutSucceeded
+  return logoutSucceeded;
 }
 
 /**
@@ -179,11 +250,15 @@ export async function logoutApi(sessionKey) {
 export function clearStoredSession() {
   localStorage.removeItem('mpm_session_key');
   localStorage.removeItem('mpm_user');
+  localStorage.removeItem('mpm_last_activity_at');
+  sessionStorage.removeItem('mpm_login_session');
+  clearOperatorOrderSnapshots();
 }
 
 export function clearStoredAdminSession() {
   localStorage.removeItem('mpm_admin_session_key');
   localStorage.removeItem('mpm_admin_user');
+  localStorage.removeItem('mpm_admin_last_activity_at');
 }
 
 export function getStoredAdminSession() {
@@ -239,6 +314,7 @@ export async function adminLoginApi(username, password) {
 
     localStorage.setItem('mpm_admin_session_key', key);
     localStorage.setItem('mpm_admin_user', JSON.stringify(formattedUser));
+    localStorage.setItem('mpm_admin_last_activity_at', String(Date.now()));
 
     return {
       success: true,
@@ -254,10 +330,10 @@ export async function adminLoginApi(username, password) {
 }
 
 /**
- * Validasi session key admin dengan backend
+ * Validasi session key admin dengan backend (detail status)
  */
-export async function checkAdminSessionApi(sessionKey) {
-  if (!sessionKey) return null;
+export async function checkAdminSessionDetailedApi(sessionKey) {
+  if (!sessionKey) return { status: 'none', user: null };
 
   try {
     const res = await fetch(`${API_BASE}/api/auth/me`, {
@@ -265,21 +341,26 @@ export async function checkAdminSessionApi(sessionKey) {
         Authorization: `Bearer ${sessionKey}`,
       },
     });
+    const data = await res.json().catch(() => null);
 
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
         clearStoredAdminSession();
-        return null;
+        return {
+          status: 'unauthorized',
+          user: null,
+          code: data?.code || 'SESSION_INVALID',
+          reason: data?.message || 'Sesi Administrator berakhir atau tidak valid.',
+        };
       }
       throw new Error(`Session check failed (${res.status})`);
     }
 
-    const data = await res.json();
     if (data?.success && data?.data?.user) {
       const rawUser = data.data.user;
       if (String(rawUser.role || '').toLowerCase() !== 'admin') {
         clearStoredAdminSession();
-        return null;
+        return { status: 'unauthorized', user: null, reason: 'Akun bukan Administrator.' };
       }
       const user = {
         ...rawUser,
@@ -287,16 +368,68 @@ export async function checkAdminSessionApi(sessionKey) {
         sessionKey,
       };
       localStorage.setItem('mpm_admin_user', JSON.stringify(user));
-      return user;
+      return {
+        status: 'valid',
+        user,
+        session: data.data.session || null,
+      };
     }
-    return null;
+    return { status: 'none', user: null };
   } catch (error) {
     const stored = getStoredAdminSession();
     if (stored?.key === sessionKey && String(stored?.user?.role || '').toLowerCase() === 'admin') {
-      return stored.user;
+      return { status: 'offline', user: stored.user };
     }
-    return null;
+    return { status: 'none', user: null };
   }
+}
+
+/**
+ * Validasi session key admin dengan backend
+ */
+export async function checkAdminSessionApi(sessionKey) {
+  const res = await checkAdminSessionDetailedApi(sessionKey);
+  return res.user || null;
+}
+
+/**
+ * Ambil pengaturan aplikasi (jam shift & rule session)
+ * @returns {Promise<{ settings: object, activeShift: object|null, serverNow: string }>}
+ */
+export async function getAppSettingsApi() {
+  const url = `${API_BASE}/api/settings`;
+  const res = await fetch(url, { cache: 'no-store' });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Gagal memuat pengaturan aplikasi.');
+  }
+  return data.data;
+}
+
+/**
+ * Simpan pengaturan aplikasi ke server (khusus Administrator)
+ * @param {object} settingsPayload
+ * @param {string} [sessionKey]
+ */
+export async function saveAppSettingsApi(settingsPayload, sessionKey = '') {
+  const token = sessionKey || localStorage.getItem('mpm_admin_session_key') || '';
+  const url = `${API_BASE}/api/settings`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(settingsPayload),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || `Gagal menyimpan pengaturan (Status ${res.status}).`);
+  }
+  return {
+    ...data.data,
+    message: data.message,
+  };
 }
 
 /**
@@ -344,6 +477,7 @@ export function getStoredSession() {
  * @returns {Promise<object>}
  */
 export async function saveCountingHeader(payload) {
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/headers`;
 
   try {
@@ -377,6 +511,7 @@ export async function saveCountingHeader(payload) {
  * @returns {Promise<object>}
  */
 export async function saveCountingData(payload) {
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/upsert`;
 
   try {
@@ -444,6 +579,7 @@ export async function getCountingData(prodId, machineId = '') {
  */
 export async function markRollTicketPrinted(prodId, roolNumber) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(prodId.trim())}/${roolNumber}/print`;
 
   try {
@@ -473,7 +609,7 @@ export async function getNextRollInfo(prodId, machineId = '') {
   const url = `${API_BASE}/api/counting/next-roll/${encodeURIComponent(prodId.trim())}${param}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json().catch(() => null);
     if (res.ok && data?.success && data?.data) {
       return data.data;
@@ -493,6 +629,7 @@ export async function getNextRollInfo(prodId, machineId = '') {
  */
 export async function deleteRollApi(prodId, roolNumber) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(prodId.trim())}/${roolNumber}`;
 
   try {
@@ -501,7 +638,9 @@ export async function deleteRollApi(prodId, roolNumber) {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.message || data?.error || 'Gagal menghapus roll');
+      const error = new Error(data?.message || data?.error || 'Gagal menghapus roll');
+      error.status = res.status;
+      throw error;
     }
     return data;
   } catch (err) {
@@ -520,6 +659,7 @@ export async function deleteRollApi(prodId, roolNumber) {
  */
 export async function updateRollLineApi(prodId, roolNumber, payload) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(prodId.trim())}/${roolNumber}`;
 
   try {
@@ -546,6 +686,7 @@ export async function updateRollLineApi(prodId, roolNumber, payload) {
  * @returns {Promise<{ Length: number, DateTimeCreated: string }>}
  */
 export async function pullAndClearMachineData(machineId) {
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/autonic/get-and-delete`;
 
   try {
@@ -579,6 +720,7 @@ export async function pullAndClearMachineData(machineId) {
  */
 export async function saveRollDefectsApi(prodId, roolNumber, defects = []) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/defects`;
 
   try {
@@ -601,7 +743,7 @@ export async function saveRollDefectsApi(prodId, roolNumber, defects = []) {
 
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.message || data?.error || 'Gagal menyimpan catatan cacat');
+      throw new Error(data?.message || data?.error || 'Gagal menyimpan catatan inspeksi');
     }
     return data;
   } catch (err) {
@@ -635,6 +777,84 @@ export async function getRollDefectsApi(prodId, roolNumber) {
 }
 
 /**
+ * Get aggregated OP defect report data (header, all lines across machines,
+ * CountingKainDefect enriched with DefectCode, and joined pieces).
+ * Falls back gracefully to existing endpoints if the report endpoint is unavailable.
+ * @param {string} prodId
+ * @returns {Promise<{ header: object, lines: Array, defects: Array, joinedPieces: Array }>}
+ */
+export async function getDefectReportDataApi(prodId) {
+  const cleanProdId = String(prodId || '').trim();
+  if (!cleanProdId) {
+    throw new Error('Nomor OP (ProdId) tidak tersedia.');
+  }
+
+  const reportUrl = `${API_BASE}/api/counting/defect-report/${encodeURIComponent(cleanProdId)}`;
+  try {
+    const res = await fetch(reportUrl);
+    const payload = await res.json().catch(() => null);
+    if (res.ok && payload?.success && payload?.data) {
+      return payload.data;
+    }
+    // Only throw if server responded with a real error other than missing route
+    if (res.status !== 404 || payload?.message?.includes('tidak ditemukan')) {
+      if (res.status >= 500) {
+        throw new Error(payload?.message || payload?.error || 'Gagal mengambil data laporan inspeksi.');
+      }
+    }
+  } catch (err) {
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      throw new Error('Tidak dapat terhubung ke server backend API. Pastikan server aktif.');
+    }
+    throw err;
+  }
+
+  // Fallback path using existing counting + defect-code endpoints
+  const [countingData, defectRes, defectCodeRes] = await Promise.all([
+    getCountingData(cleanProdId),
+    getRollDefectsApi(cleanProdId),
+    getDefectCodeList().catch(() => ({ data: [] })),
+  ]);
+
+  const masterMap = new Map();
+  for (const dc of defectCodeRes?.data || []) {
+    if (dc?.Code) {
+      masterMap.set(String(dc.Code).trim().toUpperCase(), dc.Defect || '');
+    }
+  }
+
+  const rawDefects = countingData?.defects || defectRes?.data || [];
+  const enrichedDefects = rawDefects.map((d) => {
+    const codeKey = String(d.Code || '').trim().toUpperCase();
+    return {
+      ...d,
+      MasterDefect: d.MasterDefect || masterMap.get(codeKey) || '',
+    };
+  });
+
+  return {
+    header: countingData
+      ? {
+          ProdId: countingData.ProdId || cleanProdId,
+          NoMesin: countingData.NoMesin || '',
+          UserId: countingData.UserId || '',
+          SeqmentNum: countingData.SeqmentNum || '',
+          CustCode: countingData.CustCode || '',
+          DesignCode: countingData.DesignCode || '',
+          Color: countingData.Color || '',
+          OrderQty: countingData.OrderQty || 0,
+          StockQty: countingData.StockQty || 0,
+          K3LNumber: countingData.K3LNumber || '',
+          K3LName: countingData.K3LName || '',
+        }
+      : { ProdId: cleanProdId },
+    lines: countingData?.allLines || countingData?.lines || [],
+    defects: enrichedDefects,
+    joinedPieces: countingData?.joinedPieces || [],
+  };
+}
+
+/**
  * Delete defects for a specific roll from CountingKainDefect
  * @param {string} prodId
  * @param {number} roolNumber
@@ -642,6 +862,7 @@ export async function getRollDefectsApi(prodId, roolNumber) {
  */
 export async function deleteRollDefectsApi(prodId, roolNumber) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/defects/${encodeURIComponent(String(prodId).trim())}/${encodeURIComponent(roolNumber)}`;
 
   try {
@@ -650,7 +871,7 @@ export async function deleteRollDefectsApi(prodId, roolNumber) {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.message || data?.error || 'Gagal menghapus cacat roll');
+      throw new Error(data?.message || data?.error || 'Gagal menghapus inspeksi roll');
     }
     return data;
   } catch (err) {
@@ -669,6 +890,7 @@ export async function deleteRollDefectsApi(prodId, roolNumber) {
  */
 export async function updateRollStockApi(prodId, roolNumber, isStock) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/lines/${encodeURIComponent(String(prodId).trim())}/${encodeURIComponent(roolNumber)}/stock`;
 
   try {
@@ -700,6 +922,7 @@ export async function updateRollStockApi(prodId, roolNumber, isStock) {
  */
 export async function saveJoinedPiecesApi(prodId, roolNumber, pieces = []) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/joined-pieces`;
 
   try {
@@ -761,6 +984,7 @@ export async function getJoinedPiecesApi(prodId, roolNumber) {
  */
 export async function deleteJoinedPiecesApi(prodId, roolNumber) {
   if (!prodId || !roolNumber) return null;
+  emitUserActivity();
   const url = `${API_BASE}/api/counting/joined-pieces/${encodeURIComponent(String(prodId).trim())}/${encodeURIComponent(roolNumber)}`;
 
   try {
@@ -938,6 +1162,7 @@ export async function getMachinePrinterApi(machineId) {
  * @returns {Promise<object>}
  */
 export async function directPrintRollLabelApi(payload) {
+  emitUserActivity();
   const url = `${API_BASE}/api/print/direct`;
   try {
     const res = await fetch(url, {
@@ -1058,7 +1283,7 @@ export async function deleteMachineApi(machineId) {
 }
 
 /**
- * Tambah Kode Cacat Baru ke master DefectCode
+ * Tambah Kode Inspeksi Baru ke master DefectCode
  * @param {object} defectData - { Code, Defect }
  * @returns {Promise<object>}
  */
@@ -1071,13 +1296,13 @@ export async function createDefectCodeApi(defectData) {
   });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.message || 'Gagal menambahkan kode cacat.');
+    throw new Error(data?.message || 'Gagal menambahkan kode inspeksi.');
   }
   return data.data;
 }
 
 /**
- * Update Kode Cacat
+ * Update Kode Inspeksi
  * @param {string} code
  * @param {object} defectData - { newCode, Defect }
  * @returns {Promise<object>}
@@ -1091,13 +1316,13 @@ export async function updateDefectCodeApi(code, defectData) {
   });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.message || 'Gagal memperbarui kode cacat.');
+    throw new Error(data?.message || 'Gagal memperbarui kode inspeksi.');
   }
   return data.data;
 }
 
 /**
- * Hapus Kode Cacat
+ * Hapus Kode Inspeksi
  * @param {string} code
  * @returns {Promise<object>}
  */
@@ -1106,7 +1331,7 @@ export async function deleteDefectCodeApi(code) {
   const res = await fetch(url, { method: 'DELETE' });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.success) {
-    throw new Error(data?.message || 'Gagal menghapus kode cacat.');
+    throw new Error(data?.message || 'Gagal menghapus kode inspeksi.');
   }
   return data.data;
 }

@@ -4,6 +4,39 @@ import { generateNextQrNum, parseDatePeriod } from '../services/sequence.js';
 
 const router = express.Router();
 
+const ACTIVE_LINE_FILTER = 'COALESCE("isDeleted", false) = false';
+const ACTIVE_LINE_ALIASED_FILTER = 'COALESCE(l."isDeleted", false) = false';
+const DEFAULT_DELETED_AT = '1900-01-01 00:00:00';
+
+function matchChildRows(existingRows, incomingItems, isSameContent) {
+  const matchedExistingIdx = new Set();
+  const matchedPairs = new Map();
+
+  incomingItems.forEach((item, inIdx) => {
+    const exIdx = existingRows.findIndex(
+      (ex, idx) => !matchedExistingIdx.has(idx) && Number(ex.LineNumber) === Number(item.LineNumber) && isSameContent(ex, item)
+    );
+    if (exIdx !== -1) {
+      matchedExistingIdx.add(exIdx);
+      matchedPairs.set(inIdx, existingRows[exIdx]);
+    }
+  });
+
+  incomingItems.forEach((item, inIdx) => {
+    if (matchedPairs.has(inIdx)) return;
+    const exIdx = existingRows.findIndex(
+      (ex, idx) => !matchedExistingIdx.has(idx) && isSameContent(ex, item)
+    );
+    if (exIdx !== -1) {
+      matchedExistingIdx.add(exIdx);
+      matchedPairs.set(inIdx, existingRows[exIdx]);
+    }
+  });
+
+  const toSoftDelete = existingRows.filter((_, idx) => !matchedExistingIdx.has(idx));
+  return { matchedPairs, toSoftDelete };
+}
+
 /**
  * Normalizer helper to extract field values regardless of casing
  */
@@ -260,7 +293,8 @@ async function checkShouldBeStock(client, prodId, explicitIsStock = false) {
          FROM "CountingKainLines" l
          JOIN "CountingKainHeader" h ON l."ProdId" = h."ProdId"
          WHERE h."RecidSalesId" = $1
-           AND (l."isStock" IS FALSE OR l."isStock" IS NULL)`,
+           AND (l."isStock" IS FALSE OR l."isStock" IS NULL)
+           AND ${ACTIVE_LINE_ALIASED_FILTER}`,
         [recidSalesId]
       );
       totalLength = parseFloat(sumRes.rows[0]?.total_length) || 0;
@@ -269,7 +303,8 @@ async function checkShouldBeStock(client, prodId, explicitIsStock = false) {
         `SELECT COALESCE(SUM("Length"), 0) AS total_length
          FROM "CountingKainLines"
          WHERE "ProdId" = $1
-           AND ("isStock" IS FALSE OR "isStock" IS NULL)`,
+           AND ("isStock" IS FALSE OR "isStock" IS NULL)
+           AND ${ACTIVE_LINE_FILTER}`,
         [prodId]
       );
       totalLength = parseFloat(sumRes.rows[0]?.total_length) || 0;
@@ -287,9 +322,10 @@ async function checkShouldBeStock(client, prodId, explicitIsStock = false) {
  */
 async function upsertLineQuery(client, line) {
   const check = await client.query(
-    `SELECT "IsExecute", "QrNum", "isStock", "ProductType", "InventStatus", "TransDate" FROM "CountingKainLines" 
- 
-     WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
+    `SELECT "IsExecute", "QrNum", "isStock", "ProductType", "InventStatus", "TransDate"
+     FROM "CountingKainLines"
+     WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+     LIMIT 1`,
     [line.ProdId, line.RoolNumber]
   );
 
@@ -328,7 +364,7 @@ async function upsertLineQuery(client, line) {
     const res = await client.query(
       `UPDATE "CountingKainLines"
        SET "Description" = $3, "Length" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "ProductType" = $10, "InventStatus" = $11, "CreatedBy" = $12, "Shift" = $13, "TransDate" = $14
-            WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
        RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"`,
       [line.ProdId, line.RoolNumber, line.Description, line.Length, finalIsExecute, line.NoMesin, line.isPrinted, finalIsStock, finalQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null, finalTransDate]
     );
@@ -353,10 +389,10 @@ async function upsertLineQuery(client, line) {
     }
 
     const res = await client.query(
-      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO "CountingKainLines" ("ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate", "DeletedAt", "isDeleted")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::timestamp, false)
        RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"`,
-      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null, transDateVal]
+      [line.ProdId, line.RoolNumber, line.Description, line.Length, line.IsExecute, line.NoMesin, line.isPrinted, isStockVal, generatedQrNum, line.ProductType, line.InventStatus, line.CreatedBy ?? null, line.Shift ?? null, transDateVal, DEFAULT_DELETED_AT]
     );
     return { action: 'created', data: res.rows[0] };
   }
@@ -510,7 +546,7 @@ router.get('/headers/:prodId', async (req, res) => {
     const linesRes = await pool.query(
       `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"
        FROM "CountingKainLines"
-       WHERE "ProdId" = $1
+       WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
        ORDER BY "RoolNumber" ASC`,
       [prodId]
     );
@@ -529,20 +565,20 @@ router.get('/headers/:prodId', async (req, res) => {
       ? allLines.filter((l) => String(l.NoMesin || '').trim() === targetMachine)
       : allLines;
 
-    // Ambil seluruh titik cacat kain untuk ProdId ini
+    // Ambil seluruh titik cacat kain aktif untuk ProdId ini
     const defectsRes = await pool.query(
       `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
        FROM "CountingKainDefect"
-       WHERE "ProdId" = $1
+       WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
        ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
       [prodId]
     );
 
-    // Ambil seluruh joined pieces untuk ProdId ini
+    // Ambil seluruh joined pieces aktif untuk ProdId ini
     const joinedPiecesRes = await pool.query(
       `SELECT "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
        FROM "CountingKainJoinedPiece"
-       WHERE "ProdId" = $1
+       WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
        ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
       [prodId]
     );
@@ -655,6 +691,9 @@ router.get('/lines', async (req, res) => {
     const conditions = [];
     const values = [];
 
+    if (req.query.includeDeleted !== 'true') {
+      conditions.push(ACTIVE_LINE_FILTER);
+    }
     if (targetProdId) {
       values.push(targetProdId.trim());
       conditions.push(`"ProdId" = $${values.length}`);
@@ -699,7 +738,7 @@ router.get('/lines/:prodId/:roolNumber', async (req, res) => {
     const result = await pool.query(
       `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "CreatedBy", "Shift", "TransDate"
        FROM "CountingKainLines"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
        LIMIT 1`,
       [prodId, parseInt(roolNumber, 10)]
     );
@@ -775,6 +814,8 @@ router.post('/lines', async (req, res) => {
 
 /**
  * DELETE /api/counting/lines/:prodId/:roolNumber
+ * Soft delete baris roll (DeletedAt = NOW(), isDeleted = true, IsExecute = false)
+ * beserta catatan inspeksi dan joined pieces terkait.
  */
 router.delete('/lines/:prodId/:roolNumber', async (req, res) => {
   const client = await pool.connect();
@@ -784,22 +825,15 @@ router.delete('/lines/:prodId/:roolNumber', async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Hapus titik cacat terkait roll ini terlebih dahulu
-    await client.query(
-      'DELETE FROM "CountingKainDefect" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
-      [prodId, rollNum]
-    );
-
-    // Hapus joined pieces terkait roll ini
-    await client.query(
-      'DELETE FROM "CountingKainJoinedPiece" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
-      [prodId, rollNum]
-    );
-
     const result = await client.query(
-      `DELETE FROM "CountingKainLines"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
-       RETURNING "ProdId", "RoolNumber"`,
+      `UPDATE "CountingKainLines"
+       SET "DeletedAt" = NOW(),
+           "isDeleted" = true,
+           "IsExecute" = false
+       WHERE "ProdId" = $1
+         AND "RoolNumber" = $2
+         AND ${ACTIVE_LINE_FILTER}
+       RETURNING "ProdId", "RoolNumber", "DeletedAt", "isDeleted", "IsExecute"`,
       [prodId, rollNum]
     );
 
@@ -811,11 +845,36 @@ router.delete('/lines/:prodId/:roolNumber', async (req, res) => {
       });
     }
 
+    // Soft delete titik cacat terkait roll ini
+    await client.query(
+      `UPDATE "CountingKainDefect"
+       SET "DeletedAt" = NOW(),
+           "isDeleted" = true,
+           "IsExecuted" = false
+       WHERE "ProdId" = $1
+         AND "RoolNumber" = $2
+         AND ${ACTIVE_LINE_FILTER}`,
+      [prodId, rollNum]
+    );
+
+    // Soft delete joined pieces terkait roll ini
+    await client.query(
+      `UPDATE "CountingKainJoinedPiece"
+       SET "DeletedAt" = NOW(),
+           "isDeleted" = true,
+           "IsExecuted" = false
+       WHERE "ProdId" = $1
+         AND "RoolNumber" = $2
+         AND ${ACTIVE_LINE_FILTER}`,
+      [prodId, rollNum]
+    );
+
     await client.query('COMMIT');
 
     return res.status(200).json({
       success: true,
-      message: `Line #${roolNumber} of ProdId '${prodId}' and associated defects/joined pieces deleted successfully.`,
+      message: `Line #${roolNumber} of ProdId '${prodId}' soft-deleted successfully.`,
+      data: result.rows[0],
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -837,7 +896,7 @@ router.patch('/lines/:prodId/:roolNumber/print', async (req, res) => {
     const result = await pool.query(
       `UPDATE "CountingKainLines"
        SET "isPrinted" = true
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
        RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate"`,
       [prodId, parseInt(roolNumber, 10)]
     );
@@ -873,7 +932,8 @@ router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
     const checkRes = await pool.query(
       `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "TransDate"
        FROM "CountingKainLines"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+       LIMIT 1`,
       [prodId, rollNum]
     );
 
@@ -896,7 +956,7 @@ router.patch('/lines/:prodId/:roolNumber/stock', async (req, res) => {
     const updateRes = await pool.query(
       `UPDATE "CountingKainLines"
        SET "isStock" = $3, "QrNum" = $4
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
        RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate"`,
       [prodId, rollNum, isStock, finalQrNum]
     );
@@ -949,7 +1009,8 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
     const checkRes = await pool.query(
       `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus", "TransDate"
        FROM "CountingKainLines"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2 LIMIT 1`,
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+       LIMIT 1`,
       [prodId, rollNum]
     );
 
@@ -1011,7 +1072,7 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
     const updateRes = await pool.query(
       `UPDATE "CountingKainLines"
        SET "Length" = $3, "Description" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "TransDate" = $10
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
        RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate"`,
       [prodId, rollNum, lengthVal, newDescription, finalIsExecute, noMesin, isPrinted, finalIsStock, finalQrNum, finalTransDate]
     );
@@ -1036,6 +1097,96 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
 // ============================================================
 
 /**
+ * GET /api/counting/defect-report/:prodId
+ * Aggregate header, all lines across all machines, all CountingKainDefect rows
+ * enriched with master DefectCode descriptions, and joined pieces for one OP.
+ */
+router.get('/defect-report/:prodId', async (req, res) => {
+  try {
+    const prodId = String(req.params.prodId || '').trim();
+    if (!prodId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Bad Request',
+        message: 'ProdId is required.',
+      });
+    }
+
+    const [headerRes, linesRes, defectsRes, joinedPiecesRes] = await Promise.all([
+      pool.query(
+        `SELECT "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode",
+                "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty",
+                "K3LNumber", "K3LName"
+         FROM "CountingKainHeader"
+         WHERE "ProdId" = $1
+         LIMIT 1`,
+        [prodId]
+      ),
+      pool.query(
+        `SELECT "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin",
+                "isPrinted", "isStock", "QrNum", "ProductType", "InventStatus",
+                "CreatedBy", "Shift", "TransDate"
+         FROM "CountingKainLines"
+         WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
+         ORDER BY "RoolNumber" ASC`,
+        [prodId]
+      ),
+      pool.query(
+        `SELECT d."ProdId", d."RoolNumber", d."LengthPoint", d."LengthPointTo",
+                d."Code", d."Description", d."IsExecuted", d."LineNumber",
+                dc."Defect" AS "MasterDefect"
+         FROM "CountingKainDefect" d
+         LEFT JOIN "DefectCode" dc
+           ON UPPER(BTRIM(d."Code")) = UPPER(BTRIM(dc."Code"))
+         WHERE d."ProdId" = $1
+           AND COALESCE(d."isDeleted", false) = false
+         ORDER BY d."RoolNumber" ASC, d."LengthPoint" ASC, d."LengthPointTo" ASC, d."LineNumber" ASC`,
+        [prodId]
+      ),
+      pool.query(
+        `SELECT "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
+         FROM "CountingKainJoinedPiece"
+         WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
+         ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
+        [prodId]
+      ),
+    ]);
+
+    if (
+      headerRes.rows.length === 0 &&
+      linesRes.rows.length === 0 &&
+      defectsRes.rows.length === 0
+    ) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: `Data OP '${prodId}' tidak ditemukan.`,
+      });
+    }
+
+    const header = headerRes.rows[0] || { ProdId: prodId };
+    const headerMachine = String(header.NoMesin || '').trim();
+    const lines = linesRes.rows.map((line) => ({
+      ...line,
+      NoMesin: line.NoMesin ? String(line.NoMesin).trim() : headerMachine,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        header,
+        lines,
+        defects: defectsRes.rows,
+        joinedPieces: joinedPiecesRes.rows,
+      },
+    });
+  } catch (err) {
+    console.error('[Get Defect Report Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /api/counting/defects/:prodId
  * Query params: ?roolNumber=...
  * Returns list of defects for a production order or a specific roll
@@ -1049,7 +1200,7 @@ router.get('/defects/:prodId', async (req, res) => {
     let query = `
       SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
       FROM "CountingKainDefect"
-      WHERE "ProdId" = $1
+      WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
     `;
     const params = [prodId];
 
@@ -1111,33 +1262,77 @@ router.post('/defects', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Hapus titik cacat lama untuk roll ini (overwrite)
-    await client.query(
-      'DELETE FROM "CountingKainDefect" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
+    // 1. Ambil seluruh titik cacat aktif saat ini untuk roll ini
+    const existingRes = await client.query(
+      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"
+       FROM "CountingKainDefect"
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+       ORDER BY "LineNumber" ASC
+       FOR UPDATE`,
       [prodId, roolNumber]
     );
 
-    // 2. Insert titik cacat baru
-    const inserted = [];
-    for (let i = 0; i < rawDefects.length; i++) {
-      const norm = normalizeDefect(rawDefects[i], prodId, roolNumber, i + 1);
-      const insRes = await client.query(
-        `INSERT INTO "CountingKainDefect" 
-         ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"`,
-        [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, false, norm.LineNumber, norm.LengthPointTo]
+    const normalizedList = rawDefects.map((raw, i) => normalizeDefect(raw, prodId, roolNumber, i + 1));
+    const { matchedPairs, toSoftDelete } = matchChildRows(
+      existingRes.rows,
+      normalizedList,
+      (ex, norm) =>
+        String(ex.Code || '').trim().toUpperCase() === norm.Code.toUpperCase() &&
+        Math.abs((Number(ex.LengthPoint) || 0) - norm.LengthPoint) < 0.0001 &&
+        Math.abs((Number(ex.LengthPointTo) || 0) - (norm.LengthPointTo || 0)) < 0.0001
+    );
+
+    // 2. Soft delete baris yang dihapus user (DeletedAt = NOW(), isDeleted = true, IsExecuted = false)
+    for (const row of toSoftDelete) {
+      await client.query(
+        `UPDATE "CountingKainDefect"
+         SET "DeletedAt" = NOW(), "isDeleted" = true, "IsExecuted" = false
+         WHERE ctid = $1`,
+        [row.ctid]
       );
-      inserted.push(insRes.rows[0]);
+    }
+
+    // 3. Pertahankan baris yang cocok (update LineNumber/Description jika bergeser) & insert baris baru
+    const savedRows = [];
+    for (let i = 0; i < normalizedList.length; i++) {
+      const norm = normalizedList[i];
+      const matched = matchedPairs.get(i);
+      if (matched) {
+        if (
+          Number(matched.LineNumber) !== norm.LineNumber ||
+          String(matched.Description || '').trim() !== norm.Description
+        ) {
+          const updRes = await client.query(
+            `UPDATE "CountingKainDefect"
+             SET "LineNumber" = $2, "Description" = $3
+             WHERE ctid = $1
+             RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"`,
+            [matched.ctid, norm.LineNumber, norm.Description]
+          );
+          savedRows.push(updRes.rows[0]);
+        } else {
+          const { ctid: _ctid, ...rest } = matched;
+          savedRows.push(rest);
+        }
+      } else {
+        const insRes = await client.query(
+          `INSERT INTO "CountingKainDefect"
+           ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "DeletedAt", "isDeleted")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamp, false)
+           RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"`,
+          [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, false, norm.LineNumber, norm.LengthPointTo, DEFAULT_DELETED_AT]
+        );
+        savedRows.push(insRes.rows[0]);
+      }
     }
 
     await client.query('COMMIT');
 
     return res.status(200).json({
       success: true,
-      message: `Berhasil menyimpan ${inserted.length} titik cacat untuk Roll #${roolNumber}.`,
-      count: inserted.length,
-      data: inserted,
+      message: `Berhasil menyimpan ${savedRows.length} titik inspeksi untuk Roll #${roolNumber}.`,
+      count: savedRows.length,
+      data: savedRows,
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1158,8 +1353,9 @@ router.delete('/defects/:prodId/:roolNumber', async (req, res) => {
     const rollNum = parseInt(roolNumber, 10);
 
     const result = await pool.query(
-      `DELETE FROM "CountingKainDefect"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+      `UPDATE "CountingKainDefect"
+       SET "DeletedAt" = NOW(), "isDeleted" = true, "IsExecuted" = false
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
        RETURNING "ProdId", "RoolNumber"`,
       [prodId, rollNum]
     );
@@ -1184,7 +1380,7 @@ router.get('/next-roll/:prodId', async (req, res) => {
     const { prodId } = req.params;
     const targetMachine = String(req.query.noMesin || req.query.machineId || '').trim();
 
-    const query = `
+    const linesQuery = `
       SELECT 
         "RoolNumber",
         "NoMesin",
@@ -1194,23 +1390,41 @@ router.get('/next-roll/:prodId', async (req, res) => {
         "isStock",
         "QrNum",
         "ProductType",
+        "InventStatus",
         "TransDate"
       FROM "CountingKainLines"
-      WHERE "ProdId" = $1
+      WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
       ORDER BY "RoolNumber" ASC
     `;
 
-    const result = await pool.query(query, [prodId]);
-    const lines = result.rows;
+    const [linesResult, headerRes] = await Promise.all([
+      pool.query(linesQuery, [prodId]),
+      pool.query(
+        `SELECT "NoMesin", "RecidSalesId", "OrderQty" FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1`,
+        [prodId]
+      ).catch((hErr) => {
+        console.warn('[next-roll Header Query Warn]:', hErr.message);
+        return { rows: [] };
+      }),
+    ]);
+
+    const headerRow = headerRes.rows[0] || null;
+    const headerMachine = String(headerRow?.NoMesin || '').trim();
+    const lines = linesResult.rows.map((line) => ({
+      ...line,
+      NoMesin: String(line.NoMesin || headerMachine || 'Unknown').trim() || 'Unknown',
+    }));
+
     const rollLines = lines.filter((line) => Number(line.ProductType ?? 5) === 5);
+    const coProductLines = lines.filter((line) => Number(line.ProductType ?? 5) === 1);
 
     const maxRoll = rollLines.length > 0 ? Math.max(...rollLines.map((l) => l.RoolNumber || 0)) : 0;
     const nextSuggestedRoll = maxRoll + 1;
 
-    // Aggregate by machine
+    // Aggregate rolls by machine (ProductType = 5)
     const rollsByMachine = {};
     for (const line of rollLines) {
-      const m = String(line.NoMesin || 'Unknown').trim();
+      const m = line.NoMesin;
       if (!rollsByMachine[m]) {
         rollsByMachine[m] = {
           machine: m,
@@ -1229,6 +1443,42 @@ router.get('/next-roll/:prodId', async (req, res) => {
         rollsByMachine[m].nextRoll = line.RoolNumber + 1;
       }
     }
+
+    // Aggregate both rolls & co-products per machine for InfoCards summary
+    const machineSummaryMap = {};
+    for (const line of lines) {
+      const m = line.NoMesin;
+      if (!machineSummaryMap[m]) {
+        machineSummaryMap[m] = {
+          machine: m,
+          rollCount: 0,
+          rollLength: 0,
+          coProductCount: 0,
+          coProductLength: 0,
+          coProductByStatus: {},
+        };
+      }
+      const len = parseFloat(line.Length) || 0;
+      if (Number(line.ProductType ?? 5) === 1) {
+        const statusKey = String(line.InventStatus || 'BS').trim().toUpperCase();
+        machineSummaryMap[m].coProductCount += 1;
+        machineSummaryMap[m].coProductLength += len;
+        machineSummaryMap[m].coProductByStatus[statusKey] =
+          (machineSummaryMap[m].coProductByStatus[statusKey] || 0) + 1;
+      } else {
+        machineSummaryMap[m].rollCount += 1;
+        machineSummaryMap[m].rollLength += len;
+      }
+    }
+
+    const machineSummary = Object.values(machineSummaryMap).sort((a, b) => {
+      const na = Number(a.machine);
+      const nb = Number(b.machine);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      if (!Number.isNaN(na)) return -1;
+      if (!Number.isNaN(nb)) return 1;
+      return String(a.machine).localeCompare(String(b.machine), undefined, { numeric: true });
+    });
 
     // Hitung khusus untuk targetMachine jika disediakan
     let machineMaxRoll = 0;
@@ -1253,13 +1503,9 @@ router.get('/next-roll/:prodId', async (req, res) => {
     let recidSalesId = '';
     let accumulatedSalesLength = 0;
     try {
-      const headerRes = await pool.query(
-        `SELECT "RecidSalesId", "OrderQty" FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1`,
-        [prodId]
-      );
-      if (headerRes.rows.length > 0) {
-        orderQty = parseFloat(headerRes.rows[0].OrderQty) || 0;
-        recidSalesId = (headerRes.rows[0].RecidSalesId || '').trim();
+      if (headerRow) {
+        orderQty = parseFloat(headerRow.OrderQty) || 0;
+        recidSalesId = (headerRow.RecidSalesId || '').trim();
       }
 
       if (orderQty <= 0 && recidSalesId) {
@@ -1276,7 +1522,8 @@ router.get('/next-roll/:prodId', async (req, res) => {
            FROM "CountingKainLines" l
            JOIN "CountingKainHeader" h ON l."ProdId" = h."ProdId"
            WHERE h."RecidSalesId" = $1
-             AND (l."isStock" IS FALSE OR l."isStock" IS NULL)`,
+             AND (l."isStock" IS FALSE OR l."isStock" IS NULL)
+             AND ${ACTIVE_LINE_ALIASED_FILTER}`,
           [recidSalesId]
         );
         accumulatedSalesLength = parseFloat(sumRes.rows[0]?.total_length) || 0;
@@ -1303,7 +1550,9 @@ router.get('/next-roll/:prodId', async (req, res) => {
         machineNextRoll,
         machineRollsCount,
         totalRolls: rollLines.length,
+        totalCoProducts: coProductLines.length,
         rollsByMachine,
+        machineSummary,
         existingRollNumbers: rollLines.map((l) => l.RoolNumber),
         lines,
         orderQty,
@@ -1311,6 +1560,7 @@ router.get('/next-roll/:prodId', async (req, res) => {
         accumulatedSalesLength,
         isOrderExceeded,
         remainingOrderQty,
+        fetchedAt: new Date().toISOString(),
       },
     });
   } catch (err) {
@@ -1478,7 +1728,7 @@ router.get('/joined-pieces/:prodId', async (req, res) => {
     let query = `
       SELECT "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
       FROM "CountingKainJoinedPiece"
-      WHERE "ProdId" = $1
+      WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
     `;
     const params = [prodId];
 
@@ -1540,35 +1790,75 @@ router.post('/joined-pieces', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Hapus joined pieces lama untuk roll ini (overwrite)
-    await client.query(
-      'DELETE FROM "CountingKainJoinedPiece" WHERE "ProdId" = $1 AND "RoolNumber" = $2',
+    // 1. Ambil seluruh joined pieces aktif saat ini untuk roll ini
+    const existingRes = await client.query(
+      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"
+       FROM "CountingKainJoinedPiece"
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
+       ORDER BY "LineNumber" ASC
+       FOR UPDATE`,
       [prodId, roolNumber]
     );
 
-    // 2. Insert joined pieces baru
-    const inserted = [];
-    for (let i = 0; i < rawPieces.length; i++) {
-      const lengthPoint = parseFloat(rawPieces[i].yard ?? rawPieces[i].LengthPoint ?? rawPieces[i].lengthPoint ?? 0);
-      const lineNumber = i + 1;
+    const normalizedPieces = rawPieces.map((raw, i) => ({
+      LengthPoint: parseFloat(raw.yard ?? raw.LengthPoint ?? raw.lengthPoint ?? 0),
+      LineNumber: i + 1,
+    }));
 
-      const insRes = await client.query(
-        `INSERT INTO "CountingKainJoinedPiece" 
-         ("ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber")
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"`,
-        [prodId, roolNumber, lengthPoint, false, lineNumber]
+    const { matchedPairs, toSoftDelete } = matchChildRows(
+      existingRes.rows,
+      normalizedPieces,
+      (ex, norm) => Math.abs((Number(ex.LengthPoint) || 0) - norm.LengthPoint) < 0.0001
+    );
+
+    // 2. Soft delete joined pieces yang dihapus user (DeletedAt = NOW(), isDeleted = true, IsExecuted = false)
+    for (const row of toSoftDelete) {
+      await client.query(
+        `UPDATE "CountingKainJoinedPiece"
+         SET "DeletedAt" = NOW(), "isDeleted" = true, "IsExecuted" = false
+         WHERE ctid = $1`,
+        [row.ctid]
       );
-      inserted.push(insRes.rows[0]);
+    }
+
+    // 3. Pertahankan baris yang cocok (update LineNumber jika bergeser) & insert baris baru
+    const savedRows = [];
+    for (let i = 0; i < normalizedPieces.length; i++) {
+      const piece = normalizedPieces[i];
+      const matched = matchedPairs.get(i);
+      if (matched) {
+        if (Number(matched.LineNumber) !== piece.LineNumber) {
+          const updRes = await client.query(
+            `UPDATE "CountingKainJoinedPiece"
+             SET "LineNumber" = $2
+             WHERE ctid = $1
+             RETURNING "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"`,
+            [matched.ctid, piece.LineNumber]
+          );
+          savedRows.push(updRes.rows[0]);
+        } else {
+          const { ctid: _ctid, ...rest } = matched;
+          savedRows.push(rest);
+        }
+      } else {
+        const insRes = await client.query(
+          `INSERT INTO "CountingKainJoinedPiece"
+           ("ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber", "DeletedAt", "isDeleted")
+           VALUES ($1, $2, $3, $4, $5, $6::timestamp, false)
+           RETURNING "ProdId", "RoolNumber", "LengthPoint", "IsExecuted", "LineNumber"`,
+          [prodId, roolNumber, piece.LengthPoint, false, piece.LineNumber, DEFAULT_DELETED_AT]
+        );
+        savedRows.push(insRes.rows[0]);
+      }
     }
 
     await client.query('COMMIT');
 
     return res.status(200).json({
       success: true,
-      message: `Berhasil menyimpan ${inserted.length} joined piece(s) untuk Roll #${roolNumber}.`,
-      count: inserted.length,
-      data: inserted,
+      message: `Berhasil menyimpan ${savedRows.length} joined piece(s) untuk Roll #${roolNumber}.`,
+      count: savedRows.length,
+      data: savedRows,
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1589,8 +1879,9 @@ router.delete('/joined-pieces/:prodId/:roolNumber', async (req, res) => {
     const rollNum = parseInt(roolNumber, 10);
 
     const result = await pool.query(
-      `DELETE FROM "CountingKainJoinedPiece"
-       WHERE "ProdId" = $1 AND "RoolNumber" = $2
+      `UPDATE "CountingKainJoinedPiece"
+       SET "DeletedAt" = NOW(), "isDeleted" = true, "IsExecuted" = false
+       WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
        RETURNING "ProdId", "RoolNumber"`,
       [prodId, rollNum]
     );

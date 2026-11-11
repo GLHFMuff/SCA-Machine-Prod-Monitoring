@@ -2,8 +2,10 @@ import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/db.js';
-import { authenticateKey, hashToken } from '../middleware/auth.js';
+import { authenticateKey, authenticateKeyAndTouch, hashToken } from '../middleware/auth.js';
 import { injectUser, listUsers } from '../inject-user.js';
+import { getAppSettings } from '../services/appSettings.js';
+import { ADMIN_PORTAL_UA_PREFIX, cleanupExpiredAndIdleSessions, releaseMachineForUsername } from '../services/sessionCleanup.js';
 
 const router = express.Router();
 
@@ -15,7 +17,39 @@ async function verifyPassword(plain, hash) {
 
 router.get('/machines', async (_req, res) => {
   try {
-    const result = await pool.query('SELECT machine_id, machine_num, user_active, autonic_table, printer_name FROM machine_lists ORDER BY machine_num');
+    await cleanupExpiredAndIdleSessions();
+    const result = await pool.query(`
+      SELECT
+        ml.machine_id,
+        ml.machine_num,
+        ml.user_active,
+        ml.autonic_table,
+        ml.printer_name,
+        active_sess.last_used_at AS session_last_used_at,
+        active_sess.created_at AS session_started_at,
+        CASE
+          WHEN active_sess.last_used_at IS NOT NULL
+          THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - active_sess.last_used_at)) / 60))::int
+          ELSE NULL
+        END AS idle_minutes
+      FROM machine_lists ml
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(s.last_used_at, s.created_at) AS last_used_at,
+          s.created_at
+        FROM user_sessions s
+        JOIN users u ON u.id = s.user_id
+        WHERE ml.user_active IS NOT NULL
+          AND BTRIM(ml.user_active) <> ''
+          AND LOWER(BTRIM(u.username)) = LOWER(BTRIM(ml.user_active))
+          AND s.revoked_at IS NULL
+          AND s.expires_at > NOW()
+          AND COALESCE(s.user_agent, '') NOT LIKE $1
+        ORDER BY COALESCE(s.last_used_at, s.created_at) DESC
+        LIMIT 1
+      ) active_sess ON true
+      ORDER BY ml.machine_num
+    `, [`${ADMIN_PORTAL_UA_PREFIX}%`]);
     res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error('[Machine List Error]:', err);
@@ -61,12 +95,15 @@ router.post('/machines', async (req, res) => {
 
 // Update detail mesin atau reset user_active
 router.put('/machines/:machineId', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { machineId } = req.params;
     const { machine_num, autonic_table, printer_name, user_active } = req.body || {};
 
-    const check = await pool.query('SELECT * FROM machine_lists WHERE machine_id = $1 LIMIT 1', [machineId]);
+    await client.query('BEGIN');
+    const check = await client.query('SELECT * FROM machine_lists WHERE machine_id = $1 LIMIT 1 FOR UPDATE', [machineId]);
     if (!check.rows.length) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, message: `Mesin #${machineId} tidak ditemukan.` });
     }
     const current = check.rows[0];
@@ -76,7 +113,7 @@ router.put('/machines/:machineId', async (req, res) => {
     const newPrinter = printer_name !== undefined ? (printer_name ? String(printer_name).trim() : null) : current.printer_name;
     const newUserActive = user_active !== undefined ? (user_active ? String(user_active).trim() : null) : current.user_active;
 
-    const result = await pool.query(
+    const result = await client.query(
       `UPDATE machine_lists
        SET machine_num = $1, autonic_table = $2, printer_name = $3, user_active = $4
        WHERE machine_id = $5
@@ -84,14 +121,34 @@ router.put('/machines/:machineId', async (req, res) => {
       [newNum, newAutonic, newPrinter, newUserActive, machineId]
     );
 
+    const prevOperator = String(current.user_active || '').trim();
+    const nextOperator = String(newUserActive || '').trim();
+    if (prevOperator && prevOperator.toLowerCase() !== nextOperator.toLowerCase()) {
+      // Revoke operator sessions for the released user so their browser automatically logs out too
+      await client.query(
+        `UPDATE user_sessions s
+         SET revoked_at = NOW()
+         FROM users u
+         WHERE s.user_id = u.id
+           AND LOWER(BTRIM(u.username)) = LOWER(BTRIM($1))
+           AND s.revoked_at IS NULL
+           AND COALESCE(s.user_agent, '') NOT LIKE $2`,
+        [prevOperator, `${ADMIN_PORTAL_UA_PREFIX}%`]
+      );
+    }
+
+    await client.query('COMMIT');
     res.json({
       success: true,
       message: `Mesin #${newNum} berhasil diperbarui.`,
       data: result.rows[0],
     });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('[Update Machine Error]:', err);
     res.status(500).json({ success: false, message: err.message || 'Gagal memperbarui mesin.' });
+  } finally {
+    client.release();
   }
 });
 
@@ -145,6 +202,10 @@ router.post('/login', async (req, res) => {
   if (!username || !password || !machine_id) return res.status(400).json({ success: false, message: 'Username, password, dan mesin wajib dipilih.' });
   const client = await pool.connect();
   try {
+    await cleanupExpiredAndIdleSessions(client);
+    const settings = await getAppSettings();
+    const expiresDays = Number(settings?.session?.sessionExpiresDays || process.env.SESSION_EXPIRES_DAYS || 30);
+
     const found = await client.query(`SELECT id,email,username,password_hash,full_name,role,is_active FROM users WHERE (LOWER(username)=LOWER($1) OR LOWER(email)=LOWER($1)) AND deleted_at IS NULL LIMIT 1`, [username.trim()]);
     const user = found.rows[0];
     if (!user || !user.is_active || !(await verifyPassword(password, user.password_hash))) return res.status(401).json({ success: false, message: 'Username atau password tidak valid.' });
@@ -171,13 +232,18 @@ router.post('/login', async (req, res) => {
       return res.status(409).json({ success: false, message: 'Mesin tidak tersedia atau sedang digunakan user lain.' });
     }
     const rawToken = 'mpm_' + crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + parseInt(process.env.SESSION_EXPIRES_DAYS || '30', 10) * 86400000);
+    const expiresAt = new Date(Date.now() + expiresDays * 86400000);
     const ip = (req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.socket.remoteAddress || '').replace(/^::ffff:/, '').replace(/^::1$/, '127.0.0.1') || null;
-    const session = await client.query(`INSERT INTO user_sessions(user_id,token_hash,ip_address,user_agent,expires_at) VALUES($1,$2,$3,$4,$5) RETURNING id,expires_at`, [user.id, hashToken(rawToken), ip, req.headers['user-agent'] || 'Unknown Client', expiresAt]);
+    const session = await client.query(
+      `INSERT INTO user_sessions(user_id,token_hash,ip_address,user_agent,expires_at,last_used_at)
+       VALUES($1,$2,$3,$4,$5,NOW())
+       RETURNING id,expires_at,last_used_at`,
+      [user.id, hashToken(rawToken), ip, req.headers['user-agent'] || 'Unknown Client', expiresAt]
+    );
     await client.query('UPDATE users SET last_login_at=NOW() WHERE id=$1', [user.id]);
     await client.query('COMMIT');
     const machine = machineResult.rows[0];
-    res.json({ success: true, data: { key: rawToken, expires_at: session.rows[0].expires_at, user: { id:user.id,username:user.username,email:user.email,full_name:user.full_name,role:user.role,is_active:user.is_active,machine_id:machine.machine_id,machine_num:machine.machine_num,autonic_table:machine.autonic_table,printer_name:machine.printer_name } } });
+    res.json({ success: true, data: { key: rawToken, expires_at: session.rows[0].expires_at, last_used_at: session.rows[0].last_used_at, user: { id:user.id,username:user.username,email:user.email,full_name:user.full_name,role:user.role,is_active:user.is_active,machine_id:machine.machine_id,machine_num:machine.machine_num,autonic_table:machine.autonic_table,printer_name:machine.printer_name } } });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[Login API Error]:', err);
@@ -194,6 +260,9 @@ router.post('/admin-login', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    const settings = await getAppSettings();
+    const expiresDays = Number(settings?.session?.sessionExpiresDays || process.env.SESSION_EXPIRES_DAYS || 30);
+
     const found = await client.query(
       `SELECT id, email, username, password_hash, full_name, role, is_active
        FROM users
@@ -216,14 +285,15 @@ router.post('/admin-login', async (req, res) => {
     }
 
     const rawToken = 'mpm_adm_' + crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + parseInt(process.env.SESSION_EXPIRES_DAYS || '30', 10) * 86400000);
+    const expiresAt = new Date(Date.now() + expiresDays * 86400000);
     const ip = (req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.socket.remoteAddress || '').replace(/^::ffff:/, '').replace(/^::1$/, '127.0.0.1') || null;
+    const adminUa = `${ADMIN_PORTAL_UA_PREFIX} ${req.headers['user-agent'] || 'Admin Web Portal'}`;
 
     const session = await client.query(
-      `INSERT INTO user_sessions(user_id, token_hash, ip_address, user_agent, expires_at)
-       VALUES($1, $2, $3, $4, $5)
-       RETURNING id, expires_at`,
-      [user.id, hashToken(rawToken), ip, req.headers['user-agent'] || 'Admin Web Portal', expiresAt]
+      `INSERT INTO user_sessions(user_id, token_hash, ip_address, user_agent, expires_at, last_used_at)
+       VALUES($1, $2, $3, $4, $5, NOW())
+       RETURNING id, expires_at, last_used_at`,
+      [user.id, hashToken(rawToken), ip, adminUa, expiresAt]
     );
 
     await client.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
@@ -234,6 +304,7 @@ router.post('/admin-login', async (req, res) => {
       data: {
         key: rawToken,
         expires_at: session.rows[0].expires_at,
+        last_used_at: session.rows[0].last_used_at,
         user: {
           id: user.id,
           username: user.username,
@@ -253,39 +324,69 @@ router.post('/admin-login', async (req, res) => {
 });
 
 
-router.get('/me', authenticateKey, (req, res) => res.json({ success: true, data: { user: req.user, session: { id:req.session.id, expires_at:req.session.expires_at } } }));
+router.get('/me', authenticateKey, (req, res) => res.json({
+  success: true,
+  data: {
+    user: req.user,
+    session: {
+      id: req.session.id,
+      expires_at: req.session.expires_at,
+      last_used_at: req.session.last_used_at,
+      idle_elapsed_ms: req.session.idle_elapsed_ms,
+      idle_timeout_minutes: req.session.idle_timeout_minutes,
+    },
+  },
+}));
+
+router.post('/heartbeat', authenticateKeyAndTouch, (req, res) => res.json({
+  success: true,
+  data: {
+    session: {
+      id: req.session.id,
+      expires_at: req.session.expires_at,
+      last_used_at: req.session.last_used_at,
+      idle_elapsed_ms: 0,
+      idle_timeout_minutes: req.session.idle_timeout_minutes,
+    },
+  },
+}));
+
 router.post('/logout', async (req, res) => {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
   if (!token) return res.status(401).json({ success: false, message: 'Session key tidak ditemukan.' });
 
+  const isAdminPortalToken = token.startsWith('mpm_adm_');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const sessionResult = await client.query(
-      `SELECT s.id AS session_id, u.username
+      `SELECT s.id AS session_id, s.revoked_at, u.username
        FROM user_sessions s
        JOIN users u ON u.id = s.user_id
-       WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > NOW()
-         AND u.deleted_at IS NULL AND u.is_active = true
+       WHERE s.token_hash = $1
        FOR UPDATE OF s`,
       [hashToken(token)],
     );
     if (!sessionResult.rows.length) {
       await client.query('ROLLBACK');
-      return res.status(401).json({ success: false, message: 'Sesi tidak valid atau sudah kedaluwarsa.' });
+      return res.status(401).json({ success: false, message: 'Sesi tidak ditemukan.' });
     }
 
-    const { session_id: sessionId, username } = sessionResult.rows[0];
-    await client.query('UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1', [sessionId]);
-    const released = await client.query(
-      `UPDATE machine_lists SET user_active = NULL
-       WHERE LOWER(BTRIM(user_active)) = LOWER(BTRIM($1))
-       RETURNING machine_id`,
-      [username],
-    );
-    if (!released.rowCount) {
-      console.warn('[Logout] No machine assignment found to release:', { username });
+    const { session_id: sessionId, revoked_at: revokedAt, username } = sessionResult.rows[0];
+    if (!revokedAt) {
+      await client.query('UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1', [sessionId]);
+    }
+    if (!isAdminPortalToken) {
+      const released = await client.query(
+        `UPDATE machine_lists SET user_active = NULL
+         WHERE LOWER(BTRIM(user_active)) = LOWER(BTRIM($1))
+         RETURNING machine_id`,
+        [username],
+      );
+      if (!released.rowCount) {
+        console.warn('[Logout] No machine assignment found to release:', { username });
+      }
     }
     await client.query('COMMIT');
     return res.json({ success: true, message: 'Logged out successfully.' });
@@ -383,6 +484,11 @@ router.put('/users/:id', async (req, res) => {
       [newUsername, newEmail, newFullName, newRole, newMachineId, newActive, newPasswordHash, id]
     );
 
+    if (!newActive) {
+      await pool.query('UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL', [id]);
+      await releaseMachineForUsername(current.username);
+    }
+
     res.json({
       success: true,
       message: `User '${newUsername}' berhasil diperbarui.`,
@@ -404,11 +510,12 @@ router.delete('/users/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
     }
 
-    await pool.query('UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = $1', [id]);
+    await pool.query('UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL', [id]);
     const result = await pool.query(
       'UPDATE users SET deleted_at = NOW(), is_active = false, updated_at = NOW() WHERE id = $1 RETURNING id, username',
       [id]
     );
+    await releaseMachineForUsername(check.rows[0].username);
 
     res.json({
       success: true,

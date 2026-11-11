@@ -224,24 +224,87 @@
   border: 0;
 }
 
+.shiftAutoHint {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent);
+}
+
 .shiftOptions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 10px;
 }
 
 .shiftOption {
   position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px 8px;
   border: 1.5px solid var(--border);
   border-radius: 10px;
   color: var(--muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 650;
   transition: all 0.18s;
+}
+
+.shiftNameRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.shiftDefaultBadge {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.shiftTime {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.noticeBanner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  background: rgba(217, 119, 6, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.noticeCloseBtn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.noticeCloseBtn:hover {
+  color: var(--text);
 }
 
 .shiftOption input {

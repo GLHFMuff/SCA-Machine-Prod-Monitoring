@@ -14,8 +14,41 @@ import {
   updateUserApi,
   deleteUserApi,
   directPrintRollLabelApi,
+  getAppSettingsApi,
+  saveAppSettingsApi,
 } from '../services/api.js'
+import { DEFAULT_SHIFT_LIST, detectActiveShift, isOvernightShift } from '../utils/shiftUtils.js'
 import styles from './AdminPanel.module.css'
+
+const DEFAULT_SETTINGS = {
+  session: {
+    idleTimeoutMinutes: 120,
+    idleWarningSeconds: 60,
+    sessionExpiresDays: 30,
+    applyIdleToAdmin: false,
+  },
+  shifts: DEFAULT_SHIFT_LIST,
+  updatedAt: null,
+}
+
+const IDLE_PRESETS = [
+  { label: '30 mnt', value: 30 },
+  { label: '1 jam', value: 60 },
+  { label: '2 jam (Default)', value: 120 },
+  { label: '4 jam', value: 240 },
+  { label: 'Nonaktif (0)', value: 0 },
+]
+
+function formatIdleMinutes(minutes) {
+  if (minutes === null || minutes === undefined) return ''
+  const mins = Number(minutes)
+  if (!Number.isFinite(mins)) return ''
+  if (mins <= 1) return 'Baru saja aktif'
+  if (mins < 60) return `Aktif ${mins} mnt lalu`
+  const hrs = Math.floor(mins / 60)
+  const rem = mins % 60
+  return rem > 0 ? `Tidak aktif ${hrs} jam ${rem} mnt` : `Tidak aktif ${hrs} jam`
+}
 
 function TablePagination({
   currentPage,
@@ -128,8 +161,8 @@ function TablePagination({
   )
 }
 
-export default function AdminPanel({ user, onBackToProduction, onLogout, showToast }) {
-  const [activeTab, setActiveTab] = useState('machines') // 'machines' | 'defects' | 'users'
+export default function AdminPanel({ user, onBackToProduction, onLogout, onSettingsUpdated, showToast }) {
+  const [activeTab, setActiveTab] = useState('machines') // 'machines' | 'defects' | 'users' | 'settings'
   const [loading, setLoading] = useState(true)
 
   // Real data state
@@ -138,6 +171,11 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
   const [defaultPrinter, setDefaultPrinter] = useState('')
   const [defects, setDefects] = useState([])
   const [users, setUsers] = useState([])
+
+  // App Setting state (JSON config on server)
+  const [savedSettings, setSavedSettings] = useState(DEFAULT_SETTINGS)
+  const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   // Search & Filter state
   const [machineSearch, setMachineSearch] = useState('')
@@ -190,11 +228,12 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
   const refreshAllData = useCallback(async () => {
     setLoading(true)
     try {
-      const [machinesData, printersData, defectsData, usersData] = await Promise.allSettled([
+      const [machinesData, printersData, defectsData, usersData, appSettingsData] = await Promise.allSettled([
         getMachinesApi(),
         getAvailablePrintersApi(),
         getDefectCodeList({ limit: 1000 }),
         getUsersApi(),
+        getAppSettingsApi(),
       ])
 
       if (machinesData.status === 'fulfilled') {
@@ -209,6 +248,11 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
       }
       if (usersData.status === 'fulfilled') {
         setUsers(usersData.value || [])
+      }
+      if (appSettingsData.status === 'fulfilled' && appSettingsData.value?.settings) {
+        const nextSettings = appSettingsData.value.settings
+        setSavedSettings(nextSettings)
+        setSettingsForm(JSON.parse(JSON.stringify(nextSettings)))
       }
     } catch (err) {
       console.error('[AdminPanel] Error fetching admin data:', err)
@@ -380,7 +424,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
     const cleanDefect = String(Defect || '').trim()
 
     if (!cleanCode) {
-      showToast?.('Kode cacat wajib diisi.')
+      showToast?.('Kode inspeksi wajib diisi.')
       return
     }
 
@@ -388,18 +432,18 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
     try {
       if (defectModal.mode === 'create') {
         const created = await createDefectCodeApi({ Code: cleanCode, Defect: cleanDefect })
-        showToast?.(`✓ Kode cacat '${created.Code}' berhasil ditambahkan.`)
+        showToast?.(`✓ Kode inspeksi '${created.Code}' berhasil ditambahkan.`)
       } else {
         const updated = await updateDefectCodeApi(defectModal.originalCode, {
           newCode: cleanCode,
           Defect: cleanDefect,
         })
-        showToast?.(`✓ Kode cacat '${updated.Code}' berhasil diperbarui.`)
+        showToast?.(`✓ Kode inspeksi '${updated.Code}' berhasil diperbarui.`)
       }
       setDefectModal(null)
       refreshAllData()
     } catch (err) {
-      showToast?.(`Gagal menyimpan kode cacat: ${err.message}`)
+      showToast?.(`Gagal menyimpan kode inspeksi: ${err.message}`)
     } finally {
       setSubmittingDefect(false)
     }
@@ -408,18 +452,18 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
   function handlePromptDeleteDefect(defect) {
     const code = defect.Code
     setConfirmModal({
-      title: `Hapus Kode Cacat '${code}'?`,
-      message: `Apakah Anda yakin ingin menghapus kode cacat '${code}' (${defect.Defect || 'Tanpa Keterangan'})? Tindakan ini tidak dapat dibatalkan.`,
+      title: `Hapus Kode Inspeksi '${code}'?`,
+      message: `Apakah Anda yakin ingin menghapus kode inspeksi '${code}' (${defect.Defect || 'Tanpa Keterangan'})? Tindakan ini tidak dapat dibatalkan.`,
       actionLabel: 'Ya, Hapus',
       isDanger: true,
       onConfirm: async () => {
         try {
           await deleteDefectCodeApi(code)
-          showToast?.(`✓ Kode cacat '${code}' berhasil dihapus.`)
+          showToast?.(`✓ Kode inspeksi '${code}' berhasil dihapus.`)
           setConfirmModal(null)
           refreshAllData()
         } catch (err) {
-          showToast?.(`Gagal menghapus kode cacat: ${err.message}`)
+          showToast?.(`Gagal menghapus kode inspeksi: ${err.message}`)
         }
       },
     })
@@ -515,6 +559,99 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
     }
   }
 
+  // ══════════════════════════════════════════════════════════
+  // APP SETTING HANDLERS (JSON Config)
+  // ══════════════════════════════════════════════════════════
+  const isSettingsDirty = useMemo(() => {
+    return JSON.stringify(settingsForm) !== JSON.stringify(savedSettings)
+  }, [settingsForm, savedSettings])
+
+  const previewActiveShift = useMemo(() => {
+    return detectActiveShift(settingsForm?.shifts || [], new Date())
+  }, [settingsForm?.shifts])
+
+  function updateSessionSetting(field, value) {
+    setSettingsForm((prev) => ({
+      ...prev,
+      session: {
+        ...prev.session,
+        [field]: value,
+      },
+    }))
+  }
+
+  function handleUpdateShift(index, field, value) {
+    setSettingsForm((prev) => {
+      const nextShifts = prev.shifts.map((s, idx) =>
+        idx === index ? { ...s, [field]: value } : s
+      )
+      return { ...prev, shifts: nextShifts }
+    })
+  }
+
+  function handleAddShift() {
+    setSettingsForm((prev) => {
+      const nextId = prev.shifts.length
+        ? Math.max(...prev.shifts.map((s) => Number(s.id) || 0)) + 1
+        : 1
+      return {
+        ...prev,
+        shifts: [
+          ...prev.shifts,
+          { id: nextId, name: `Shift ${nextId}`, start: '07:00', end: '15:00' },
+        ],
+      }
+    })
+  }
+
+  function handleRemoveShift(index) {
+    setSettingsForm((prev) => {
+      if (prev.shifts.length <= 1) return prev
+      return {
+        ...prev,
+        shifts: prev.shifts.filter((_, idx) => idx !== index),
+      }
+    })
+  }
+
+  function handleResetDefaultSettings() {
+    setSettingsForm(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)))
+    showToast?.('Form pengaturan dikembalikan ke nilai default (belum disimpan).')
+  }
+
+  async function handleSaveSettings(e) {
+    e.preventDefault()
+    setSavingSettings(true)
+    try {
+      const payload = {
+        ...settingsForm,
+        session: {
+          ...settingsForm.session,
+          idleTimeoutMinutes: Number(settingsForm.session.idleTimeoutMinutes || 0),
+          idleWarningSeconds: Number(settingsForm.session.idleWarningSeconds || 0),
+          sessionExpiresDays: Number(settingsForm.session.sessionExpiresDays || 30),
+          applyIdleToAdmin: Boolean(settingsForm.session.applyIdleToAdmin),
+        },
+        shifts: settingsForm.shifts.map((s) => ({
+          ...s,
+          id: Number(s.id),
+          name: String(s.name || '').trim(),
+          start: String(s.start || '').trim(),
+          end: String(s.end || '').trim(),
+        })),
+      }
+      const res = await saveAppSettingsApi(payload, user?.sessionKey)
+      setSavedSettings(res.settings)
+      setSettingsForm(JSON.parse(JSON.stringify(res.settings)))
+      onSettingsUpdated?.(res.settings)
+      showToast?.(`✓ ${res.message || 'Pengaturan aplikasi berhasil disimpan.'}`)
+    } catch (err) {
+      showToast?.(`Gagal menyimpan pengaturan: ${err.message}`)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
   return (
     <div className={styles.adminPanel}>
       {/* ── Top Header Bar ── */}
@@ -578,7 +715,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
           className={`${styles.tabBtn} ${activeTab === 'defects' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('defects')}
         >
-          <span>📋</span> Master Kode Cacat
+          <span>📋</span> Master Kode Inspeksi
           <span className={styles.tabBadge}>{filteredDefects.length}</span>
         </button>
 
@@ -589,6 +726,15 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
         >
           <span>👥</span> Manajemen Pengguna
           <span className={styles.tabBadge}>{filteredUsers.length}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.tabBtn} ${activeTab === 'settings' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          <span>⚙️</span> App Setting
+          <span className={styles.tabBadge}>{(settingsForm?.shifts || []).length} Shift</span>
         </button>
       </nav>
 
@@ -691,7 +837,21 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
                               <div className={styles.userAvatar}>
                                 {(m.user_active || 'U').charAt(0).toUpperCase()}
                               </div>
-                              <span className={styles.userName}>{m.user_active}</span>
+                              <div className={styles.userMeta}>
+                                <span className={styles.userName}>{m.user_active}</span>
+                                {m.idle_minutes !== null && m.idle_minutes !== undefined && (
+                                  <span
+                                    className={`${styles.activityMeta} ${
+                                      savedSettings?.session?.idleTimeoutMinutes > 0 &&
+                                      m.idle_minutes >= savedSettings.session.idleTimeoutMinutes * 0.75
+                                        ? styles.activityMetaWarn
+                                        : ''
+                                    }`}
+                                  >
+                                    {formatIdleMinutes(m.idle_minutes)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <span style={{ color: 'var(--muted)' }}>—</span>
@@ -774,7 +934,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          TAB 2: MASTER KODE CACAT (DefectCode)
+          TAB 2: MASTER KODE INSPEKSI (DefectCode)
          ══════════════════════════════════════════════════════════ */}
       {activeTab === 'defects' && (
         <section className={styles.tabContentCard}>
@@ -784,7 +944,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
               <input
                 type="text"
                 className={styles.searchInput}
-                placeholder="Cari kode defect atau nama cacat kain…"
+                placeholder="Cari kode defect atau nama inspeksi kain…"
                 value={defectSearch}
                 onChange={(e) => setDefectSearch(e.target.value)}
               />
@@ -802,7 +962,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
                   })
                 }
               >
-                + Tambah Kode Cacat
+                + Tambah Kode Inspeksi
               </button>
             </div>
           </div>
@@ -812,8 +972,8 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
               <thead>
                 <tr>
                   <th style={{ width: '80px' }}>No</th>
-                  <th style={{ width: '180px' }}>Kode Cacat</th>
-                  <th>Nama / Deskripsi Cacat Kain</th>
+                  <th style={{ width: '180px' }}>Kode Inspeksi</th>
+                  <th>Nama / Deskripsi Inspeksi Kain</th>
                   <th style={{ width: '120px' }}>Status</th>
                   <th style={{ textAlign: 'right', width: '160px' }}>Aksi</th>
                 </tr>
@@ -822,7 +982,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
                 {filteredDefects.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
-                      Tidak ada kode cacat yang sesuai kriteria pencarian.
+                      Tidak ada kode inspeksi yang sesuai kriteria pencarian.
                     </td>
                   </tr>
                 ) : (
@@ -881,7 +1041,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
             pageSize={defectPageSize}
             onPageChange={setDefectPage}
             onPageSizeChange={setDefectPageSize}
-            itemName="kode cacat"
+            itemName="kode inspeksi"
           />
         </section>
       )}
@@ -1072,6 +1232,245 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
       )}
 
       {/* ══════════════════════════════════════════════════════════
+          TAB 4: APP SETTING (JSON Config tanpa tabel DB)
+         ══════════════════════════════════════════════════════════ */}
+      {activeTab === 'settings' && (
+        <section className={styles.tabContentCard}>
+          <form onSubmit={handleSaveSettings} className={styles.settingsStack}>
+            {/* Section 1: Session & Inactivity */}
+            <div className={styles.settingsSection}>
+              <div className={styles.settingsSectionHeader}>
+                <div>
+                  <h2 className={styles.settingsSectionTitle}>⏱️ Aturan Sesi & Deteksi Tidak Aktif (Inactive)</h2>
+                  <p className={styles.settingsSectionDesc}>
+                    Jika operator tidak melakukan aktivitas nyata (interaksi layar, scan, tarik sensor, simpan roll/cacat, cetak label) selama batas waktu di bawah, akun otomatis logout dan mesin dilepas. Polling latar belakang tidak dihitung sebagai aktivitas.
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.settingsGrid}>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="setting-idle-minutes">
+                    Batas Waktu Tidak Aktif (Menit)
+                  </label>
+                  <input
+                    id="setting-idle-minutes"
+                    type="number"
+                    min={0}
+                    max={10080}
+                    className={styles.formInput}
+                    value={settingsForm.session.idleTimeoutMinutes}
+                    onChange={(e) => updateSessionSetting('idleTimeoutMinutes', e.target.value)}
+                    required
+                  />
+                  <div className={styles.presetRow}>
+                    {IDLE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        className={`${styles.presetBtn} ${
+                          Number(settingsForm.session.idleTimeoutMinutes) === preset.value ? styles.presetBtnActive : ''
+                        }`}
+                        onClick={() => updateSessionSetting('idleTimeoutMinutes', preset.value)}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className={styles.settingHelp}>
+                    Default: <strong>120 menit (2 jam)</strong>. Isi <strong>0</strong> untuk menonaktifkan auto-logout karena tidak aktif.
+                  </span>
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="setting-idle-warning">
+                    Peringatan Sebelum Auto-Logout (Detik)
+                  </label>
+                  <input
+                    id="setting-idle-warning"
+                    type="number"
+                    min={0}
+                    max={600}
+                    className={styles.formInput}
+                    value={settingsForm.session.idleWarningSeconds}
+                    onChange={(e) => updateSessionSetting('idleWarningSeconds', e.target.value)}
+                    required
+                  />
+                  <span className={styles.settingHelp}>
+                    Menampilkan modal hitung mundur di layar sebelum logout otomatis. Isi <strong>0</strong> jika ingin langsung logout tanpa peringatan.
+                  </span>
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="setting-expires-days">
+                    Masa Berlaku Maksimal Token (Hari)
+                  </label>
+                  <input
+                    id="setting-expires-days"
+                    type="number"
+                    min={1}
+                    max={3650}
+                    className={styles.formInput}
+                    value={settingsForm.session.sessionExpiresDays}
+                    onChange={(e) => updateSessionSetting('sessionExpiresDays', e.target.value)}
+                    required
+                  />
+                  <span className={styles.settingHelp}>
+                    Batas maksimal umur token login di server selama user tetap aktif. Pergantian shift tidak otomatis me-logout user.
+                  </span>
+                </div>
+
+                <div className={styles.formField}>
+                  <span className={styles.formLabel}>Cakupan Portal Admin (/admin)</span>
+                  <label className={styles.toggleLabel}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(settingsForm.session.applyIdleToAdmin)}
+                      onChange={(e) => updateSessionSetting('applyIdleToAdmin', e.target.checked)}
+                    />
+                    <span>Terapkan auto-logout idle ke Portal Admin</span>
+                  </label>
+                  <span className={styles.settingHelp}>
+                    Jika tidak dicentang, auto-logout idle hanya berlaku untuk akun operator yang memakai mesin produksi.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Shift Hours */}
+            <div className={styles.settingsSection}>
+              <div className={styles.settingsSectionHeader}>
+                <div>
+                  <h2 className={styles.settingsSectionTitle}>🕒 Jadwal Jam Shift (Default Otomatis Login)</h2>
+                  <p className={styles.settingsSectionDesc}>
+                    Digunakan untuk memilih shift default secara otomatis saat operator membuka halaman login. Operator tetap bebas mengganti pilihan shift secara manual.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  {previewActiveShift ? (
+                    <span className={styles.shiftPreviewBadge}>
+                      ● Saat ini terdeteksi: {previewActiveShift.name} ({previewActiveShift.start}–{previewActiveShift.end})
+                    </span>
+                  ) : (
+                    <span className={`${styles.shiftPreviewBadge} ${styles.shiftPreviewWarn}`}>
+                      ○ Tidak ada shift cocok untuk jam saat ini
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.tableActionBtn}
+                    onClick={handleAddShift}
+                  >
+                    + Tambah Shift
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.shiftRows}>
+                {(settingsForm.shifts || []).map((shiftItem, index) => {
+                  const isOvernight = isOvernightShift(shiftItem)
+
+                  return (
+                    <div key={`${index}-${shiftItem.id}`} className={styles.shiftRowCard}>
+                      <div className={styles.formField}>
+                        <label className={styles.formLabel}>ID Shift</label>
+                        <input
+                          type="number"
+                          min={1}
+                          className={styles.formInput}
+                          value={shiftItem.id}
+                          onChange={(e) => handleUpdateShift(index, 'id', e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className={styles.formField}>
+                        <label className={styles.formLabel}>
+                          Nama Shift
+                          {isOvernight && <span className={styles.shiftOvernightTag}>Lintas Malam</span>}
+                        </label>
+                        <input
+                          type="text"
+                          className={styles.formInput}
+                          placeholder="Contoh: Shift 1"
+                          value={shiftItem.name}
+                          onChange={(e) => handleUpdateShift(index, 'name', e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className={styles.formField}>
+                        <label className={styles.formLabel}>Jam Mulai</label>
+                        <input
+                          type="time"
+                          className={styles.formInput}
+                          value={shiftItem.start}
+                          onChange={(e) => handleUpdateShift(index, 'start', e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className={styles.formField}>
+                        <label className={styles.formLabel}>Jam Selesai</label>
+                        <input
+                          type="time"
+                          className={styles.formInput}
+                          value={shiftItem.end}
+                          onChange={(e) => handleUpdateShift(index, 'end', e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <button
+                          type="button"
+                          className={styles.tableActionBtnDanger}
+                          onClick={() => handleRemoveShift(index)}
+                          disabled={settingsForm.shifts.length <= 1}
+                          title="Hapus jadwal shift ini"
+                        >
+                          🗑️ Hapus
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className={styles.settingsFooter}>
+              <div className={styles.settingsMeta}>
+                Disimpan ke konfigurasi JSON di server (tanpa tabel database).
+                {savedSettings?.updatedAt && (
+                  <> • Terakhir diperbarui: <strong>{new Date(savedSettings.updatedAt).toLocaleString('id-ID')}</strong></>
+                )}
+                {isSettingsDirty && <> • <strong style={{ color: 'var(--warning)' }}>Ada perubahan belum disimpan</strong></>}
+              </div>
+
+              <div className={styles.settingsActions}>
+                <button
+                  type="button"
+                  className={styles.backBtn}
+                  onClick={handleResetDefaultSettings}
+                  disabled={savingSettings}
+                >
+                  ↺ Reset Default
+                </button>
+                <button
+                  type="submit"
+                  className={styles.actionBtnPrimary}
+                  disabled={savingSettings}
+                >
+                  {savingSettings ? 'Menyimpan…' : '💾 Simpan Pengaturan'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
           MODAL 1: FORM MESIN (CREATE / EDIT)
          ══════════════════════════════════════════════════════════ */}
       {machineModal && (
@@ -1195,7 +1594,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
             <form onSubmit={handleSaveDefect}>
               <div className={styles.modalHeader}>
                 <div className={styles.modalTitle}>
-                  <span>📋</span> {defectModal.mode === 'create' ? 'Tambah Kode Cacat Baru' : `Edit Kode Cacat '${defectModal.originalCode}'`}
+                  <span>📋</span> {defectModal.mode === 'create' ? 'Tambah Kode Inspeksi Baru' : `Edit Kode Inspeksi '${defectModal.originalCode}'`}
                 </div>
                 <button
                   type="button"
@@ -1208,11 +1607,11 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
 
               <div className={styles.modalBody}>
                 <div className={styles.formField}>
-                  <label className={styles.formLabel}>Kode Cacat (Unik, Contoh: L05, W02, B10)</label>
+                  <label className={styles.formLabel}>Kode Inspeksi (Unik, Contoh: L05, W02, B10)</label>
                   <input
                     type="text"
                     className={styles.formInput}
-                    placeholder="Masukkan kode cacat..."
+                    placeholder="Masukkan kode inspeksi..."
                     value={defectModal.data.Code}
                     onChange={(e) =>
                       setDefectModal({
@@ -1225,7 +1624,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
                 </div>
 
                 <div className={styles.formField}>
-                  <label className={styles.formLabel}>Nama / Deskripsi Cacat Kain</label>
+                  <label className={styles.formLabel}>Nama / Deskripsi Inspeksi Kain</label>
                   <input
                     type="text"
                     className={styles.formInput}
@@ -1256,7 +1655,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, showToa
                   className={styles.actionBtnPrimary}
                   disabled={submittingDefect}
                 >
-                  {submittingDefect ? 'Menyimpan…' : 'Simpan Kode Cacat'}
+                  {submittingDefect ? 'Menyimpan…' : 'Simpan Kode Inspeksi'}
                 </button>
               </div>
             </form>

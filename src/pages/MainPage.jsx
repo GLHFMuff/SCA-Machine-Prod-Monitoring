@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { SCAN_DATA } from '../data/dummyData.js'
 import AppHeader from '../components/AppHeader.jsx'
 import ScanIdle from '../components/ScanIdle.jsx'
@@ -21,8 +21,14 @@ import {
   saveRollDefectsApi,
   updateRollStockApi,
   saveJoinedPiecesApi,
+  getDefectReportDataApi,
 } from '../services/api.js'
 import { toDDMMYYYY, getTodayDDMMYYYY } from '../utils/dateUtils.js'
+import {
+  areDefectsEqual,
+  areJoinedPiecesEqual,
+  splitInspectionsByType,
+} from '../utils/inspectionHelpers.js'
 import styles from './MainPage.module.css'
 
 function parseFormattedNumber(val) {
@@ -89,14 +95,22 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   const [pendingDefects, setPendingDefects] = useState([]) // Catatan cacat sementara saat roll belum terbentuk
   const [toastMsg, setToastMsg] = useState('')
   const [saving, setSaving] = useState(false)
+  const [downloadingDefectPdf, setDownloadingDefectPdf] = useState(false)
 
   // State untuk Multi-Mesin & Roll Reserve
   const [startRollNumber, setStartRollNumber] = useState(initialSavedOrder?.startRollNumber || null)
   const [existingDbRolls, setExistingDbRolls] = useState([])
   const [rollsByMachine, setRollsByMachine] = useState({})
+  const [machineSummary, setMachineSummary] = useState([])
+  const [lastStatsUpdatedAt, setLastStatsUpdatedAt] = useState(null)
+  const [refreshingStats, setRefreshingStats] = useState(false)
   const [maxRollNumber, setMaxRollNumber] = useState(0)
   const [maxOtherRollNumber, setMaxOtherRollNumber] = useState(0)
   const [mandatoryReserveModal, setMandatoryReserveModal] = useState(null)
+
+  const activeProdIdRef = useRef(initialSavedOrder?.prodId ? String(initialSavedOrder.prodId).trim() : '')
+  const statsReqSeqRef = useRef(0)
+  const lastStatsFetchMsRef = useRef(0)
 
   const updateStartRollNumber = useCallback((val) => {
     setStartRollNumber(val)
@@ -136,21 +150,31 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     setTimeout(() => setToastMsg(''), 3500)
   }
 
-  // Helper untuk refresh info roll antar mesin
-  const refreshMultiMachineStats = useCallback(async (prodId) => {
-    if (!prodId) return
+  // Helper untuk refresh info roll & co-product antar mesin
+  const refreshMultiMachineStats = useCallback(async (prodId, { showLoading = false } = {}) => {
+    const cleanProdId = String(prodId || '').trim()
+    if (!cleanProdId) return null
     const machineId = String(user?.machine_id || user?.machineId || '1')
+    const reqId = ++statsReqSeqRef.current
+    if (showLoading) setRefreshingStats(true)
     try {
-      const stats = await getNextRollInfo(prodId, machineId)
+      const stats = await getNextRollInfo(cleanProdId, machineId)
+      if (reqId !== statsReqSeqRef.current) return null
+      if (activeProdIdRef.current && activeProdIdRef.current !== cleanProdId) return null
       if (stats) {
         setExistingDbRolls(stats.lines || [])
         setRollsByMachine(stats.rollsByMachine || {})
         setMaxRollNumber(stats.maxRoll || 0)
+        setMachineSummary(Array.isArray(stats.machineSummary) ? stats.machineSummary : [])
+        setLastStatsUpdatedAt(new Date())
+        lastStatsFetchMsRef.current = Date.now()
       }
       return stats
     } catch (err) {
       console.warn('Gagal memuat statistik multi-mesin:', err)
       return null
+    } finally {
+      if (showLoading) setRefreshingStats(false)
     }
   }, [user])
 
@@ -216,6 +240,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     }
 
     const targetProdId = (parsed.prodId || SCAN_DATA.prodNumber).trim()
+    activeProdIdRef.current = targetProdId
     const targetSeqment = (parsed.seqmentNum || parsed.noWo || targetProdId).trim()
     const targetCustomer = (parsed.custCode || parsed.customer || '').trim()
     const targetDesign = (parsed.designCode || parsed.design || '').trim()
@@ -692,33 +717,17 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       showToast(`📦 Roll #${nextId} (${lengthVal} yd) dicatat sebagai Kain Stock (Kuota Order terpenuhi)`)
     }
 
-    // 2. Hubungkan catatan cacat sementara (jika ada) ke roll baru
+    // 2. Hubungkan catatan inspeksi sementara (jika ada) ke roll baru
     if (pendingDefects.length > 0) {
-      const defectsToSave = pendingDefects.map((d, idx) => ({
-        id: d.id || Date.now() + idx,
-        yard: parseFloat(d.yard) || 0,
-        code: d.code,
-        isExecuted: false,
-        lineNumber: idx + 1,
-        yardTo: parseFloat(d.yardTo) || 0,
-      }))
+      const { defectsCount, joinedPiecesCount, errors } = await flushPendingInspections(prodId, nextId)
+      const savedParts = []
+      if (defectsCount > 0) savedParts.push(`${defectsCount} titik inspeksi`)
+      if (joinedPiecesCount > 0) savedParts.push(`${joinedPiecesCount} joined piece`)
 
-      try {
-        await saveRollDefectsApi(prodId, nextId, defectsToSave)
-        setDefects((prev) => ({
-          ...prev,
-          [nextId]: defectsToSave,
-        }))
-        updatePendingDefects([])
-        showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) tersimpan di Roll #${nextId} & ${defectsToSave.length} titik cacat tersimpan di.`)
-      } catch (errDefect) {
-        console.error('Error saat menyimpan cacat sementara:', errDefect)
-        setDefects((prev) => ({
-          ...prev,
-          [nextId]: defectsToSave,
-        }))
-        updatePendingDefects([])
-        showToast(`Roll #${nextId} tersimpan. Cacat tersimpan lokal (Gagal simpan: ${errDefect.message})`)
+      if (errors.length > 0) {
+        showToast(`Roll #${nextId} tersimpan. ${savedParts.join(' & ')} tersimpan lokal (Gagal simpan: ${errors.join('; ')})`)
+      } else {
+        showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) tersimpan di Roll #${nextId} & ${savedParts.join(' & ')} tersimpan.`)
       }
     } else {
       showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) berhasil disimpan di Roll #${nextId}.`)
@@ -743,18 +752,22 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   }
 
   /**
-   * Hapus Roll:
-   * Otomatis langsung hapus baris roll dari database (CountingKainLines)
+   * Hapus Roll (Soft Delete):
+   * Menandai baris roll sebagai terhapus (DeletedAt, isDeleted = true, IsExecute = false) di CountingKainLines
    */
   async function handleDeleteRoll(rollId) {
     const prodId = prodData.prodNumber
 
     try {
-      // Hapus otomatis langsung dari database PostgreSQL
       await deleteRollApi(prodId, rollId)
 
       setRolls((prev) => prev.filter((r) => r.id !== rollId))
       setDefects((prev) => {
+        const next = { ...prev }
+        delete next[rollId]
+        return next
+      })
+      setJoinedPieces((prev) => {
         const next = { ...prev }
         delete next[rollId]
         return next
@@ -764,9 +777,22 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       showToast(`✓ Roll #${rollId} berhasil dihapus.`)
     } catch (err) {
       console.error('Error saat menghapus roll:', err)
-      // Fallback update frontend jika belum ada di
-      setRolls((prev) => prev.filter((r) => r.id !== rollId))
-      showToast(`Roll #${rollId} dihapus dari daftar lokal (${err.message})`)
+      if (err?.status === 404) {
+        setRolls((prev) => prev.filter((r) => r.id !== rollId))
+        setDefects((prev) => {
+          const next = { ...prev }
+          delete next[rollId]
+          return next
+        })
+        setJoinedPieces((prev) => {
+          const next = { ...prev }
+          delete next[rollId]
+          return next
+        })
+        showToast(`Roll #${rollId} dihapus dari daftar lokal (tidak ditemukan di database).`)
+      } else {
+        showToast(`⚠️ Gagal menghapus Roll #${rollId}: ${err.message}`)
+      }
     }
   }
 
@@ -866,33 +892,17 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         setStartRollNumber(fullRoll.id + 1)
       }
 
-      // Jika ada catatan cacat sementara saat roll belum terbentuk, simpan ke roll manual ini
+      // Jika ada catatan inspeksi sementara saat roll belum terbentuk, simpan ke roll manual ini
       if (pendingDefects.length > 0) {
-        const defectsToSave = pendingDefects.map((d, idx) => ({
-          id: d.id || Date.now() + idx,
-          yard: parseFloat(d.yard) || 0,
-          code: d.code,
-          isExecuted: false,
-          lineNumber: idx + 1,
-          yardTo: parseFloat(d.yardTo) || 0,
-        }))
+        const { defectsCount, joinedPiecesCount, errors } = await flushPendingInspections(prodId, fullRoll.id)
+        const savedParts = []
+        if (defectsCount > 0) savedParts.push(`${defectsCount} titik inspeksi`)
+        if (joinedPiecesCount > 0) savedParts.push(`${joinedPiecesCount} joined piece`)
 
-        try {
-          await saveRollDefectsApi(prodId, fullRoll.id, defectsToSave)
-          setDefects((prev) => ({
-            ...prev,
-            [fullRoll.id]: defectsToSave,
-          }))
-          updatePendingDefects([])
-          showToast(`✓ Roll #${fullRoll.id} (${fullRoll.length} yd) & ${defectsToSave.length} titik cacat berhasil ditambahkan & tersimpan!`)
-        } catch (errDefect) {
-          console.error('Error saat simpan cacat :', errDefect)
-          setDefects((prev) => ({
-            ...prev,
-            [fullRoll.id]: defectsToSave,
-          }))
-          updatePendingDefects([])
-          showToast(`Roll #${fullRoll.id} ditambahkan. Cacat tersimpan lokal (${errDefect.message})`)
+        if (errors.length > 0) {
+          showToast(`Roll #${fullRoll.id} ditambahkan. ${savedParts.join(' & ')} tersimpan lokal (${errors.join('; ')})`)
+        } else {
+          showToast(`✓ Roll #${fullRoll.id} (${fullRoll.length} yd) & ${savedParts.join(' & ')} berhasil ditambahkan & tersimpan!`)
         }
       } else {
         showToast(`✓ Roll #${fullRoll.id} (${fullRoll.length} yard) berhasil ditambahkan ke Mesin #${machineId}!`)
@@ -1067,19 +1077,130 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     }
   }
 
-  async function saveDefects(rollId, list) {
-    setDefects((prev) => ({ ...prev, [rollId]: list }))
+  async function flushPendingInspections(prodId, rollId) {
+    if (pendingDefects.length === 0) {
+      return { defectsCount: 0, joinedPiecesCount: 0, errors: [] }
+    }
+
+    const { defects: pendingNormalDefects, joinedPieces: pendingJpPieces } =
+      splitInspectionsByType(pendingDefects)
+
+    const defectsToSave = pendingNormalDefects.map((d, idx) => ({
+      id: d.id || Date.now() + idx,
+      yard: parseFloat(d.yard) || 0,
+      code: d.code,
+      isExecuted: false,
+      lineNumber: idx + 1,
+      yardTo: parseFloat(d.yardTo) || 0,
+    }))
+
+    const jpToSave = pendingJpPieces.map((jp, idx) => ({
+      id: jp.id || Date.now() + idx,
+      yard: parseFloat(jp.yard) || 0,
+      lineNumber: idx + 1,
+    }))
+
+    const tasks = []
+    if (defectsToSave.length > 0) {
+      tasks.push(saveRollDefectsApi(prodId, rollId, defectsToSave))
+    }
+    if (jpToSave.length > 0) {
+      tasks.push(saveJoinedPiecesApi(prodId, rollId, jpToSave))
+    }
+
+    const results = await Promise.allSettled(tasks)
+    const errors = []
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        console.error('Error saat menyimpan inspeksi sementara:', r.reason)
+        errors.push(r.reason?.message || 'Gagal simpan')
+      }
+    }
+
+    if (defectsToSave.length > 0) {
+      setDefects((prev) => ({
+        ...prev,
+        [rollId]: defectsToSave,
+      }))
+    }
+    if (jpToSave.length > 0) {
+      setJoinedPieces((prev) => ({
+        ...prev,
+        [rollId]: jpToSave,
+      }))
+    }
+    updatePendingDefects([])
+
+    return {
+      defectsCount: defectsToSave.length,
+      joinedPiecesCount: jpToSave.length,
+      errors,
+    }
+  }
+
+  async function saveInspections(rollId, defectList = [], joinedPieceList = []) {
+    const prevDefects = defects[rollId] || []
+    const prevJoinedPieces = joinedPieces[rollId] || []
+
+    const defectsChanged = !areDefectsEqual(prevDefects, defectList)
+    const joinedPiecesChanged = !areJoinedPiecesEqual(prevJoinedPieces, joinedPieceList)
+
+    if (defectsChanged) {
+      setDefects((prev) => ({ ...prev, [rollId]: defectList }))
+    }
+    if (joinedPiecesChanged) {
+      setJoinedPieces((prev) => ({ ...prev, [rollId]: joinedPieceList }))
+    }
     setDefectModal(null)
 
     const prodId = prodData.prodNumber
     if (!prodId) return
 
-    try {
-      await saveRollDefectsApi(prodId, rollId, list)
-      showToast(`✓ Catatan cacat Roll #${rollId} (${list.length} titik) berhasil disimpan.`)
-    } catch (err) {
-      console.error('Error saat menyimpan cacat :', err)
-      showToast(`Cacat Roll #${rollId} tersimpan lokal (Gagal simpan: ${err.message})`)
+    if (!defectsChanged && !joinedPiecesChanged) {
+      showToast(`✓ Catatan inspeksi Roll #${rollId} tidak berubah.`)
+      return
+    }
+
+    const tasks = []
+    if (defectsChanged) {
+      tasks.push({
+        type: 'defect',
+        promise: saveRollDefectsApi(prodId, rollId, defectList),
+      })
+    }
+    if (joinedPiecesChanged) {
+      tasks.push({
+        type: 'joinedPiece',
+        promise: saveJoinedPiecesApi(prodId, rollId, joinedPieceList),
+      })
+    }
+
+    const results = await Promise.allSettled(tasks.map((t) => t.promise))
+    const failed = []
+    results.forEach((res, idx) => {
+      if (res.status === 'rejected') {
+        console.error(`Error saat menyimpan ${tasks[idx].type}:`, res.reason)
+        failed.push(res.reason?.message || 'Gagal simpan')
+      }
+    })
+
+    if (failed.length > 0) {
+      showToast(`Sebagian data Roll #${rollId} tersimpan lokal (${failed.join('; ')})`)
+      return
+    }
+
+    if (defectsChanged && joinedPiecesChanged) {
+      showToast(
+        `✓ Roll #${rollId}: ${defectList.length} inspeksi & ${joinedPieceList.length} joined piece berhasil disimpan.`
+      )
+    } else if (joinedPiecesChanged) {
+      showToast(
+        joinedPieceList.length > 0
+          ? `✓ Joined piece Roll #${rollId} (${joinedPieceList.length} titik) berhasil disimpan.`
+          : `✓ Catatan joined piece Roll #${rollId} dikosongkan.`
+      )
+    } else {
+      showToast(`✓ Catatan inspeksi Roll #${rollId} (${defectList.length} titik) berhasil disimpan.`)
     }
   }
 
@@ -1115,6 +1236,61 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Auto-refresh statistik roll & co-products tiap mesin setiap 1 menit untuk OP aktif
+  useEffect(() => {
+    if (!scanned || loadingScan || !prodData?.prodNumber) return
+    const activeProdId = String(prodData.prodNumber).trim()
+    if (!activeProdId) return
+
+    activeProdIdRef.current = activeProdId
+
+    const intervalId = setInterval(() => {
+      refreshMultiMachineStats(activeProdId)
+    }, 60 * 1000)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastStatsFetchMsRef.current >= 60 * 1000) {
+        refreshMultiMachineStats(activeProdId)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [scanned, loadingScan, prodData?.prodNumber, refreshMultiMachineStats])
+
+  async function handleDownloadDefectReportPdf() {
+    const prodId = prodData?.prodNumber
+    if (!prodId) {
+      showToast('⚠️ Nomor OP belum tersedia. Scan order terlebih dahulu.')
+      return
+    }
+
+    setDownloadingDefectPdf(true)
+    try {
+      const [reportData, { downloadDefectReportPdf }] = await Promise.all([
+        getDefectReportDataApi(prodId),
+        import('../utils/defectReportPdf.js'),
+      ])
+      const { filename, pageCount, report } = downloadDefectReportPdf(reportData, prodData)
+
+      if (report.stats.totalDefects > 0) {
+        showToast(
+          `✓ PDF ${filename} diunduh (${report.stats.defectRollsCount} roll inspeksi, ${report.stats.totalDefects} inspeksi, ${pageCount} hal).`
+        )
+      } else {
+        showToast(`✓ PDF ${filename} diunduh (0 inspeksi di CountingKainDefect).`)
+      }
+    } catch (err) {
+      console.error('Error saat membuat PDF laporan inspeksi:', err)
+      showToast(`⚠️ Gagal membuat laporan PDF: ${err.message}`)
+    } finally {
+      setDownloadingDefectPdf(false)
+    }
+  }
+
   function handleResetScan() {
     try {
       const storageKey = `mpm_active_order_${currentMachineId}`
@@ -1123,14 +1299,21 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     } catch (e) {
       console.warn('Gagal menghapus sesi order:', e)
     }
+    activeProdIdRef.current = ''
+    statsReqSeqRef.current += 1
+    lastStatsFetchMsRef.current = 0
     setScanned(false)
     setDefects({})
     setJoinedPieces({})
     setRolls([])
+    setCoProducts([])
     updatePendingDefects([])
     setStartRollNumber(null)
     setExistingDbRolls([])
     setRollsByMachine({})
+    setMachineSummary([])
+    setLastStatsUpdatedAt(null)
+    setRefreshingStats(false)
     setMaxRollNumber(0)
     setMaxOtherRollNumber(0)
     setMandatoryReserveModal(null)
@@ -1173,6 +1356,14 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               totalDefects={totalDefects}
               pendingDefectsCount={pendingDefects.length}
               rollsCount={rolls.length}
+              rollsLength={rolls.reduce((sum, r) => sum + (parseFloat(r.length) || 0), 0)}
+              coProductsCount={coProducts.length}
+              coProductsLength={coProducts.reduce((sum, c) => sum + (parseFloat(c.length) || 0), 0)}
+              machineSummary={machineSummary}
+              existingDbRolls={existingDbRolls}
+              lastStatsUpdatedAt={lastStatsUpdatedAt}
+              refreshingStats={refreshingStats}
+              onRefreshStats={() => refreshMultiMachineStats(prodData.prodNumber, { showLoading: true })}
             />
 
             <RollTable
@@ -1212,17 +1403,27 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
                 type="button"
                 className="btn btn-outline"
                 onClick={handleResetScan}
-                disabled={saving}
+                disabled={saving || downloadingDefectPdf}
               >
                 ↩ Scan Ulang
               </button>
+
+              {/* <button
+                type="button"
+                className="btn btn-outline"
+                onClick={handleDownloadDefectReportPdf}
+                disabled={saving || downloadingDefectPdf}
+                title="Download Laporan Visual Inspeksi per OP (PDF Hitam Putih)"
+              >
+                {downloadingDefectPdf ? '⏳ Membuat PDF…' : '📄 Laporan Inspeksi (PDF)'}
+              </button> */}
 
               <button
                 type="button"
                 className="btn btn-primary"
                 style={{ padding: '13px 32px', fontSize: '15px' }}
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || downloadingDefectPdf}
                 title="Simpan perubahan roll & BS Qty"
               >
                 {saving ? '⏳ Menyimpan…' : '💾 Simpan Data'}
@@ -1246,17 +1447,32 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           roll={defectModal}
           isPreRoll={Boolean(defectModal.isPreRoll)}
           initDefects={defectModal.isPreRoll ? pendingDefects : (defects[defectModal.id] || [])}
-          onSave={(list) => {
+          initJoinedPieces={defectModal.isPreRoll ? [] : (joinedPieces[defectModal.id] || [])}
+          onSave={(defectList, joinedPieceList = []) => {
             if (defectModal.isPreRoll) {
-              updatePendingDefects(list)
+              const combinedPending = [
+                ...defectList,
+                ...joinedPieceList.map((jp) => ({
+                  id: jp.id || Date.now() + Math.random(),
+                  yard: parseFloat(jp.yard) || 0,
+                  yardTo: parseFloat(jp.yard) || 0,
+                  code: 'JP',
+                })),
+              ]
+              updatePendingDefects(combinedPending)
               setDefectModal(null)
-              showToast(
-                list.length > 0
-                  ? `✓ Catatan sementara (${list.length} titik cacat) tersimpan. Akan otomatis masuk saat Get Data.`
-                  : 'Catatan cacat sementara telah dikosongkan.'
-              )
+              if (combinedPending.length === 0) {
+                showToast('Catatan inspeksi sementara telah dikosongkan.')
+              } else {
+                const parts = []
+                if (defectList.length > 0) parts.push(`${defectList.length} titik inspeksi`)
+                if (joinedPieceList.length > 0) parts.push(`${joinedPieceList.length} joined piece`)
+                showToast(
+                  `✓ Catatan sementara (${parts.join(' & ')}) tersimpan. Akan otomatis masuk saat Get Data.`
+                )
+              }
             } else {
-              saveDefects(defectModal.id, list)
+              saveInspections(defectModal.id, defectList, joinedPieceList)
             }
           }}
           onClose={() => setDefectModal(null)}

@@ -12,7 +12,7 @@ export default function SendModal({ data, onConfirm, onClose }) {
     ['Total Roll', `${data.rolls.length} roll`],
     ['Total Panjang', `${totalLength.toFixed(1)} yard`],
     ['Total BS Qty', `${totalBsQty.toFixed(1)} yard`],
-    ['Total Cacat', `${totalDefects} titik`],
+    ['Total Inspeksi', `${totalDefects} titik`],
   ]
 
   return (

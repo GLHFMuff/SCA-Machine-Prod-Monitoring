@@ -480,7 +480,7 @@ export default function ETicketModal({
                         <span class="colonCell">:</span>
                         <span class="valueCell">${dateStr}</span>
 
-                        <span class="labelCell">LENGTH</span>
+                        <span class="labelCell">WIDTH</span>
                         <span class="colonCell">:</span>
                         <span class="valueCell">${lengthStr}</span>
 
@@ -878,7 +878,7 @@ export default function ETicketModal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Length (Lebar)</label>
+                  <label className={styles.editLabel}>Width (Lebar)</label>
                   <input
                     type="text"
                     className={styles.editInput}
@@ -1015,7 +1015,7 @@ export default function ETicketModal({
                     <span className={styles.colonCell}>:</span>
                     <span className={styles.valueCell}>{dateStr}</span>
 
-                    <span className={styles.labelCell}>LENGTH</span>
+                    <span className={styles.labelCell}>WIDTH</span>
                     <span className={styles.colonCell}>:</span>
                     <span className={styles.valueCell}>{lengthStr}</span>
 
@@ -1047,11 +1047,10 @@ export default function ETicketModal({
           {/* Status Alert Notification */}
           {printStatus && (
             <div
-              className={`${styles.statusMessage} ${
-                printStatus.type === 'success'
-                  ? styles.statusMessageSuccess
-                  : styles.statusMessageError
-              }`}
+              className={`${styles.statusMessage} ${printStatus.type === 'success'
+                ? styles.statusMessageSuccess
+                : styles.statusMessageError
+                }`}
             >
               <span>{printStatus.message}</span>
               <button

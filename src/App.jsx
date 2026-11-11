@@ -1,9 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import LoginPage from './pages/LoginPage.jsx'
 import MainPage from './pages/MainPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
 import FullscreenBanner from './components/FullscreenBanner.jsx'
-import { getStoredSession, checkSessionApi, logoutApi } from './services/api.js'
+import IdleWarningModal from './components/IdleWarningModal.jsx'
+import { useIdleSession } from './hooks/useIdleSession.js'
+import {
+  getStoredSession,
+  checkSessionDetailedApi,
+  getAppSettingsApi,
+  logoutApi,
+} from './services/api.js'
+
+const DEFAULT_SESSION_SETTINGS = {
+  idleTimeoutMinutes: 120,
+  idleWarningSeconds: 60,
+  sessionExpiresDays: 30,
+  applyIdleToAdmin: false,
+}
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
@@ -30,6 +44,9 @@ export default function App() {
     return stored?.user || null
   })
   const [checkingSession, setCheckingSession] = useState(true)
+  const [initialServerIdleMs, setInitialServerIdleMs] = useState(null)
+  const [sessionNotice, setSessionNotice] = useState('')
+  const [sessionSettings, setSessionSettings] = useState(DEFAULT_SESSION_SETTINGS)
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light'
@@ -40,6 +57,29 @@ export default function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
+  const syncAppSettings = useCallback(async () => {
+    try {
+      const data = await getAppSettingsApi()
+      if (data?.settings?.session) {
+        setSessionSettings({
+          ...DEFAULT_SESSION_SETTINGS,
+          ...data.settings.session,
+        })
+      }
+    } catch {
+      // Keep current/default settings if backend is temporarily unreachable
+    }
+  }, [])
+
+  const isAdminRoute = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')
+
+  // Load latest settings whenever navigating back to production route
+  useEffect(() => {
+    if (!isAdminRoute) {
+      syncAppSettings()
+    }
+  }, [isAdminRoute, syncAppSettings])
+
   // Validate session key with backend API on initial load (hanya untuk rute produksi biasa)
   useEffect(() => {
     const stored = getStoredSession()
@@ -48,12 +88,21 @@ export default function App() {
       return
     }
 
-    checkSessionApi(stored.key)
-      .then((validatedUser) => {
-        if (validatedUser) {
-          setUser(validatedUser)
+    checkSessionDetailedApi(stored.key)
+      .then((res) => {
+        if (res?.status === 'valid' || res?.status === 'offline') {
+          setUser(res.user)
+          setInitialServerIdleMs(
+            typeof res.session?.idle_elapsed_ms === 'number'
+              ? res.session.idle_elapsed_ms
+              : null
+          )
         } else {
           setUser(null)
+          setInitialServerIdleMs(null)
+          if (res?.status === 'unauthorized' && res.reason) {
+            setSessionNotice(res.reason)
+          }
         }
       })
       .catch(() => {
@@ -68,13 +117,33 @@ export default function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'))
   }
 
-  async function handleLogout() {
+  const handleLogout = useCallback(async (noticeReason = '') => {
     const sessionKey = user?.sessionKey || localStorage.getItem('mpm_session_key')
     await logoutApi(sessionKey)
     setUser(null)
-  }
+    setInitialServerIdleMs(null)
+    if (typeof noticeReason === 'string' && noticeReason.trim()) {
+      setSessionNotice(noticeReason)
+    }
+  }, [user?.sessionKey])
 
-  const isAdminRoute = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')
+  const handleLogin = useCallback((loggedInUser) => {
+    setSessionNotice('')
+    setInitialServerIdleMs(0)
+    setUser(loggedInUser)
+  }, [])
+
+  const { warningRemainingSec, extendSession } = useIdleSession({
+    enabled: !isAdminRoute && !checkingSession && Boolean(user?.sessionKey),
+    sessionKey: user?.sessionKey || '',
+    storageKey: 'mpm_last_activity_at',
+    idleTimeoutMinutes: sessionSettings.idleTimeoutMinutes,
+    idleWarningSeconds: sessionSettings.idleWarningSeconds,
+    initialServerIdleMs,
+    checkSessionFn: checkSessionDetailedApi,
+    onSettingsSync: syncAppSettings,
+    onAutoLogout: (reason) => handleLogout(reason),
+  })
 
   return (
     <>
@@ -105,19 +174,29 @@ export default function App() {
         </div>
       ) : !user ? (
         <LoginPage
-          onLogin={setUser}
+          onLogin={handleLogin}
           theme={theme}
           onToggleTheme={toggleTheme}
+          sessionNotice={sessionNotice}
+          onDismissNotice={() => setSessionNotice('')}
         />
       ) : (
-        <MainPage
-          user={user}
-          onLogout={handleLogout}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-        />
+        <>
+          <MainPage
+            user={user}
+            onLogout={() => handleLogout('')}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+          />
+          <IdleWarningModal
+            remainingSeconds={warningRemainingSec}
+            idleTimeoutMinutes={sessionSettings.idleTimeoutMinutes}
+            machineLabel={user.machine}
+            onContinue={extendSession}
+            onLogoutNow={() => handleLogout('')}
+          />
+        </>
       )}
     </>
   )
 }
-
