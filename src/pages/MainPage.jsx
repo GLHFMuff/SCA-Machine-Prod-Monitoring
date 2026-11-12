@@ -85,6 +85,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         k3lName: initialSavedOrder.k3lName || initialSavedOrder.K3LName || '',
         K3LNumber: initialSavedOrder.K3LNumber || initialSavedOrder.k3lNumber || '',
         K3LName: initialSavedOrder.K3LName || initialSavedOrder.k3lName || '',
+        patternCode: initialSavedOrder.patternCode || initialSavedOrder.PatternCode || '',
+        PatternCode: initialSavedOrder.PatternCode || initialSavedOrder.patternCode || '',
         noMesin: currentMachineId,
         userId: user?.username || user?.name || 'operator',
         isFromDb: true,
@@ -248,6 +250,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           k3lName: parts[11] || '',
           K3LNumber: parts[10] || '',
           K3LName: parts[11] || '',
+          patternCode: parts[12] || '',
+          PatternCode: parts[12] || '',
         }
       } else {
         parsed = {
@@ -268,6 +272,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           k3lName: '',
           K3LNumber: '',
           K3LName: '',
+          patternCode: '',
+          PatternCode: '',
         }
       }
     }
@@ -285,6 +291,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     const targetStockQty = parseFormattedNumber(parsed.stockQty)
     const targetK3LNumber = (parsed.k3lNumber || parsed.K3LNumber || '').trim()
     const targetK3LName = (parsed.k3lName || parsed.K3LName || '').trim()
+    const targetPatternCode = (parsed.patternCode || parsed.PatternCode || '').trim()
     const machineId = String(user?.machine_id || user?.machineId || '1')
     const userId = user?.username || user?.name || 'operator'
 
@@ -309,6 +316,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         k3lName: targetK3LName,
         K3LNumber: targetK3LNumber,
         K3LName: targetK3LName,
+        patternCode: targetPatternCode,
+        PatternCode: targetPatternCode,
         startRollNumber: parsed.startRollNumber || startRollNumber || null,
         scannedAt: new Date().toISOString(),
       }
@@ -337,6 +346,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           StockQty: targetStockQty,
           K3LNumber: targetK3LNumber,
           K3LName: targetK3LName,
+          PatternCode: targetPatternCode,
         })
         headerSaveSuccess = true
       } catch (headErr) {
@@ -380,6 +390,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           k3lName: dbRecord.K3LName || targetK3LName || '',
           K3LNumber: dbRecord.K3LNumber || targetK3LNumber || '',
           K3LName: dbRecord.K3LName || targetK3LName || '',
+          patternCode: dbRecord.PatternCode || targetPatternCode || '',
+          PatternCode: dbRecord.PatternCode || targetPatternCode || '',
           noMesin: machineId,
           userId: dbRecord.UserId || userId,
           isFromDb: true,
@@ -508,6 +520,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           k3lName: targetK3LName,
           K3LNumber: targetK3LNumber,
           K3LName: targetK3LName,
+          patternCode: targetPatternCode,
+          PatternCode: targetPatternCode,
           noMesin: machineId,
           userId: userId,
           isFromDb: true,
@@ -543,6 +557,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         k3lName: targetK3LName,
         K3LNumber: targetK3LNumber,
         K3LName: targetK3LName,
+        patternCode: targetPatternCode,
+        PatternCode: targetPatternCode,
         isFromDb: false,
       })
       setRolls([])
@@ -613,6 +629,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         StockQty: prodData.stockQty || 0,
         K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
         K3LName: prodData.k3lName || prodData.K3LName || '',
+        PatternCode: prodData.patternCode || prodData.PatternCode || '',
         lines: linesPayload,
       })
 
@@ -702,6 +719,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       StockQty: prodData.stockQty || 0,
       K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
       K3LName: prodData.k3lName || prodData.K3LName || '',
+      PatternCode: prodData.patternCode || prodData.PatternCode || '',
       lines: [
         {
           RoolNumber: nextId,
@@ -894,6 +912,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         StockQty: prodData.stockQty || 0,
         K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
         K3LName: prodData.k3lName || prodData.K3LName || '',
+        PatternCode: prodData.patternCode || prodData.PatternCode || '',
         lines: [
           {
             RoolNumber: fullRoll.id,

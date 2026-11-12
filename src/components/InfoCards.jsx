@@ -115,7 +115,11 @@ export default function InfoCards({
   }, [resolvedMachines])
 
   const refreshTimeText = formatRefreshTime(lastStatsUpdatedAt)
-  const fabricDisplay = data.fabricType || data.designCode
+  const designDisplay = String(data.fabricType || data.designCode || '').trim()
+  const motifDisplay = String(data.patternCode || data.PatternCode || '').trim()
+  const fabricDisplay = motifDisplay
+    ? `${designDisplay || '-'} / ${motifDisplay}`
+    : designDisplay
   const fabricSubText = `Warna: ${data.color || '-'}${(data.orderQty > 0 || data.stockQty > 0) ? ` · Order: ${data.orderQty} yd · Stock: ${data.stockQty} yd` : ''}`
 
   return (
@@ -140,7 +144,7 @@ export default function InfoCards({
         </div>
 
         <div className={`${styles.card} ${styles.fabricCard}`}>
-          <div className={styles.label}>Jenis Kain (Design)</div>
+          <div className={styles.label}>Jenis Kain (Design / Motif)</div>
           <div className={styles.fabricValue} title={fabricDisplay}>{fabricDisplay}</div>
           <div className={styles.sub} title={fabricSubText}>
             Warna: <strong>{data.color || '-'}</strong>

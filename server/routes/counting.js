@@ -94,6 +94,7 @@ function normalizeHeader(body, user) {
     StockQty: parseQty(body.StockQty ?? body.stockQty),
     K3LNumber: clean(body.K3LNumber || body.k3lNumber || body.k3l_number, 40),
     K3LName: clean(body.K3LName || body.k3lName || body.k3l_name, 50),
+    PatternCode: clean(body.PatternCode || body.patternCode || body.pattern_code, 40),
   };
 }
 
@@ -187,7 +188,7 @@ function normalizeDefect(item, parentProdId = '', parentRoolNumber = 0, defaultL
 }
 
 /**
- * Upsert single header logic with all 14 columns
+ * Upsert single header logic with all 15 columns
  */
 async function upsertHeaderQuery(client, header) {
   const check = await client.query(
@@ -210,9 +211,10 @@ async function upsertHeaderQuery(client, header) {
            "OrderQty" = CASE WHEN $11::numeric IS NOT NULL AND $11::numeric > 0 THEN $11::numeric ELSE "OrderQty" END,
            "StockQty" = CASE WHEN $12::numeric IS NOT NULL AND $12::numeric > 0 THEN $12::numeric ELSE "StockQty" END,
            "K3LNumber" = COALESCE(NULLIF($13::text, ''), "K3LNumber"),
-           "K3LName" = COALESCE(NULLIF($14::text, ''), "K3LName")
+           "K3LName" = COALESCE(NULLIF($14::text, ''), "K3LName"),
+           "PatternCode" = COALESCE(NULLIF($15::text, ''), "PatternCode")
        WHERE "ProdId" = $1
-       RETURNING "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty", "K3LNumber", "K3LName"`,
+       RETURNING "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty", "K3LNumber", "K3LName", "PatternCode"`,
       [
         header.ProdId,
         header.NoMesin,
@@ -228,6 +230,7 @@ async function upsertHeaderQuery(client, header) {
         header.StockQty,
         header.K3LNumber,
         header.K3LName,
+        header.PatternCode,
       ]
     );
     return { action: 'updated', data: res.rows[0] };
@@ -236,10 +239,10 @@ async function upsertHeaderQuery(client, header) {
       `INSERT INTO "CountingKainHeader" (
          "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode",
          "DesignCode", "Color", "RecidProdId", "RecidSalesId",
-         "RecidItemId", "OrderQty", "StockQty", "K3LNumber", "K3LName"
+         "RecidItemId", "OrderQty", "StockQty", "K3LNumber", "K3LName", "PatternCode"
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::numeric, $12::numeric, $13, $14)
-       RETURNING "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty", "K3LNumber", "K3LName"`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::numeric, $12::numeric, $13, $14, $15)
+       RETURNING "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty", "K3LNumber", "K3LName", "PatternCode"`,
       [
         header.ProdId,
         header.NoMesin,
@@ -255,6 +258,7 @@ async function upsertHeaderQuery(client, header) {
         header.StockQty,
         header.K3LNumber,
         header.K3LName,
+        header.PatternCode,
       ]
     );
     return { action: 'created', data: res.rows[0] };
@@ -532,7 +536,7 @@ router.get('/headers', async (req, res) => {
     const query = `
       SELECT "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", 
              "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty",
-             "K3LNumber", "K3LName"
+             "K3LNumber", "K3LName", "PatternCode"
       FROM "CountingKainHeader"
       ${whereClause}
       ORDER BY "ProdId" DESC
@@ -564,7 +568,7 @@ router.get('/headers/:prodId', async (req, res) => {
     const headerRes = await pool.query(
       `SELECT "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode", 
               "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty",
-              "K3LNumber", "K3LName"
+              "K3LNumber", "K3LName", "PatternCode"
        FROM "CountingKainHeader" WHERE "ProdId" = $1 LIMIT 1`,
       [prodId]
     );
@@ -1158,7 +1162,7 @@ router.get('/defect-report/:prodId', async (req, res) => {
       pool.query(
         `SELECT "ProdId", "NoMesin", "UserId", "SeqmentNum", "CustCode", "DesignCode",
                 "Color", "RecidProdId", "RecidSalesId", "RecidItemId", "OrderQty", "StockQty",
-                "K3LNumber", "K3LName"
+                "K3LNumber", "K3LName", "PatternCode"
          FROM "CountingKainHeader"
          WHERE "ProdId" = $1
          LIMIT 1`,
@@ -1670,7 +1674,7 @@ router.post('/autonic/get-and-delete', async (req, res) => {
 
     // 1. Coba hubungi webhook Autonic eksternal terlebih dahulu
     try {
-      const webhookRes = await fetch('http://192.168.23.61:5678/webhook/getdataautonic', {
+      const webhookRes = await fetch('http://192.168.40.215:5678/webhook/getdataautonic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1761,7 +1765,7 @@ router.post('/autonic/flush', async (req, res) => {
   try {
     // 1. Coba panggil webhook delete Autonic eksternal
     try {
-      await fetch('http://192.168.23.61:5678/webhook/deletedataautonic', {
+      await fetch('http://192.168.40.215:5678/webhook/deletedataautonic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

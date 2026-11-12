@@ -6,7 +6,7 @@ import { pullAndClearMachineData } from './api.js';
  */
 
 export const AUTONIC_CONFIG = {
-  BASE_URL: 'http://192.168.23.61:5678',
+  BASE_URL: 'http://192.168.40.215:5678',
   BEARER_TOKEN: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0',
 };
 

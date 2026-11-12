@@ -848,6 +848,7 @@ export async function getDefectReportDataApi(prodId) {
           StockQty: countingData.StockQty || 0,
           K3LNumber: countingData.K3LNumber || '',
           K3LName: countingData.K3LName || '',
+          PatternCode: countingData.PatternCode || '',
         }
       : { ProdId: cleanProdId },
     lines: countingData?.allLines || countingData?.lines || [],

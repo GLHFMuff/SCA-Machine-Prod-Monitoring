@@ -31,7 +31,7 @@ export function parseFormattedNumber(val) {
 
 /**
  * Helper to parse QR content with format:
- * ProdId;SeqmentNum;CustCode;DesignCode;Color;RecidProdId;RecidSalesId;RecidItemId;OrderQty;StockQty;K3LNumber;K3LName;
+ * ProdId;SeqmentNum;CustCode;DesignCode;Color;RecidProdId;RecidSalesId;RecidItemId;OrderQty;StockQty;K3LNumber;K3LName;PatternCode;
  */
 export function parseQrContent(rawString) {
   if (!rawString) return null
@@ -52,6 +52,7 @@ export function parseQrContent(rawString) {
     const stockQty = parseFormattedNumber(parts[9])
     const k3lNumber = parts[10] || ''
     const k3lName = parts[11] || ''
+    const patternCode = parts[12] || ''
 
     return {
       raw: text,
@@ -72,6 +73,8 @@ export function parseQrContent(rawString) {
       k3lName,
       K3LNumber: k3lNumber,
       K3LName: k3lName,
+      patternCode,
+      PatternCode: patternCode,
       isQrBundle: true,
     }
   }
@@ -96,6 +99,8 @@ export function parseQrContent(rawString) {
     k3lName: '',
     K3LNumber: '',
     K3LName: '',
+    patternCode: '',
+    PatternCode: '',
     isQrBundle: false,
   }
 }
@@ -318,6 +323,10 @@ export default function ScanModal({ initialProdId, onDone, onCancel }) {
               <div className={styles.parsedRow}>
                 <span className={styles.parsedKey}>Kode Design:</span>
                 <span className={styles.parsedVal}>{scannedResult.designCode || '-'}</span>
+              </div>
+              <div className={styles.parsedRow}>
+                <span className={styles.parsedKey}>Motif:</span>
+                <span className={styles.parsedVal}>{scannedResult.patternCode || scannedResult.PatternCode || '-'}</span>
               </div>
               <div className={styles.parsedRow}>
                 <span className={styles.parsedKey}>Warna:</span>
