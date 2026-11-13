@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import LoginPage from './pages/LoginPage.jsx'
 import MainPage from './pages/MainPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
+import PanelPage from './pages/PanelPage.jsx'
 import FullscreenBanner from './components/FullscreenBanner.jsx'
 import IdleWarningModal from './components/IdleWarningModal.jsx'
 import { useIdleSession } from './hooks/useIdleSession.js'
@@ -72,13 +73,15 @@ export default function App() {
   }, [])
 
   const isAdminRoute = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')
+  const isPanelRoute = currentPath === '/panel' || currentPath === '/panel/' || currentPath.startsWith('/panel/')
+  const isSpecialRoute = isAdminRoute || isPanelRoute
 
   // Load latest settings whenever navigating back to production route
   useEffect(() => {
-    if (!isAdminRoute) {
+    if (!isSpecialRoute) {
       syncAppSettings()
     }
-  }, [isAdminRoute, syncAppSettings])
+  }, [isSpecialRoute, syncAppSettings])
 
   // Validate session key with backend API on initial load (hanya untuk rute produksi biasa)
   useEffect(() => {
@@ -134,7 +137,7 @@ export default function App() {
   }, [])
 
   const { warningRemainingSec, extendSession } = useIdleSession({
-    enabled: !isAdminRoute && !checkingSession && Boolean(user?.sessionKey),
+    enabled: !isSpecialRoute && !checkingSession && Boolean(user?.sessionKey),
     sessionKey: user?.sessionKey || '',
     storageKey: 'mpm_last_activity_at',
     idleTimeoutMinutes: sessionSettings.idleTimeoutMinutes,
@@ -147,12 +150,18 @@ export default function App() {
 
   return (
     <>
-      {/* Force fullscreen banner hanya untuk operasional produksi loom, nonaktif di /admin */}
-      {!isAdminRoute && <FullscreenBanner />}
+      {/* Force fullscreen banner hanya untuk operasional produksi loom, nonaktif di /admin & /panel */}
+      {!isSpecialRoute && <FullscreenBanner />}
 
       {/* Rute Khusus Administrator: /admin */}
       {isAdminRoute ? (
         <AdminPage
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onNavigate={navigate}
+        />
+      ) : isPanelRoute ? (
+        <PanelPage
           theme={theme}
           onToggleTheme={toggleTheme}
           onNavigate={navigate}

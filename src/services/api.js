@@ -452,6 +452,180 @@ export async function adminLogoutApi(sessionKey) {
   }
 }
 
+export function clearStoredPanelSession() {
+  localStorage.removeItem('mpm_panel_session_key');
+  localStorage.removeItem('mpm_panel_user');
+  localStorage.removeItem('mpm_panel_last_activity_at');
+}
+
+export function getStoredPanelSession() {
+  const key = localStorage.getItem('mpm_panel_session_key');
+  const userJson = localStorage.getItem('mpm_panel_user');
+
+  if (!key || !userJson) return null;
+
+  try {
+    const user = JSON.parse(userJson);
+    return { key, user };
+  } catch {
+    clearStoredPanelSession();
+    return null;
+  }
+}
+
+/**
+ * Login khusus portal pengawas /panel (role: karu & admin)
+ */
+export async function panelLoginApi(username, password) {
+  const url = `${API_BASE}/api/auth/panel-login`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: username.trim(),
+        password: password,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.success) {
+      const errorMsg = data?.message || data?.error || `Login panel gagal (Status ${res.status})`;
+      throw new Error(errorMsg);
+    }
+
+    const { key, user } = data.data;
+    const formattedUser = {
+      ...user,
+      id: user.id,
+      username: user.username,
+      name: user.full_name || user.username,
+      email: user.email,
+      role: user.role,
+      sessionKey: key,
+    };
+
+    localStorage.setItem('mpm_panel_session_key', key);
+    localStorage.setItem('mpm_panel_user', JSON.stringify(formattedUser));
+    localStorage.setItem('mpm_panel_last_activity_at', String(Date.now()));
+
+    return {
+      success: true,
+      user: formattedUser,
+      key: key,
+    };
+  } catch (err) {
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      throw new Error('Tidak dapat terhubung ke server backend API (Port 5000). Pastikan backend aktif.');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Validasi session key panel dengan backend (detail status)
+ */
+export async function checkPanelSessionDetailedApi(sessionKey) {
+  if (!sessionKey) return { status: 'none', user: null };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${sessionKey}`,
+      },
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        clearStoredPanelSession();
+        return {
+          status: 'unauthorized',
+          user: null,
+          code: data?.code || 'SESSION_INVALID',
+          reason: data?.message || 'Sesi panel pengawas berakhir atau tidak valid.',
+        };
+      }
+      throw new Error(`Session check failed (${res.status})`);
+    }
+
+    if (data?.success && data?.data?.user) {
+      const rawUser = data.data.user;
+      const roleLower = String(rawUser.role || '').toLowerCase();
+      if (roleLower !== 'karu' && roleLower !== 'admin') {
+        clearStoredPanelSession();
+        return { status: 'unauthorized', user: null, reason: 'Akun bukan Kepala Regu (Karu) atau Administrator.' };
+      }
+      const user = {
+        ...rawUser,
+        name: rawUser.full_name || rawUser.username,
+        sessionKey,
+      };
+      localStorage.setItem('mpm_panel_user', JSON.stringify(user));
+      return {
+        status: 'valid',
+        user,
+        session: data.data.session || null,
+      };
+    }
+    return { status: 'none', user: null };
+  } catch (error) {
+    const stored = getStoredPanelSession();
+    const roleLower = String(stored?.user?.role || '').toLowerCase();
+    if (stored?.key === sessionKey && (roleLower === 'karu' || roleLower === 'admin')) {
+      return { status: 'offline', user: stored.user };
+    }
+    return { status: 'none', user: null };
+  }
+}
+
+/**
+ * Logout panel session
+ */
+export async function panelLogoutApi(sessionKey) {
+  try {
+    if (sessionKey) {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sessionKey}`,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[Panel Logout API Error]:', err);
+  } finally {
+    clearStoredPanelSession();
+  }
+}
+
+/**
+ * Search production orders by ProdId, SeqmentNum (No. WO), CustCode, DesignCode
+ * @param {string} query
+ * @param {number} [limit=30]
+ * @returns {Promise<Array>}
+ */
+export async function searchOrdersApi(query = '', limit = 30) {
+  const param = `?q=${encodeURIComponent(String(query).trim())}&limit=${limit}`;
+  const url = `${API_BASE}/api/counting/orders/search${param}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || data?.message || 'Gagal mencari order produksi.');
+    }
+    return data.data || [];
+  } catch (err) {
+    console.warn('[searchOrdersApi] Error:', err.message);
+    return [];
+  }
+}
+
 
 /**
  * Read cached session from localStorage

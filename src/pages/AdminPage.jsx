@@ -257,9 +257,17 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
             <button
               type="button"
               className={styles.backLink}
+              onClick={() => onNavigate('/panel')}
+              style={{ marginRight: '16px' }}
+            >
+              🛡️ Ke Panel Pengawas (/panel)
+            </button>
+            <button
+              type="button"
+              className={styles.backLink}
               onClick={() => onNavigate('/')}
             >
-              ← Kembali ke Halaman Produksi / Loom
+              ← Kembali ke Produksi Loom
             </button>
           </footer>
         </div>

@@ -681,6 +681,14 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
           <button
             type="button"
             className={styles.backBtn}
+            onClick={() => { window.location.href = '/panel' }}
+            title="Buka Panel Pengawas (Karu & Admin)"
+          >
+            🛡️ Panel Pengawas
+          </button>
+          <button
+            type="button"
+            className={styles.backBtn}
             onClick={onBackToProduction}
             title="Kembali ke layar scanning / antarmuka produksi"
           >

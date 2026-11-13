@@ -160,9 +160,9 @@ app.use('/api/print', printRouter);
 // App Settings endpoints (JSON-backed configuration)
 app.use('/api/settings', settingsRouter);
 
-// SPA fallback for frontend routes (non-API GET requests)
+// SPA fallback for frontend routes (non-API GET / HEAD requests)
 app.use((req, res, next) => {
-  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+  if ((req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api')) {
     const indexPath = path.join(distPath, 'index.html');
     if (fs.existsSync(indexPath)) {
       return res.sendFile(indexPath);

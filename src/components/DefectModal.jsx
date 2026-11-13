@@ -27,6 +27,7 @@ export default function DefectModal({
   initJoinedPieces = [],
   maxDefectLine = 0,
   maxJoinedPieceLine = 0,
+  canCreate = true,
   onSave,
   onClose,
 }) {
@@ -255,153 +256,155 @@ export default function DefectModal({
           )}
 
           {/* Add new defect / joined piece form */}
-          <div className={styles.addForm}>
-            <div className={styles.addFormLabel}>+ Tambah Titik Inspeksi</div>
-            {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
-            <div className={styles.formRow}>
-              <div>
-                <label className={styles.fieldLabel}>
-                  {isJpSelected ? 'From Length / Posisi (Yard)' : 'Posisi From (Yard)'}
-                </label>
-                <input
-                  className={styles.fieldInput}
-                  type="number"
-                  placeholder="mis. 45.5"
-                  value={yard}
-                  min="0.1"
-                  {...(!isPreRoll && roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
-                  step="0.1"
-                  onChange={e => {
-                    setYard(e.target.value)
-                    setError('')
-                  }}
-                />
+          {canCreate && (
+            <div className={styles.addForm}>
+              <div className={styles.addFormLabel}>+ Tambah Titik Inspeksi</div>
+              {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
+              <div className={styles.formRow}>
+                <div>
+                  <label className={styles.fieldLabel}>
+                    {isJpSelected ? 'From Length / Posisi (Yard)' : 'Posisi From (Yard)'}
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    type="number"
+                    placeholder="mis. 45.5"
+                    value={yard}
+                    min="0.1"
+                    {...(!isPreRoll && roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
+                    step="0.1"
+                    onChange={e => {
+                      setYard(e.target.value)
+                      setError('')
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className={styles.fieldLabel}>
+                    Posisi To (Yard) <span className={styles.optionalHint}>(Opsional)</span>
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    type="number"
+                    placeholder={isJpSelected ? 'Tidak diperlukan untuk JP' : 'Opsional'}
+                    value={isJpSelected ? '' : yardTo}
+                    disabled={isJpSelected}
+                    min="0.1"
+                    {...(!isPreRoll && roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
+                    step="0.1"
+                    onChange={e => {
+                      setYardTo(e.target.value)
+                      setError('')
+                    }}
+                  />
+                </div>
               </div>
-              <div>
-                <label className={styles.fieldLabel}>
-                  Posisi To (Yard) <span className={styles.optionalHint}>(Opsional)</span>
-                </label>
-                <input
-                  className={styles.fieldInput}
-                  type="number"
-                  placeholder={isJpSelected ? 'Tidak diperlukan untuk JP' : 'Opsional'}
-                  value={isJpSelected ? '' : yardTo}
-                  disabled={isJpSelected}
-                  min="0.1"
-                  {...(!isPreRoll && roll?.length ? { max: Math.max(0, roll.length - 0.1) } : {})}
-                  step="0.1"
-                  onChange={e => {
-                    setYardTo(e.target.value)
-                    setError('')
+
+              {/* Searchable Select Kode Inspeksi */}
+              <div className={styles.selectWrapper} ref={dropdownRef}>
+                <label className={styles.fieldLabel}>Kode Inspeksi</label>
+                <button
+                  type="button"
+                  className={`${styles.selectTrigger} ${isDropdownOpen ? styles.selectTriggerActive : ''}`}
+                  onClick={() => {
+                    setIsDropdownOpen(prev => !prev)
+                    setSearchQuery('')
                   }}
-                />
-              </div>
-            </div>
-
-            {/* Searchable Select Kode Inspeksi */}
-            <div className={styles.selectWrapper} ref={dropdownRef}>
-              <label className={styles.fieldLabel}>Kode Inspeksi</label>
-              <button
-                type="button"
-                className={`${styles.selectTrigger} ${isDropdownOpen ? styles.selectTriggerActive : ''}`}
-                onClick={() => {
-                  setIsDropdownOpen(prev => !prev)
-                  setSearchQuery('')
-                }}
-              >
-                <span className={code ? styles.selectedText : styles.placeholderText}>
-                  {selectedDefect
-                    ? `${selectedDefect.Code} – ${selectedDefect.Defect}`
-                    : (code || '-- Pilih / Cari Kode Inspeksi --')}
-                </span>
-                <span className={styles.triggerIcons}>
-                  {code && (
-                    <span
-                      className={styles.clearIcon}
-                      title="Hapus pilihan"
-                      onClick={e => {
-                        e.stopPropagation()
-                        setCode('')
-                        setError('')
-                      }}
-                    >
-                      ✕
-                    </span>
-                  )}
-                  <span className={styles.arrowIcon}>{isDropdownOpen ? '▲' : '▼'}</span>
-                </span>
-              </button>
-
-              {isDropdownOpen && (
-                <div className={styles.dropdownMenu}>
-                  <div className={styles.searchBox}>
-                    <span className={styles.searchIcon}>🔍</span>
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      className={styles.searchInput}
-                      placeholder="Ketik kode atau nama inspeksi..."
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Escape') {
-                          setIsDropdownOpen(false)
-                        } else if (e.key === 'Enter') {
-                          e.preventDefault()
-                          if (filteredDefects.length > 0) {
-                            selectDefectCode(filteredDefects[0].Code)
-                          }
-                        }
-                      }}
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        className={styles.clearSearchBtn}
-                        onClick={() => setSearchQuery('')}
-                        title="Hapus pencarian"
+                >
+                  <span className={code ? styles.selectedText : styles.placeholderText}>
+                    {selectedDefect
+                      ? `${selectedDefect.Code} – ${selectedDefect.Defect}`
+                      : (code || '-- Pilih / Cari Kode Inspeksi --')}
+                  </span>
+                  <span className={styles.triggerIcons}>
+                    {code && (
+                      <span
+                        className={styles.clearIcon}
+                        title="Hapus pilihan"
+                        onClick={e => {
+                          e.stopPropagation()
+                          setCode('')
+                          setError('')
+                        }}
                       >
                         ✕
-                      </button>
+                      </span>
                     )}
-                  </div>
+                    <span className={styles.arrowIcon}>{isDropdownOpen ? '▲' : '▼'}</span>
+                  </span>
+                </button>
 
-                  <div className={styles.optionsList}>
-                    {filteredDefects.length === 0 ? (
-                      <div className={styles.noOption}>Tidak ada kode inspeksi yang cocok</div>
-                    ) : (
-                      filteredDefects.map(d => {
-                        const isSelected =
-                          String(d.Code || '').trim().toUpperCase() ===
-                          extractDefectCode(code).toUpperCase()
-                        return (
-                          <div
-                            key={d.Code}
-                            className={`${styles.optionItem} ${isSelected ? styles.optionSelected : ''}`}
-                            onClick={() => selectDefectCode(d.Code)}
-                          >
-                            <span className={styles.optionCode}>{d.Code}</span>
-                            <span className={styles.optionDefect}>{d.Defect}</span>
-                            {isSelected && <span className={styles.checkmark}>✓</span>}
-                          </div>
-                        )
-                      })
-                    )}
+                {isDropdownOpen && (
+                  <div className={styles.dropdownMenu}>
+                    <div className={styles.searchBox}>
+                      <span className={styles.searchIcon}>🔍</span>
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        className={styles.searchInput}
+                        placeholder="Ketik kode atau nama inspeksi..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Escape') {
+                            setIsDropdownOpen(false)
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            if (filteredDefects.length > 0) {
+                              selectDefectCode(filteredDefects[0].Code)
+                            }
+                          }
+                        }}
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          className={styles.clearSearchBtn}
+                          onClick={() => setSearchQuery('')}
+                          title="Hapus pencarian"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className={styles.optionsList}>
+                      {filteredDefects.length === 0 ? (
+                        <div className={styles.noOption}>Tidak ada kode inspeksi yang cocok</div>
+                      ) : (
+                        filteredDefects.map(d => {
+                          const isSelected =
+                            String(d.Code || '').trim().toUpperCase() ===
+                            extractDefectCode(code).toUpperCase()
+                          return (
+                            <div
+                              key={d.Code}
+                              className={`${styles.optionItem} ${isSelected ? styles.optionSelected : ''}`}
+                              onClick={() => selectDefectCode(d.Code)}
+                            >
+                              <span className={styles.optionCode}>{d.Code}</span>
+                              <span className={styles.optionDefect}>{d.Defect}</span>
+                              {isSelected && <span className={styles.checkmark}>✓</span>}
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
                   </div>
+                )}
+              </div>
+
+              {isJpSelected && (
+                <div className={styles.jpNotice}>
+                  🧵 Kode <strong>JP</strong> akan disimpan ke <strong>Joined Piece</strong> (hanya menggunakan From length).
                 </div>
               )}
+
+              <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addDefect}>
+                {isJpSelected ? '＋ Tambah Joined Piece' : '＋ Tambah Titik Inspeksi'}
+              </button>
             </div>
-
-            {isJpSelected && (
-              <div className={styles.jpNotice}>
-                🧵 Kode <strong>JP</strong> akan disimpan ke <strong>Joined Piece</strong> (hanya menggunakan From length).
-              </div>
-            )}
-
-            <button className="btn btn-warning btn-sm" style={{ width: '100%' }} onClick={addDefect}>
-              {isJpSelected ? '＋ Tambah Joined Piece' : '＋ Tambah Titik Inspeksi'}
-            </button>
-          </div>
+          )}
         </div>
 
         {/* Footer */}

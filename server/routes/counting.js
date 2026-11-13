@@ -506,6 +506,87 @@ router.post('/upsert', async (req, res) => {
 // ============================================================
 
 /**
+ * GET /api/counting/orders/search
+ * Pencarian order produksi berdasarkan nomor ProdId atau nomor SeqmentNum (No. WO)
+ * Query params: ?q=... & ?limit=30
+ */
+router.get('/orders/search', async (req, res) => {
+  try {
+    const { q, query: queryParam, search, limit = 30 } = req.query;
+    const targetSearch = String(q ?? queryParam ?? search ?? '').trim();
+    const targetLimit = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 100);
+
+    const conditions = [];
+    const values = [];
+
+    if (targetSearch) {
+      values.push(`%${targetSearch}%`);
+      conditions.push(`(
+        h."ProdId" ILIKE $1
+        OR COALESCE(h."SeqmentNum", '') ILIKE $1
+        OR COALESCE(h."CustCode", '') ILIKE $1
+        OR COALESCE(h."DesignCode", '') ILIKE $1
+        OR COALESCE(h."Color", '') ILIKE $1
+      )`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    values.push(targetLimit);
+
+    const sql = `
+      SELECT
+        h."ProdId",
+        h."SeqmentNum",
+        h."CustCode",
+        h."DesignCode",
+        h."Color",
+        h."NoMesin",
+        h."UserId",
+        h."OrderQty",
+        h."StockQty",
+        h."K3LNumber",
+        h."K3LName",
+        h."PatternCode",
+        COUNT(l."RoolNumber") FILTER (WHERE ${ACTIVE_LINE_ALIASED_FILTER} AND (l."ProductType" = 5 OR l."ProductType" IS NULL))::int AS total_rolls,
+        COALESCE(SUM(l."Length") FILTER (WHERE ${ACTIVE_LINE_ALIASED_FILTER} AND (l."ProductType" = 5 OR l."ProductType" IS NULL)), 0)::numeric AS total_yards,
+        COUNT(l."RoolNumber") FILTER (WHERE ${ACTIVE_LINE_ALIASED_FILTER} AND l."ProductType" = 1)::int AS coproduct_rolls,
+        COALESCE(SUM(l."Length") FILTER (WHERE ${ACTIVE_LINE_ALIASED_FILTER} AND l."ProductType" = 1), 0)::numeric AS coproduct_yards,
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT l."NoMesin") FILTER (WHERE ${ACTIVE_LINE_ALIASED_FILTER}), NULL) AS machines,
+        MAX(l."TransDate") AS last_trans_date
+      FROM "CountingKainHeader" h
+      LEFT JOIN "CountingKainLines" l ON h."ProdId" = l."ProdId"
+      ${whereClause}
+      GROUP BY
+        h."ProdId",
+        h."SeqmentNum",
+        h."CustCode",
+        h."DesignCode",
+        h."Color",
+        h."NoMesin",
+        h."UserId",
+        h."OrderQty",
+        h."StockQty",
+        h."K3LNumber",
+        h."K3LName",
+        h."PatternCode"
+      ORDER BY h."ProdId" DESC
+      LIMIT $${values.length}
+    `;
+
+    const result = await pool.query(sql, values);
+
+    return res.status(200).json({
+      success: true,
+      count: result.rows.length,
+      data: result.rows,
+    });
+  } catch (err) {
+    console.error('[Search Orders Error]:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /api/counting/headers
  * Query params: ?ProdId=... & ?NoMesin=... & ?UserId=... & ?limit=50 & ?offset=0
  */
@@ -1674,7 +1755,7 @@ router.post('/autonic/get-and-delete', async (req, res) => {
 
     // 1. Coba hubungi webhook Autonic eksternal terlebih dahulu
     try {
-      const webhookRes = await fetch('http://192.168.40.215:5678/webhook/getdataautonic', {
+      const webhookRes = await fetch('http://192.168.23.61:5678/webhook/getdataautonic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1765,7 +1846,7 @@ router.post('/autonic/flush', async (req, res) => {
   try {
     // 1. Coba panggil webhook delete Autonic eksternal
     try {
-      await fetch('http://192.168.40.215:5678/webhook/deletedataautonic', {
+      await fetch('http://192.168.23.61:5678/webhook/deletedataautonic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

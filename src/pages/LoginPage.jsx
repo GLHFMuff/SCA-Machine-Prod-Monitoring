@@ -286,6 +286,15 @@ export default function LoginPage({ onLogin, theme, onToggleTheme, sessionNotice
               </button>
             </form>
             <p className={styles.hint}>Mesin yang sedang digunakan operator lain tidak dapat dipilih.</p>
+            <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '13px', display: 'flex', justifyContent: 'center', gap: '16px' }}>
+              <a href="/panel" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>
+                🛡️ Panel Pengawas (Karu)
+              </a>
+              <span style={{ color: 'var(--muted)' }}>•</span>
+              <a href="/admin" style={{ color: 'var(--muted)', textDecoration: 'none' }}>
+                ⚙️ Admin Portal
+              </a>
+            </div>
           </section>
         </div>
       </main>

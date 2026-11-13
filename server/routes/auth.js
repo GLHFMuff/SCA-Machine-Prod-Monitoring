@@ -323,6 +323,79 @@ router.post('/admin-login', async (req, res) => {
   }
 });
 
+// Endpoint Login Khusus Portal Pengawas /panel (Role: karu & admin) - Tanpa perlu pilih mesin atau shift
+router.post('/panel-login', async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'Username dan password wajib diisi.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const settings = await getAppSettings();
+    const expiresDays = Number(settings?.session?.sessionExpiresDays || process.env.SESSION_EXPIRES_DAYS || 30);
+
+    const found = await client.query(
+      `SELECT id, email, username, password_hash, full_name, role, is_active
+       FROM users
+       WHERE (LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1))
+         AND deleted_at IS NULL
+       LIMIT 1`,
+      [username.trim()]
+    );
+    const user = found.rows[0];
+
+    if (!user || !user.is_active || !(await verifyPassword(password, user.password_hash))) {
+      return res.status(401).json({ success: false, message: 'Username atau password tidak valid.' });
+    }
+
+    const roleLower = String(user.role || '').toLowerCase();
+    if (roleLower !== 'karu' && roleLower !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak: Portal ini khusus untuk Kepala Regu (Karu) dan Administrator.',
+      });
+    }
+
+    const rawToken = 'mpm_pnl_' + crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + expiresDays * 86400000);
+    const ip = (req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.socket.remoteAddress || '').replace(/^::ffff:/, '').replace(/^::1$/, '127.0.0.1') || null;
+    const panelUa = `${ADMIN_PORTAL_UA_PREFIX} [Panel Portal] ${req.headers['user-agent'] || 'Karu Web Panel'}`;
+
+    const session = await client.query(
+      `INSERT INTO user_sessions(user_id, token_hash, ip_address, user_agent, expires_at, last_used_at)
+       VALUES($1, $2, $3, $4, $5, NOW())
+       RETURNING id, expires_at, last_used_at`,
+      [user.id, hashToken(rawToken), ip, panelUa, expiresAt]
+    );
+
+    await client.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
+
+    return res.json({
+      success: true,
+      message: 'Login panel pengawas berhasil.',
+      data: {
+        key: rawToken,
+        expires_at: session.rows[0].expires_at,
+        last_used_at: session.rows[0].last_used_at,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          full_name: user.full_name,
+          role: user.role,
+          is_active: user.is_active,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('[Panel Login API Error]:', err);
+    res.status(500).json({ success: false, message: 'Gagal memproses login panel.' });
+  } finally {
+    client.release();
+  }
+});
+
 
 router.get('/me', authenticateKey, (req, res) => res.json({
   success: true,
@@ -357,6 +430,8 @@ router.post('/logout', async (req, res) => {
   if (!token) return res.status(401).json({ success: false, message: 'Session key tidak ditemukan.' });
 
   const isAdminPortalToken = token.startsWith('mpm_adm_');
+  const isPanelPortalToken = token.startsWith('mpm_pnl_');
+  const isSpecialPortalToken = isAdminPortalToken || isPanelPortalToken;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -377,7 +452,7 @@ router.post('/logout', async (req, res) => {
     if (!revokedAt) {
       await client.query('UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1', [sessionId]);
     }
-    if (!isAdminPortalToken) {
+    if (!isSpecialPortalToken) {
       const released = await client.query(
         `UPDATE machine_lists SET user_active = NULL
          WHERE LOWER(BTRIM(user_active)) = LOWER(BTRIM($1))
