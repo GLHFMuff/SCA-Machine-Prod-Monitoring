@@ -586,7 +586,7 @@ export default function RollTable({
                               <span className={styles.btnLabel}>Label Roll</span>
                             </button>
 
-                            <button
+                            {/* <button
                               type="button"
                               className={styles.deleteRowBtn}
                               onClick={() => setRollToDelete(roll)}
@@ -595,7 +595,7 @@ export default function RollTable({
                             >
                               <span className={styles.btnIcon}>🗑️</span>
                               <span className={styles.btnLabel}>Hapus</span>
-                            </button>
+                            </button> */}
                           </div>
                         </td>
                       </tr>
