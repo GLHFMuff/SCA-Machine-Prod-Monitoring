@@ -1014,14 +1014,16 @@ export async function deleteJoinedPiecesApi(prodId, roolNumber) {
  * @param {object} [params]
  * @param {string} [params.search]    - Pencarian partial pada StatusId / Name (case-insensitive)
  * @param {string} [params.statusId]  - Filter exact match StatusId
+ * @param {boolean|string} [params.badStock] - Filter BadStock (true/false)
  * @param {number} [params.limit]     - Jumlah baris (default 500, maks 1000)
  * @param {number} [params.offset]    - Offset pagination (default 0)
- * @returns {Promise<{ count: number, total: number, limit: number, offset: number, data: Array<{ StatusId: string, Name: string }> }>}
+ * @returns {Promise<{ count: number, total: number, limit: number, offset: number, data: Array<{ StatusId: string, Name: string, BadStock: boolean }> }>}
  */
-export async function getInventoryStatusList({ search, statusId, limit, offset } = {}) {
+export async function getInventoryStatusList({ search, statusId, badStock, limit, offset } = {}) {
   const url = new URL(`${API_BASE}/api/inventory-status`, window.location.origin);
   if (search)   url.searchParams.set('search',   search);
   if (statusId) url.searchParams.set('StatusId', statusId);
+  if (badStock !== undefined && badStock !== null) url.searchParams.set('badStock', String(badStock));
   if (limit)    url.searchParams.set('limit',    limit);
   if (offset)   url.searchParams.set('offset',   offset);
 
@@ -1041,7 +1043,7 @@ export async function getInventoryStatusList({ search, statusId, limit, offset }
 /**
  * Ambil satu Inventory Status berdasarkan StatusId.
  * @param {string} statusId
- * @returns {Promise<{ StatusId: string, Name: string }>}
+ * @returns {Promise<{ StatusId: string, Name: string, BadStock: boolean }>}
  */
 export async function getInventoryStatusById(statusId) {
   if (!statusId) throw new Error('statusId wajib diisi');

@@ -8,11 +8,18 @@ export default function CoProductModal({ onSave, onClose, loading = false }) {
   const [status, setStatus] = useState('BS')
   const [transDate, setTransDate] = useState(getTodayYYYYMMDD())
   const [error, setError] = useState('')
-  const [InventStatusOptions, setInventStatusOption] = useState([])
+  const [inventStatusOptions, setInventStatusOptions] = useState([])
 
   useEffect(() => {
-    getInventoryStatusList()
-      .then(res => setInventStatusOption(res.data))
+    getInventoryStatusList({ badStock: true })
+      .then(res => {
+        const rawList = res?.data || []
+        const badStockList = rawList.filter(d => d.BadStock === true)
+        setInventStatusOptions(badStockList)
+        if (badStockList.length > 0 && !badStockList.some(d => d.StatusId === status)) {
+          setStatus(badStockList[0].StatusId)
+        }
+      })
       .catch(err => console.error('[InventoryStatus] gagal load inventory status:', err))
   }, [])
 
@@ -42,10 +49,10 @@ export default function CoProductModal({ onSave, onClose, loading = false }) {
             <label className={styles.label}>Jenis Co-Product</label>
             <select
               className={styles.input}
-              value={InventStatusOptions.statusId}
+              value={status}
               onChange={e => setStatus(e.target.value)}>
 
-              {InventStatusOptions.map(d => (
+              {inventStatusOptions.map(d => (
                 <option key={d.StatusId} value={d.StatusId}>
                   {d.StatusId} – {d.Name}
                 </option>

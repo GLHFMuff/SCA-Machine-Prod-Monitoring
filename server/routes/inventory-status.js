@@ -4,7 +4,7 @@ import { pool } from '../config/db.js';
 const router = express.Router();
 
 /**
- * Tabel master: "InventoryStatus" ("StatusId" varchar(20) PK, "Name" varchar(60) NULL)
+ * Tabel master: "InventoryStatus" ("StatusId" varchar(20) PK, "Name" varchar(60) NULL, "BadStock" boolean NULL)
  * Dipakai sebagai sumber dropdown status inventory (A/UTUH, BS, JABLAK, KECILAN, dst.)
  *
  * Catatan: StatusId bersifat case-sensitive varchar dan bisa mengandung spasi
@@ -33,14 +33,15 @@ function parsePagination(limit, offset) {
  * Query params (opsional):
  *   - search  : pencarian partial pada StatusId / Name (case-insensitive)
  *   - StatusId: filter exact match StatusId
+ *   - badStock: filter boolean BadStock (true/false)
  *   - limit   : jumlah maksimal baris (default 500, maks 1000)
  *   - offset  : offset pagination (default 0)
  *
- * Respon: { success, count, total, limit, offset, data: [{ StatusId, Name }] }
+ * Respon: { success, count, total, limit, offset, data: [{ StatusId, Name, BadStock }] }
  */
 router.get('/', async (req, res) => {
   try {
-    const { search, StatusId, statusId, name, limit, offset } = req.query;
+    const { search, StatusId, statusId, name, badStock, BadStock, limit, offset } = req.query;
     const { limit: limitVal, offset: offsetVal } = parsePagination(limit, offset);
 
     const conditions = [];
@@ -58,6 +59,13 @@ router.get('/', async (req, res) => {
       conditions.push(`("StatusId" ILIKE $${values.length} OR COALESCE("Name", '') ILIKE $${values.length})`);
     }
 
+    const targetBadStock = badStock ?? BadStock;
+    if (targetBadStock !== undefined && targetBadStock !== null && targetBadStock !== '') {
+      const isBadStock = String(targetBadStock).toLowerCase() === 'true' || targetBadStock === true || targetBadStock === '1' || targetBadStock === 1;
+      values.push(isBadStock);
+      conditions.push(`"BadStock" = $${values.length}`);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Hitung total baris sesuai filter (untuk kebutuhan pagination di frontend)
@@ -67,7 +75,7 @@ router.get('/', async (req, res) => {
     );
 
     const dataRes = await pool.query(
-      `SELECT "StatusId", "Name"
+      `SELECT "StatusId", "Name", "BadStock"
        FROM "InventoryStatus"
        ${whereClause}
        ORDER BY "StatusId" ASC
@@ -110,7 +118,7 @@ router.get('/:statusId', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT "StatusId", "Name"
+      `SELECT "StatusId", "Name", "BadStock"
        FROM "InventoryStatus"
        WHERE UPPER(BTRIM("StatusId")) = UPPER(BTRIM($1))
        LIMIT 1`,
