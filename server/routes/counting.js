@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../config/db.js';
 import { generateNextQrNum, parseDatePeriod } from '../services/sequence.js';
+import { getAppSettings } from '../services/appSettings.js';
 
 const router = express.Router();
 
@@ -1755,12 +1756,22 @@ router.post('/autonic/get-and-delete', async (req, res) => {
 
     // 1. Coba hubungi webhook Autonic eksternal terlebih dahulu
     try {
-      const webhookRes = await fetch('http://192.168.40.215:5678/webhook/getdataautonic', {
+      const appSettings = await getAppSettings();
+      const autonicCfg = appSettings?.autonic || {};
+      const baseUrl = (autonicCfg.baseUrl || 'http://192.168.40.215:5678').replace(/\/+$/, '');
+      const getEp = autonicCfg.getDataEndpoint || '/webhook/getdataautonic';
+      const cleanGetEp = getEp.startsWith('/') ? getEp : `/${getEp}`;
+      const token = autonicCfg.bearerToken || 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0';
+      const webhookUrl = `${baseUrl}${cleanGetEp}`;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      }
+
+      const webhookRes = await fetch(webhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0',
-        },
+        headers,
         body: JSON.stringify({ nomesin: machineId }),
       });
 
@@ -1846,12 +1857,22 @@ router.post('/autonic/flush', async (req, res) => {
   try {
     // 1. Coba panggil webhook delete Autonic eksternal
     try {
-      await fetch('http://192.168.40.215:5678/webhook/deletedataautonic', {
+      const appSettings = await getAppSettings();
+      const autonicCfg = appSettings?.autonic || {};
+      const baseUrl = (autonicCfg.baseUrl || 'http://192.168.40.215:5678').replace(/\/+$/, '');
+      const flushEp = autonicCfg.flushDataEndpoint || '/webhook/deletedataautonic';
+      const cleanFlushEp = flushEp.startsWith('/') ? flushEp : `/${flushEp}`;
+      const token = autonicCfg.bearerToken || 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0';
+      const flushUrl = `${baseUrl}${cleanFlushEp}`;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      }
+
+      await fetch(flushUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0',
-        },
+        headers,
         body: JSON.stringify({ nomesin: machineId }),
       });
     } catch (whErr) {

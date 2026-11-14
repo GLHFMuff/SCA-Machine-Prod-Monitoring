@@ -433,6 +433,29 @@ export async function saveAppSettingsApi(settingsPayload, sessionKey = '') {
 }
 
 /**
+ * Uji koneksi ke endpoint webhook Autonic (khusus Administrator)
+ * @param {object} payload - { baseUrl, getDataEndpoint, bearerToken, machineId }
+ * @param {string} [sessionKey]
+ */
+export async function testAutonicConnectionApi(payload, sessionKey = '') {
+  const token = sessionKey || localStorage.getItem('mpm_admin_session_key') || '';
+  const url = `${API_BASE}/api/settings/test-autonic`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || `Tes koneksi gagal (Status ${res.status}).`);
+  }
+  return data;
+}
+
+/**
  * Logout admin session
  */
 export async function adminLogoutApi(sessionKey) {

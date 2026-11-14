@@ -16,7 +16,9 @@ import {
   directPrintRollLabelApi,
   getAppSettingsApi,
   saveAppSettingsApi,
+  testAutonicConnectionApi,
 } from '../services/api.js'
+import { updateAutonicRuntimeConfig } from '../services/autonicService.js'
 import { DEFAULT_SHIFT_LIST, detectActiveShift, isOvernightShift } from '../utils/shiftUtils.js'
 import styles from './AdminPanel.module.css'
 
@@ -28,6 +30,12 @@ const DEFAULT_SETTINGS = {
     applyIdleToAdmin: false,
   },
   shifts: DEFAULT_SHIFT_LIST,
+  autonic: {
+    baseUrl: 'http://192.168.40.215:5678',
+    getDataEndpoint: '/webhook/getdataautonic',
+    flushDataEndpoint: '/webhook/deletedataautonic',
+    bearerToken: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0',
+  },
   updatedAt: null,
 }
 
@@ -176,6 +184,9 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
   const [savedSettings, setSavedSettings] = useState(DEFAULT_SETTINGS)
   const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [testingAutonic, setTestingAutonic] = useState(false)
+  const [testAutonicResult, setTestAutonicResult] = useState(null)
+  const [testMachineId, setTestMachineId] = useState(1)
 
   // Search & Filter state
   const [machineSearch, setMachineSearch] = useState('')
@@ -251,8 +262,17 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
       }
       if (appSettingsData.status === 'fulfilled' && appSettingsData.value?.settings) {
         const nextSettings = appSettingsData.value.settings
-        setSavedSettings(nextSettings)
-        setSettingsForm(JSON.parse(JSON.stringify(nextSettings)))
+        const merged = {
+          ...DEFAULT_SETTINGS,
+          ...nextSettings,
+          session: { ...DEFAULT_SETTINGS.session, ...(nextSettings.session || {}) },
+          autonic: { ...DEFAULT_SETTINGS.autonic, ...(nextSettings.autonic || {}) },
+        }
+        setSavedSettings(merged)
+        setSettingsForm(JSON.parse(JSON.stringify(merged)))
+        if (merged.autonic) {
+          updateAutonicRuntimeConfig(merged.autonic)
+        }
       }
     } catch (err) {
       console.error('[AdminPanel] Error fetching admin data:', err)
@@ -580,6 +600,41 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
     }))
   }
 
+  function updateAutonicSetting(field, value) {
+    setSettingsForm((prev) => ({
+      ...prev,
+      autonic: {
+        ...(prev.autonic || DEFAULT_SETTINGS.autonic),
+        [field]: value,
+      },
+    }))
+  }
+
+  async function handleTestAutonic() {
+    setTestingAutonic(true)
+    setTestAutonicResult(null)
+    try {
+      const res = await testAutonicConnectionApi({
+        baseUrl: settingsForm.autonic?.baseUrl,
+        getDataEndpoint: settingsForm.autonic?.getDataEndpoint,
+        bearerToken: settingsForm.autonic?.bearerToken,
+        machineId: testMachineId || 1,
+      }, user?.sessionKey)
+      setTestAutonicResult({
+        success: true,
+        message: res.message || 'Koneksi ke Webhook Autonic berhasil!',
+        elapsedMs: res.elapsedMs,
+      })
+    } catch (err) {
+      setTestAutonicResult({
+        success: false,
+        message: err.message || 'Gagal menghubungi Webhook Autonic.',
+      })
+    } finally {
+      setTestingAutonic(false)
+    }
+  }
+
   function handleUpdateShift(index, field, value) {
     setSettingsForm((prev) => {
       const nextShifts = prev.shifts.map((s, idx) =>
@@ -639,10 +694,19 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
           start: String(s.start || '').trim(),
           end: String(s.end || '').trim(),
         })),
+        autonic: {
+          baseUrl: String(settingsForm.autonic?.baseUrl || '').trim(),
+          getDataEndpoint: String(settingsForm.autonic?.getDataEndpoint || '').trim(),
+          flushDataEndpoint: String(settingsForm.autonic?.flushDataEndpoint || '').trim(),
+          bearerToken: String(settingsForm.autonic?.bearerToken || '').trim(),
+        },
       }
       const res = await saveAppSettingsApi(payload, user?.sessionKey)
       setSavedSettings(res.settings)
       setSettingsForm(JSON.parse(JSON.stringify(res.settings)))
+      if (res.settings?.autonic) {
+        updateAutonicRuntimeConfig(res.settings.autonic)
+      }
       onSettingsUpdated?.(res.settings)
       showToast?.(`✓ ${res.message || 'Pengaturan aplikasi berhasil disimpan.'}`)
     } catch (err) {
@@ -1444,6 +1508,144 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
                     </div>
                   )
                 })}
+              </div>
+            </div>
+
+            {/* Section 3: Webhook / Sensor Autonic */}
+            <div className={styles.settingsSection}>
+              <div className={styles.settingsSectionHeader}>
+                <div>
+                  <h2 className={styles.settingsSectionTitle}>🔌 Integrasi Webhook / Sensor Autonic</h2>
+                  <p className={styles.settingsSectionDesc}>
+                    Konfigurasi URL server n8n / gateway webhook eksternal untuk penarikan data panjang kain otomatis dan flush antrean per mesin produksi.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>Tes Mesin #:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={testMachineId}
+                      onChange={(e) => setTestMachineId(Number(e.target.value) || 1)}
+                      style={{ width: '60px', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '12.5px' }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.presetBtn}
+                    onClick={handleTestAutonic}
+                    disabled={testingAutonic || !settingsForm.autonic?.baseUrl}
+                    title="Uji konektivitas HTTP ke webhook Autonic"
+                  >
+                    {testingAutonic ? '⏳ Menguji…' : '⚡ Uji Koneksi Webhook'}
+                  </button>
+                </div>
+              </div>
+
+              {testAutonicResult && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    marginBottom: '16px',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    background: testAutonicResult.success ? 'rgba(22, 163, 74, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                    border: `1px solid ${testAutonicResult.success ? 'rgba(22, 163, 74, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                    color: testAutonicResult.success ? 'var(--success)' : 'var(--danger)',
+                  }}
+                >
+                  <div>
+                    <strong>{testAutonicResult.success ? '✓ Sukses' : '✕ Gagal'}:</strong> {testAutonicResult.message}
+                    {testAutonicResult.elapsedMs !== undefined && ` (${testAutonicResult.elapsedMs}ms)`}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTestAutonicResult(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              <div className={styles.settingsGrid}>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="setting-autonic-baseurl">
+                    Base URL Webhook Server
+                  </label>
+                  <input
+                    id="setting-autonic-baseurl"
+                    type="text"
+                    className={styles.formInput}
+                    placeholder="Contoh: http://192.168.40.215:5678"
+                    value={settingsForm.autonic?.baseUrl || ''}
+                    onChange={(e) => updateAutonicSetting('baseUrl', e.target.value)}
+                    required
+                  />
+                  <span className={styles.settingHelp}>
+                    IP & port server n8n / gateway webhook sensor mesin.
+                  </span>
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="setting-autonic-get-ep">
+                    Endpoint Ambil Data (POST)
+                  </label>
+                  <input
+                    id="setting-autonic-get-ep"
+                    type="text"
+                    className={styles.formInput}
+                    placeholder="/webhook/getdataautonic"
+                    value={settingsForm.autonic?.getDataEndpoint || ''}
+                    onChange={(e) => updateAutonicSetting('getDataEndpoint', e.target.value)}
+                    required
+                  />
+                  <span className={styles.settingHelp}>
+                    Menerima body <code>{`{ "nomesin": ID }`}</code> dan mengembalikan <code>Length</code>.
+                  </span>
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="setting-autonic-flush-ep">
+                    Endpoint Flush / Hapus Antrean (POST)
+                  </label>
+                  <input
+                    id="setting-autonic-flush-ep"
+                    type="text"
+                    className={styles.formInput}
+                    placeholder="/webhook/deletedataautonic"
+                    value={settingsForm.autonic?.flushDataEndpoint || ''}
+                    onChange={(e) => updateAutonicSetting('flushDataEndpoint', e.target.value)}
+                    required
+                  />
+                  <span className={styles.settingHelp}>
+                    Dipanggil saat antrean mesin dibersihkan / di-flush.
+                  </span>
+                </div>
+
+                <div className={styles.formField} style={{ gridColumn: '1 / -1' }}>
+                  <label className={styles.formLabel} htmlFor="setting-autonic-token">
+                    Authorization Header / Bearer Token
+                  </label>
+                  <input
+                    id="setting-autonic-token"
+                    type="text"
+                    className={styles.formInput}
+                    placeholder="Bearer eyJhbGciOi..."
+                    value={settingsForm.autonic?.bearerToken || ''}
+                    onChange={(e) => updateAutonicSetting('bearerToken', e.target.value)}
+                  />
+                  <span className={styles.settingHelp}>
+                    Token otentikasi JWT untuk mengakses webhook Autonic. Kosongkan jika webhook tidak memerlukan otentikasi.
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -19,6 +19,12 @@ export const DEFAULT_APP_SETTINGS = {
     { id: 2, name: 'Shift 2', start: '15:00', end: '23:00' },
     { id: 3, name: 'Shift 3', start: '23:00', end: '07:00' },
   ],
+  autonic: {
+    baseUrl: 'http://192.168.40.215:5678',
+    getDataEndpoint: '/webhook/getdataautonic',
+    flushDataEndpoint: '/webhook/deletedataautonic',
+    bearerToken: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub21lc2luIjoiMSJ9.RbhwKIJJqRxD2uP_on5Ch3tJOoR2rLfrz45D_E0IR_0',
+  },
   updatedAt: null,
 };
 
@@ -138,6 +144,26 @@ export function validateAndNormalizeSettings(rawInput = {}, existing = {}) {
   });
 
   // Preserve extra top-level and session keys so JSON remains extensible without DB migrations.
+  const baseAutonic = existing?.autonic && typeof existing.autonic === 'object' ? existing.autonic : {};
+  const inputAutonic = rawInput.autonic && typeof rawInput.autonic === 'object' ? rawInput.autonic : {};
+
+  const rawBaseUrl = inputAutonic.baseUrl ?? baseAutonic.baseUrl ?? defaults.autonic.baseUrl;
+  const rawGetDataEp = inputAutonic.getDataEndpoint ?? baseAutonic.getDataEndpoint ?? defaults.autonic.getDataEndpoint;
+  const rawFlushDataEp = inputAutonic.flushDataEndpoint ?? baseAutonic.flushDataEndpoint ?? defaults.autonic.flushDataEndpoint;
+  const rawToken = inputAutonic.bearerToken ?? baseAutonic.bearerToken ?? defaults.autonic.bearerToken;
+
+  const baseUrl = String(rawBaseUrl || '').trim().replace(/\/+$/, '');
+  const getDataEndpoint = String(rawGetDataEp || '').trim();
+  const flushDataEndpoint = String(rawFlushDataEp || '').trim();
+  const bearerToken = String(rawToken || '').trim();
+
+  const normalizedGetDataEndpoint = getDataEndpoint
+    ? (getDataEndpoint.startsWith('/') ? getDataEndpoint : `/${getDataEndpoint}`)
+    : '';
+  const normalizedFlushDataEndpoint = flushDataEndpoint
+    ? (flushDataEndpoint.startsWith('/') ? flushDataEndpoint : `/${flushDataEndpoint}`)
+    : '';
+
   const merged = {
     ...existing,
     ...rawInput,
@@ -150,6 +176,12 @@ export function validateAndNormalizeSettings(rawInput = {}, existing = {}) {
       applyIdleToAdmin,
     },
     shifts: normalizedShifts,
+    autonic: {
+      baseUrl,
+      getDataEndpoint: normalizedGetDataEndpoint,
+      flushDataEndpoint: normalizedFlushDataEndpoint,
+      bearerToken,
+    },
   };
 
   return merged;

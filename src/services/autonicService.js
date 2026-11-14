@@ -95,34 +95,45 @@ export async function getAutonicData(machineId) {
   };
 }
 
-export async function flushAutonicData(machineId) {
-  const payload = {
-    nomesin: Number(machineId) || 1,
-  };
+export function updateAutonicRuntimeConfig(config) {
+  if (!config) return;
+  if (config.baseUrl) AUTONIC_CONFIG.BASE_URL = config.baseUrl;
+  if (config.bearerToken) AUTONIC_CONFIG.BEARER_TOKEN = config.bearerToken;
+  if (config.getDataEndpoint) AUTONIC_ENDPOINTS.GET_DATA = config.getDataEndpoint;
+  if (config.flushDataEndpoint) AUTONIC_ENDPOINTS.FLUSH_DATA = config.flushDataEndpoint;
+}
 
+export async function flushAutonicData(machineId) {
+  // 1. Prioritaskan panggil backend flush endpoint (memakai konfigurasi server terbaru)
   try {
-    return await autonicRequest(AUTONIC_ENDPOINTS.FLUSH_DATA, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  } catch (err) {
-    console.warn('[flushAutonicData] Direct webhook failed, calling backend flush endpoint:', err.message);
     const res = await fetch('/api/counting/autonic/flush', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ machineId: Number(machineId) || 1 }),
-    }).catch(() => null);
+    });
 
     if (res && res.ok) {
       return await res.json();
     }
-    throw err;
+  } catch (err) {
+    console.warn('[flushAutonicData] Backend flush failed, falling back to direct webhook:', err.message);
   }
-}
 
+  // 2. Fallback direct webhook
+  const payload = {
+    nomesin: Number(machineId) || 1,
+  };
+
+  return await autonicRequest(AUTONIC_ENDPOINTS.FLUSH_DATA, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
 
 export default {
   AUTONIC_CONFIG,
   AUTONIC_ENDPOINTS,
+  updateAutonicRuntimeConfig,
   getAutonicData,
+  flushAutonicData,
 };
