@@ -1755,7 +1755,7 @@ router.post('/autonic/get-and-delete', async (req, res) => {
 
     // 1. Coba hubungi webhook Autonic eksternal terlebih dahulu
     try {
-      const webhookRes = await fetch('http://192.168.23.61:5678/webhook/getdataautonic', {
+      const webhookRes = await fetch('http://192.168.40.215:5678/webhook/getdataautonic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1846,7 +1846,7 @@ router.post('/autonic/flush', async (req, res) => {
   try {
     // 1. Coba panggil webhook delete Autonic eksternal
     try {
-      await fetch('http://192.168.23.61:5678/webhook/deletedataautonic', {
+      await fetch('http://192.168.40.215:5678/webhook/deletedataautonic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

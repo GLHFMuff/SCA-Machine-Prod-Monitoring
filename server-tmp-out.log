@@ -4,7 +4,7 @@
  API Endpoint URL : http://localhost:5055/api
  Health check URL : http://localhost:5055/api/health
  Static Dist Path : D:\MUFF\Web\Machine Production Monitoring\dist (Found)
- Configured DB Host: 192.168.23.61:5432
+ Configured DB Host: 192.168.40.215:5432
  Configured DB Name: autonic
  Configured DB User: sca
  HTTPS Status     : OFF (Atur FORCE_HTTPS=true atau sediakan server/ssl/server.key & .crt)
