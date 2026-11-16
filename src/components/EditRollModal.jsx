@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getInventoryStatusList } from '../services/api.js'
 import { toDDMMYYYY, toYYYYMMDD } from '../utils/dateUtils.js'
 import styles from './EditRollModal.module.css'
 
@@ -13,13 +14,34 @@ export default function EditRollModal({
   const [length, setLength] = useState(roll?.length !== undefined ? String(roll.length) : '')
   const [bsQty, setBsQty] = useState(roll?.bsQty !== undefined && roll?.bsQty !== null ? String(roll.bsQty) : '0')
   const [date, setDate] = useState(toYYYYMMDD(roll?.transDate || roll?.TransDate))
+  const [grade, setGrade] = useState(roll?.inventStatus || roll?.InventStatus || 'A')
+  const [gradeOptions, setGradeOptions] = useState([])
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+    getInventoryStatusList({ badStock: false })
+      .then((res) => {
+        if (!isMounted) return
+        const rawList = res?.data || []
+        const validList = rawList.filter((d) => d.BadStock === false || String(d.BadStock) === 'false' || !d.BadStock)
+        setGradeOptions(validList)
+      })
+      .catch((err) => {
+        console.error('[EditRollModal] Gagal load inventory status:', err)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(() => {
     if (roll) {
       setLength(roll.length !== undefined ? String(roll.length) : '')
       setBsQty(roll.bsQty !== undefined && roll.bsQty !== null ? String(roll.bsQty) : '0')
       setDate(toYYYYMMDD(roll.transDate || roll.TransDate))
+      setGrade(roll.inventStatus || roll.InventStatus || 'A')
       setError('')
     }
   }, [roll])
@@ -54,6 +76,7 @@ export default function EditRollModal({
       length: parsedLength,
       bsQty: parsedBs,
       transDate: toDDMMYYYY(date),
+      inventStatus: grade,
     })
   }
 
@@ -175,7 +198,33 @@ export default function EditRollModal({
               </span>
             </div>
 
-            {/* Input 3: Date (TransDate) */}
+            {/* Input 3: Grade */}
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Grade
+                <span className={styles.req}>*Status Inventory</span>
+              </label>
+              <select
+                className={styles.select}
+                value={grade}
+                onChange={(e) => {
+                  setGrade(e.target.value)
+                  setError('')
+                }}
+                disabled={loading}
+              >
+                {(gradeOptions.some((opt) => opt.StatusId === grade) || gradeOptions.some((opt) => opt.StatusId === 'A')
+                  ? gradeOptions
+                  : [{ StatusId: grade || 'A', Name: grade || 'A', BadStock: false }, ...gradeOptions]
+                ).map((opt) => (
+                  <option key={opt.StatusId} value={opt.StatusId}>
+                    {opt.StatusId}{opt.Name && opt.Name !== opt.StatusId ? ` – ${opt.Name}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Input 4: Date (TransDate) */}
             <div className={styles.formGroup}>
               <label className={styles.label}>
                 Date (Tanggal Transaksi)

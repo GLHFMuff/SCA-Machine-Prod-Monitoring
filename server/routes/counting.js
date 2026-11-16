@@ -1196,13 +1196,14 @@ router.put('/lines/:prodId/:roolNumber', async (req, res) => {
 
     const noMesin = String(req.body.NoMesin || req.body.noMesin || existing.NoMesin || '').trim();
     const isPrinted = req.body.isPrinted !== undefined ? Boolean(req.body.isPrinted) : Boolean(existing.isPrinted);
+    const finalInventStatus = String(req.body.InventStatus || req.body.inventStatus || existing.InventStatus || 'A').trim().toUpperCase();
 
     const updateRes = await pool.query(
       `UPDATE "CountingKainLines"
-       SET "Length" = $3, "Description" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "TransDate" = $10
+       SET "Length" = $3, "Description" = $4, "IsExecute" = $5, "NoMesin" = $6, "isPrinted" = $7, "isStock" = $8, "QrNum" = $9, "TransDate" = $10, "InventStatus" = $11
        WHERE "ProdId" = $1 AND "RoolNumber" = $2 AND ${ACTIVE_LINE_FILTER}
-       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate"`,
-      [prodId, rollNum, lengthVal, newDescription, finalIsExecute, noMesin, isPrinted, finalIsStock, finalQrNum, finalTransDate]
+       RETURNING "ProdId", "RoolNumber", "Description", "Length", "IsExecute", "NoMesin", "isPrinted", "isStock", "QrNum", "TransDate", "InventStatus"`,
+      [prodId, rollNum, lengthVal, newDescription, finalIsExecute, noMesin, isPrinted, finalIsStock, finalQrNum, finalTransDate, finalInventStatus]
     );
 
     return res.status(200).json({

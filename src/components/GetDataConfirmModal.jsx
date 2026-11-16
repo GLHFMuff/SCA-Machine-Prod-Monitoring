@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getNextRollInfo } from '../services/api.js'
+import { getNextRollInfo, getInventoryStatusList } from '../services/api.js'
 import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js'
 import { computeNextRollNumber } from '../utils/rollNumberHelpers.js'
 import styles from './GetDataConfirmModal.module.css'
@@ -23,11 +23,31 @@ export default function GetDataConfirmModal({
 }) {
   const [transDate, setTransDate] = useState(getTodayYYYYMMDD())
   const [resolvedRollId, setResolvedRollId] = useState(targetRollId || 1)
+  const [grade, setGrade] = useState('A')
+  const [gradeOptions, setGradeOptions] = useState([])
   const [loadingDb, setLoadingDb] = useState(false)
 
   useEffect(() => {
     setResolvedRollId(targetRollId || 1)
   }, [targetRollId])
+
+  useEffect(() => {
+    let isMounted = true
+    getInventoryStatusList({ badStock: false })
+      .then((res) => {
+        if (!isMounted) return
+        const rawList = res?.data || []
+        const validList = rawList.filter((d) => d.BadStock === false || String(d.BadStock) === 'false' || !d.BadStock)
+        setGradeOptions(validList)
+      })
+      .catch((err) => {
+        console.error('[GetDataConfirmModal] Gagal load inventory status:', err)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Sinkronisasi langsung dengan database CountingKainLines saat modal konfirmasi dibuka
   // agar Target Nomor Roll mengabaikan status soft delete roll sebelumnya
@@ -125,6 +145,23 @@ export default function GetDataConfirmModal({
               </span>
             </div>
             <div className={styles.infoRow} style={{ alignItems: 'center' }}>
+              <span className={styles.infoLabel}>Grade</span>
+              <select
+                className={styles.selectInput}
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+              >
+                {(gradeOptions.some((opt) => opt.StatusId === 'A')
+                  ? gradeOptions
+                  : [{ StatusId: 'A', Name: 'A', BadStock: false }, ...gradeOptions]
+                ).map((opt) => (
+                  <option key={opt.StatusId} value={opt.StatusId}>
+                    {opt.StatusId}{opt.Name && opt.Name !== opt.StatusId ? ` – ${opt.Name}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.infoRow} style={{ alignItems: 'center' }}>
               <span className={styles.infoLabel}>Date (Tanggal Roll)</span>
               <input
                 type="date"
@@ -182,7 +219,7 @@ export default function GetDataConfirmModal({
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => onConfirm(toDDMMYYYY(transDate), resolvedRollId)}
+            onClick={() => onConfirm(toDDMMYYYY(transDate), resolvedRollId, grade)}
             disabled={loading || loadingDb}
           >
             {loading ? (

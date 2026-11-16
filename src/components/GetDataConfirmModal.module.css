@@ -144,6 +144,24 @@
   font-size: 13px;
 }
 
+.selectInput {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2, #1e293b);
+  color: var(--text, #f8fafc);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  min-width: 140px;
+  transition: border-color 0.15s ease;
+}
+
+.selectInput:focus {
+  border-color: var(--primary, #0ea5e9);
+}
+
 .pendingDefectBox {
   display: flex;
   gap: 12px;

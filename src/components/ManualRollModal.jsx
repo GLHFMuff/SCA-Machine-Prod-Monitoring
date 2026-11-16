@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getNextRollInfo } from '../services/api.js'
+import { getNextRollInfo, getInventoryStatusList } from '../services/api.js'
 import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js'
 import { collectUsedRollNumbers, computeNextRollNumber } from '../utils/rollNumberHelpers.js'
 import styles from './ManualRollModal.module.css'
@@ -26,8 +26,28 @@ export default function ManualRollModal({
   const [bsQty, setBsQty] = useState('0')
   const [isStock, setIsStock] = useState(false)
   const [stockInfo, setStockInfo] = useState(null)
+  const [grade, setGrade] = useState('A')
+  const [gradeOptions, setGradeOptions] = useState([])
   const [transDate, setTransDate] = useState(getTodayYYYYMMDD())
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+    getInventoryStatusList({ badStock: false })
+      .then((res) => {
+        if (!isMounted) return
+        const rawList = res?.data || []
+        const validList = rawList.filter((d) => d.BadStock === false || String(d.BadStock) === 'false' || !d.BadStock)
+        setGradeOptions(validList)
+      })
+      .catch((err) => {
+        console.error('[ManualRollModal] Gagal load inventory status:', err)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Sinkronisasi otomatis roll number sesuai mesin & prodId dari database CountingKainLines
   // (mengabaikan status soft delete roll sebelumnya)
@@ -132,6 +152,7 @@ export default function ManualRollModal({
       id: parsedRollId,
       length: parsedLength,
       bsQty: parsedBs,
+      inventStatus: grade,
       isStock: Boolean(isStock),
       transDate: toDDMMYYYY(transDate),
     })
@@ -207,6 +228,30 @@ export default function ManualRollModal({
                 />
                 <span className={styles.unit}>Yard</span>
               </div>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Grade
+                <span className={styles.req}>*Status Inventory</span>
+              </label>
+              <select
+                className={styles.select}
+                value={grade}
+                onChange={(e) => {
+                  setGrade(e.target.value)
+                  setError('')
+                }}
+              >
+                {(gradeOptions.some((opt) => opt.StatusId === 'A')
+                  ? gradeOptions
+                  : [{ StatusId: 'A', Name: 'A', BadStock: false }, ...gradeOptions]
+                ).map((opt) => (
+                  <option key={opt.StatusId} value={opt.StatusId}>
+                    {opt.StatusId}{opt.Name && opt.Name !== opt.StatusId ? ` – ${opt.Name}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className={styles.formGroup}>

@@ -216,15 +216,15 @@ export default function RollTable({
   }
 
   // Step 2: Konfirmasi Ambil Data -> Simpan ke tabel countinglines dan flush antrean
-  async function handleConfirmGetData(selectedTransDate, confirmedRollId) {
+  async function handleConfirmGetData(selectedTransDate, confirmedRollId, selectedGrade) {
     if (!pendingSensorData) return
     setLoadingGetData(true)
     try {
       const finalRollId = confirmedRollId || pendingSensorData?.targetRollId || nextRollId
       if (onSaveRollFromSensor) {
-        await onSaveRollFromSensor(pendingSensorData, finalRollId, selectedTransDate)
+        await onSaveRollFromSensor(pendingSensorData, finalRollId, selectedTransDate, selectedGrade)
       } else if (onGetData) {
-        await onGetData(pendingSensorData, finalRollId, selectedTransDate)
+        await onGetData(pendingSensorData, finalRollId, selectedTransDate, selectedGrade)
       }
       setShowGetDataConfirm(false)
       setPendingSensorData(null)

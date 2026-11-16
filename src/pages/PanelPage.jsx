@@ -232,6 +232,7 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
             description: l.Description || `Roll #${l.RoolNumber}`,
             isExecute: Boolean(l.IsExecute),
             isStock: Boolean(l.isStock),
+            inventStatus: l.InventStatus || 'A',
             qrNum: l.QrNum || '',
             transDate: l.TransDate || '',
             createdBy: l.CreatedBy || '',
@@ -312,6 +313,7 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
       const parsedLength = parseFloat(editValues.length)
       const parsedBs = parseFloat(editValues.bsQty || 0)
       const updatedTransDate = editValues.transDate || rollToEdit.transDate
+      const updatedInventStatus = editValues.inventStatus || rollToEdit.inventStatus || 'A'
 
       // Format description agar BS qty awet
       let updatedDesc = rollToEdit.description || `Roll #${rollId} (${parsedLength} yard)`
@@ -333,6 +335,7 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
         noMesin: rollToEdit.noMesin,
         isPrinted: rollToEdit.isPrinted,
         transDate: updatedTransDate,
+        inventStatus: updatedInventStatus,
       })
 
       // Update local state
@@ -346,6 +349,7 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
               description: updatedDesc,
               isExecute: false,
               transDate: updatedTransDate,
+              inventStatus: updatedInventStatus,
               qrNum: updateRes?.data?.QrNum || r.qrNum,
             }
             : r
