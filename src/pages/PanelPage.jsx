@@ -340,14 +340,14 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
         prev.map((r) =>
           r.id === rollId
             ? {
-                ...r,
-                length: parsedLength,
-                bsQty: parsedBs,
-                description: updatedDesc,
-                isExecute: false,
-                transDate: updatedTransDate,
-                qrNum: updateRes?.data?.QrNum || r.qrNum,
-              }
+              ...r,
+              length: parsedLength,
+              bsQty: parsedBs,
+              description: updatedDesc,
+              isExecute: false,
+              transDate: updatedTransDate,
+              qrNum: updateRes?.data?.QrNum || r.qrNum,
+            }
             : r
         )
       )
@@ -654,7 +654,7 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
                 else window.location.href = '/'
               }}
             >
-              ← Kembali ke Layar Operasional Mesin Loom
+              ← Kembali ke Layar Operasional Mesin Folding
             </button>
           </div>
         </div>
@@ -995,9 +995,8 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
               <div className={styles.categoryTabs}>
                 <button
                   type="button"
-                  className={`${styles.categoryTabBtn} ${
-                    activeCategoryTab === 'rolls' ? styles.categoryTabActive : ''
-                  }`}
+                  className={`${styles.categoryTabBtn} ${activeCategoryTab === 'rolls' ? styles.categoryTabActive : ''
+                    }`}
                   onClick={() => setActiveCategoryTab('rolls')}
                 >
                   📋 Daftar Roll Kain
@@ -1006,9 +1005,8 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
 
                 <button
                   type="button"
-                  className={`${styles.categoryTabBtn} ${
-                    activeCategoryTab === 'coproducts' ? styles.categoryTabActive : ''
-                  }`}
+                  className={`${styles.categoryTabBtn} ${activeCategoryTab === 'coproducts' ? styles.categoryTabActive : ''
+                    }`}
                   onClick={() => setActiveCategoryTab('coproducts')}
                 >
                   🧵 Co-Products / BS
@@ -1021,9 +1019,8 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
                 <div className={styles.filterTabs}>
                   <button
                     type="button"
-                    className={`${styles.filterTabBtn} ${
-                      activeMachineFilter === 'ALL' ? styles.filterTabActive : ''
-                    }`}
+                    className={`${styles.filterTabBtn} ${activeMachineFilter === 'ALL' ? styles.filterTabActive : ''
+                      }`}
                     onClick={() => setActiveMachineFilter('ALL')}
                   >
                     Semua Mesin ({rolls.length})
@@ -1034,9 +1031,8 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
                       <button
                         key={m}
                         type="button"
-                        className={`${styles.filterTabBtn} ${
-                          activeMachineFilter === m ? styles.filterTabActive : ''
-                        }`}
+                        className={`${styles.filterTabBtn} ${activeMachineFilter === m ? styles.filterTabActive : ''
+                          }`}
                         onClick={() => setActiveMachineFilter(m)}
                       >
                         Mesin #{m} ({count})
@@ -1146,9 +1142,8 @@ export default function PanelPage({ theme, onToggleTheme, onNavigate }) {
                                   {/* View / Edit Defect modal */}
                                   <button
                                     type="button"
-                                    className={`${styles.actionBtn} ${
-                                      hasDefect ? styles.actionBtnDefectActive : styles.actionBtnDefect
-                                    }`}
+                                    className={`${styles.actionBtn} ${hasDefect ? styles.actionBtnDefectActive : styles.actionBtnDefect
+                                      }`}
                                     onClick={() => setDefectModalRoll(roll)}
                                     title="Lihat dan kelola titik inspeksi kain"
                                   >

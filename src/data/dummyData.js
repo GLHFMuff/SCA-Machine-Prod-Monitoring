@@ -1,8 +1,8 @@
 // ── Dummy operator / user data ──────────────────────────────
 export const USERS = [
-  { id: 'OPR001', name: 'Budi Santoso', machine: 'M-12', machineType: 'Rapier Loom' },
-  { id: 'OPR002', name: 'Siti Rahayu', machine: 'M-07', machineType: 'Air Jet Loom' },
-  { id: 'OPR003', name: 'Ahmad Fauzi', machine: 'M-21', machineType: 'Water Jet Loom' },
+  { id: 'OPR001', name: 'Budi Santoso', machine: 'M-12', machineType: '-' },
+  { id: 'OPR002', name: 'Siti Rahayu', machine: 'M-07', machineType: '-' },
+  { id: 'OPR003', name: 'Ahmad Fauzi', machine: 'M-21', machineType: '-' },
 ]
 
 // ── Dummy scan result (simulates barcode scan) ────────────────

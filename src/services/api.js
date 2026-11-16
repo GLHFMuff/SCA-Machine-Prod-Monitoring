@@ -42,7 +42,7 @@ export function formatUser(rawUser, sessionKey = '') {
     email: rawUser.email,
     machineId: rawUser.machine_id,
     machine: rawUser.machine_num || `Mesin ${rawUser.machine_id}`,
-    machineType: `Loom Machine #${rawUser.machine_id}`,
+    machineType: `Folding Machine #${rawUser.machine_id}`,
     role: rawUser.role,
     sessionKey: sessionKey,
     printerName: rawUser.printer_name || rawUser.printerName || '',
@@ -1034,19 +1034,19 @@ export async function getDefectReportDataApi(prodId) {
   return {
     header: countingData
       ? {
-          ProdId: countingData.ProdId || cleanProdId,
-          NoMesin: countingData.NoMesin || '',
-          UserId: countingData.UserId || '',
-          SeqmentNum: countingData.SeqmentNum || '',
-          CustCode: countingData.CustCode || '',
-          DesignCode: countingData.DesignCode || '',
-          Color: countingData.Color || '',
-          OrderQty: countingData.OrderQty || 0,
-          StockQty: countingData.StockQty || 0,
-          K3LNumber: countingData.K3LNumber || '',
-          K3LName: countingData.K3LName || '',
-          PatternCode: countingData.PatternCode || '',
-        }
+        ProdId: countingData.ProdId || cleanProdId,
+        NoMesin: countingData.NoMesin || '',
+        UserId: countingData.UserId || '',
+        SeqmentNum: countingData.SeqmentNum || '',
+        CustCode: countingData.CustCode || '',
+        DesignCode: countingData.DesignCode || '',
+        Color: countingData.Color || '',
+        OrderQty: countingData.OrderQty || 0,
+        StockQty: countingData.StockQty || 0,
+        K3LNumber: countingData.K3LNumber || '',
+        K3LName: countingData.K3LName || '',
+        PatternCode: countingData.PatternCode || '',
+      }
       : { ProdId: cleanProdId },
     lines: countingData?.allLines || countingData?.lines || [],
     defects: enrichedDefects,
@@ -1218,14 +1218,14 @@ export async function deleteJoinedPiecesApi(prodId, roolNumber) {
  */
 export async function getInventoryStatusList({ search, statusId, badStock, limit, offset } = {}) {
   const url = new URL(`${API_BASE}/api/inventory-status`, window.location.origin);
-  if (search)   url.searchParams.set('search',   search);
+  if (search) url.searchParams.set('search', search);
   if (statusId) url.searchParams.set('StatusId', statusId);
   if (badStock !== undefined && badStock !== null) url.searchParams.set('badStock', String(badStock));
-  if (limit)    url.searchParams.set('limit',    limit);
-  if (offset)   url.searchParams.set('offset',   offset);
+  if (limit) url.searchParams.set('limit', limit);
+  if (offset) url.searchParams.set('offset', offset);
 
   try {
-    const res  = await fetch(url.toString());
+    const res = await fetch(url.toString());
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
       throw new Error(data?.message || data?.error || 'Gagal mengambil data Inventory Status');
@@ -1247,7 +1247,7 @@ export async function getInventoryStatusById(statusId) {
 
   const url = `${API_BASE}/api/inventory-status/${encodeURIComponent(statusId)}`;
   try {
-    const res  = await fetch(url);
+    const res = await fetch(url);
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
       throw new Error(data?.message || data?.error || `InventoryStatus '${statusId}' tidak ditemukan`);
@@ -1275,12 +1275,12 @@ export async function getInventoryStatusById(statusId) {
 export async function getDefectCodeList({ search, code, limit, offset } = {}) {
   const url = new URL(`${API_BASE}/api/defect-code`, window.location.origin);
   if (search) url.searchParams.set('search', search);
-  if (code)   url.searchParams.set('code',   code);
-  if (limit)  url.searchParams.set('limit',  limit);
+  if (code) url.searchParams.set('code', code);
+  if (limit) url.searchParams.set('limit', limit);
   if (offset) url.searchParams.set('offset', offset);
 
   try {
-    const res  = await fetch(url.toString());
+    const res = await fetch(url.toString());
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
       throw new Error(data?.message || data?.error || 'Gagal mengambil data Defect Code');
@@ -1302,7 +1302,7 @@ export async function getDefectCodeById(code) {
 
   const url = `${API_BASE}/api/defect-code/${encodeURIComponent(code)}`;
   try {
-    const res  = await fetch(url);
+    const res = await fetch(url);
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
       throw new Error(data?.message || data?.error || `DefectCode '${code}' tidak ditemukan`);

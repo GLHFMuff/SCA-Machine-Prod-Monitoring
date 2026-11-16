@@ -150,7 +150,7 @@ export default function App() {
 
   return (
     <>
-      {/* Force fullscreen banner hanya untuk operasional produksi loom, nonaktif di /admin & /panel */}
+      {/* Force fullscreen banner hanya untuk operasional produksi folding, nonaktif di /admin & /panel */}
       {!isSpecialRoute && <FullscreenBanner />}
 
       {/* Rute Khusus Administrator: /admin */}

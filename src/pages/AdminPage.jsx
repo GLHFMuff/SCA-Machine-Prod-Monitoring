@@ -37,7 +37,7 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
   // Matikan paksa fullscreen saat halaman /admin dimuat
   useEffect(() => {
     if (isFullscreen()) {
-      exitFullscreen().catch(() => {})
+      exitFullscreen().catch(() => { })
     }
   }, [])
 
@@ -197,13 +197,9 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
             </div>
           </header>
 
-          <div className={styles.portalBadge}>
-            <span>👑</span> Khusus Role Administrator
-          </div>
-
           <h1 className={styles.title}>Portal Admin</h1>
           <p className={styles.sub}>
-            Halaman ini khusus untuk pengelolaan sistem dan mesin loom. Tidak memerlukan pilihan mesin atau shift.
+            Halaman ini khusus untuk pengelolaan sistem dan mesin folding. Tidak memerlukan pilihan mesin atau shift.
           </p>
 
           <form onSubmit={handleAdminLogin}>
@@ -267,7 +263,7 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
               className={styles.backLink}
               onClick={() => onNavigate('/')}
             >
-              ← Kembali ke Produksi Loom
+              ← Kembali ke Produksi
             </button>
           </footer>
         </div>

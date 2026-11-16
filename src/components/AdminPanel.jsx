@@ -728,7 +728,7 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
             </span>
           </div>
           <p className={styles.headerSubtitle}>
-            Pusat pengelolaan master data: Mesin Loom & Printer, Master Defect Kain, dan Manajemen Akun Pengguna.
+            Pusat pengelolaan master data: Mesin Folding & Printer, Master Defect Kain, dan Manajemen Akun Pengguna.
           </p>
         </div>
 
@@ -913,12 +913,11 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
                                 <span className={styles.userName}>{m.user_active}</span>
                                 {m.idle_minutes !== null && m.idle_minutes !== undefined && (
                                   <span
-                                    className={`${styles.activityMeta} ${
-                                      savedSettings?.session?.idleTimeoutMinutes > 0 &&
-                                      m.idle_minutes >= savedSettings.session.idleTimeoutMinutes * 0.75
+                                    className={`${styles.activityMeta} ${savedSettings?.session?.idleTimeoutMinutes > 0 &&
+                                        m.idle_minutes >= savedSettings.session.idleTimeoutMinutes * 0.75
                                         ? styles.activityMetaWarn
                                         : ''
-                                    }`}
+                                      }`}
                                   >
                                     {formatIdleMinutes(m.idle_minutes)}
                                   </span>
@@ -1340,9 +1339,8 @@ export default function AdminPanel({ user, onBackToProduction, onLogout, onSetti
                       <button
                         key={preset.value}
                         type="button"
-                        className={`${styles.presetBtn} ${
-                          Number(settingsForm.session.idleTimeoutMinutes) === preset.value ? styles.presetBtnActive : ''
-                        }`}
+                        className={`${styles.presetBtn} ${Number(settingsForm.session.idleTimeoutMinutes) === preset.value ? styles.presetBtnActive : ''
+                          }`}
                         onClick={() => updateSessionSetting('idleTimeoutMinutes', preset.value)}
                       >
                         {preset.label}
