@@ -611,8 +611,86 @@ export default function RollTable({
         <div id="coproducts-panel" role="tabpanel" aria-labelledby="coproducts-tab" hidden={activeTableTab !== 'coproducts'} className={`${styles.tableCard} ${styles.coProductCard}`}>
           <div className={`${styles.tableContainer} ${styles.coProductTableContainer}`}>
             <table className={styles.table}>
-              <thead><tr><th>Jenis</th><th>Panjang</th><th>Mesin</th><th style={{ width: '105px' }}>Date</th><th>Aksi</th></tr></thead>
-              <tbody>{coProducts.length ? coProducts.map((item) => <tr key={item.id}><td>{item.inventStatus}</td><td>{item.length} yard</td><td>M-{item.noMesin}</td><td><span className={styles.dateBadge}>{item.transDate || '-'}</span></td><td><div className={styles.actionGroup}><button type="button" className={styles.deleteRowBtn} onClick={() => onDeleteCoProduct?.(item.id)} title={`Hapus Co-Product ${item.inventStatus}`} aria-label={`Hapus Co-Product ${item.inventStatus}`}><span className={styles.btnIcon}>🗑️</span><span className={styles.btnLabel}>Hapus</span></button></div></td></tr>) : <tr><td colSpan="5" className={styles.emptyState}>Belum ada Co-Products.</td></tr>}</tbody>
+              <thead>
+                <tr>
+                  <th style={{ width: '85px' }}>No. Roll</th>
+                  <th>Jenis</th>
+                  <th>Panjang</th>
+                  <th style={{ width: '80px' }}>Mesin</th>
+                  <th style={{ width: '105px' }}>Date</th>
+                  <th>Status</th>
+                  <th className={styles.center} style={{ width: '200px' }}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coProducts.length ? (
+                  coProducts.map((item) => {
+                    const itemDefects = defects[item.id] || []
+                    const hasDefect = itemDefects.length > 0
+                    const machineNo = item.noMesin || currentMachineId || '1'
+
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <span className={styles.rollNum}>#{item.id}</span>
+                        </td>
+                        <td>
+                          <span className={styles.coProductBadge}>{item.inventStatus}</span>
+                        </td>
+                        <td>
+                          <span className={styles.lengthVal}>{item.length}</span>{' '}
+                          <span className={styles.lengthUnit}>yard</span>
+                        </td>
+                        <td>
+                          <span className={styles.machineBadge}>M-{machineNo}</span>
+                        </td>
+                        <td>
+                          <span className={styles.dateBadge}>{item.transDate || '-'}</span>
+                        </td>
+                        <td>
+                          {hasDefect ? (
+                            <span className={styles.statusWarn}>
+                              <span className={styles.dotWarn} /> Inspeksi ({itemDefects.length})
+                            </span>
+                          ) : (
+                            <span className={styles.statusOk}>
+                              <span className={styles.dotOk} /> OK
+                            </span>
+                          )}
+                        </td>
+                        <td className={styles.center}>
+                          <div className={styles.actionGroup}>
+                            <button
+                              type="button"
+                              className={`${styles.defectBtn} ${hasDefect ? styles.defectBtnActive : ''}`}
+                              onClick={() => onCatatCacat(item)}
+                              title={`Catat titik inspeksi Co-Product #${item.id}`}
+                            >
+                              <span className={styles.btnIcon}>{hasDefect ? '✏️' : '➕'}</span>
+                              <span className={styles.btnLabel}>Inspeksi</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className={styles.deleteRowBtn}
+                              onClick={() => onDeleteCoProduct?.(item.id)}
+                              title={`Hapus Co-Product ${item.inventStatus} #${item.id}`}
+                              aria-label={`Hapus Co-Product ${item.inventStatus} #${item.id}`}
+                            >
+                              <span className={styles.btnIcon}>🗑️</span>
+                              <span className={styles.btnLabel}>Hapus</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="7" className={styles.emptyState}>Belum ada Co-Products.</td>
+                  </tr>
+                )}
+              </tbody>
             </table>
           </div>
         </div>

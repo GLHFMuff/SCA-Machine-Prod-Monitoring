@@ -626,6 +626,19 @@
   border-color: #ef4444;
 }
 
+.coProductBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  letter-spacing: 0.3px;
+}
+
 .emptyState {
   text-align: center;
   padding: 32px 16px;
@@ -769,7 +782,7 @@
   }
 
   .coProductTableContainer .table {
-    min-width: 420px;
+    min-width: 580px;
   }
 }
 

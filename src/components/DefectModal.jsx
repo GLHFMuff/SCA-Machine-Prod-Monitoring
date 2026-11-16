@@ -191,12 +191,14 @@ export default function DefectModal({
             <div className={styles.title}>
               {isPreRoll
                 ? 'Catat Inspeksi — Roll Belum Terbentuk'
-                : `Catat Inspeksi — Roll #${roll?.id}`}
+                : (roll?.productType === 1 || Number(roll?.id) >= 9001)
+                  ? `Catat Inspeksi — Co-Product (${roll?.inventStatus || 'BS'}) #${roll?.id}`
+                  : `Catat Inspeksi — Roll #${roll?.id}`}
             </div>
             <div className={styles.headSub}>
               {isPreRoll
                 ? `Target Roll #${roll?.id || 'Berikutnya'} • Disimpan otomatis saat Get Data`
-                : `Panjang: ${roll?.length} yard`}
+                : `Panjang: ${roll?.length} yard${roll?.noMesin ? ` • Mesin #${roll.noMesin}` : ''}`}
             </div>
           </div>
           <button className={styles.close} onClick={onClose} aria-label="Tutup">✕</button>
