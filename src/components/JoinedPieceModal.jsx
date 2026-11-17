@@ -37,7 +37,7 @@ export default function JoinedPieceModal({
           setDbMaxLine((prev) => Math.max(prev, serverMax))
         }
       })
-      .catch(() => {})
+      .catch(() => { })
 
     return () => {
       isMounted = false
@@ -104,7 +104,7 @@ export default function JoinedPieceModal({
                   <div>
                     <div className={styles.defectCode}>🧵 Joined Piece</div>
                     <div className={styles.defectYard}>
-                      {d.lineNumber ? `Line #${d.lineNumber} • ` : ''}Panjang yard {d.yard}
+                      {d.lineNumber ? `Line #${d.lineNumber} • ` : ''}Posisi yard {d.yard}
                     </div>
                   </div>
                   <button
@@ -126,7 +126,7 @@ export default function JoinedPieceModal({
               {error && <div className={styles.errorBanner}>⚠️ {error}</div>}
               {/* <div className={styles.formRow}> */}
               <div style={{ margin: '0px 0px 10px 0px' }}>
-                <label className={styles.fieldLabel}>Panjang (Yard)</label>
+                <label className={styles.fieldLabel}>Posisi (Yard)</label>
                 <input
                   className={styles.fieldInput}
                   type="number"

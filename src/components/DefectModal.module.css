@@ -10,16 +10,22 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
-  width: 100%; max-width: 480px;
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   animation: slideUp .2s ease;
+  overflow: hidden;
 }
 
 .head {
-  padding: 24px 28px 20px;
+  padding: 20px 24px 16px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .title { font-size: 20px; font-weight: 700; }
@@ -34,7 +40,11 @@
 }
 .close:hover { color: var(--text); background: var(--border); }
 
-.body { padding: 24px 28px; }
+.body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
 
 .empty {
   text-align: center;
@@ -47,8 +57,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 20px;
-  max-height: 220px;
+  margin-bottom: 18px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
@@ -368,10 +378,248 @@
 }
 
 .footer {
-  padding: 16px 28px 24px;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--border);
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-radius: 0 0 20px 20px;
+}
+
+/* Potong Cacat & Sambung Kain Preview & Badges */
+.cutBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--danger, #ef4444);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cutCoProductBadge {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: var(--success, #10b981);
+}
+
+.autoBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: var(--accent, #3b82f6);
+}
+
+.regularBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--success, #10b981);
+}
+
+.pointBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--warning, #f59e0b);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pointContainer {
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.coProductTypeGroup {
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.pointHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.pointSelectedHint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pointSelectedHint strong {
+  color: var(--warning, #f59e0b);
+}
+
+.pointRadioGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pointRadioCard {
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--surface2, #1e293b);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.pointRadioCard:hover {
+  border-color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.pointRadioSelected {
+  border-color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.14);
+  box-shadow: 0 0 0 1px var(--warning, #f59e0b);
+}
+
+.pointRadioInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pointRadioContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pointValueBadge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pointRadioSelected .pointValueBadge {
+  color: var(--warning, #f59e0b);
+}
+
+.pointDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+  background: transparent;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.pointRadioSelected .pointDot {
+  border-color: var(--warning, #f59e0b);
+  background: var(--warning, #f59e0b);
+}
+
+.pointRangeLabel {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.pointRadioSelected .pointRangeLabel {
+  color: var(--text);
+}
+
+.regularNotice {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.regularNotice strong {
+  color: var(--accent, #3b82f6);
+}
+
+.cutPreviewBox {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.cutPreviewHeader {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--warning, #f59e0b);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cutPreviewRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 3px;
+}
+
+.cutPreviewRow strong {
+  font-weight: 700;
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkboxInput {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent, #3b82f6);
+  cursor: pointer;
 }
 
 @media (max-width: 640px) {
@@ -404,6 +652,10 @@
   .formRow {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .pointRadioGrid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .footer {

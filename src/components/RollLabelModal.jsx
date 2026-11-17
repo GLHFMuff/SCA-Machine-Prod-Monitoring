@@ -74,12 +74,37 @@ export default function RollLabelModal({
     roll?.length !== undefined && roll?.length !== null ? String(roll.length) : '0'
   const initialQty = roll?.length ? `${roll.length} YARD` : '156 YARD'
 
-  const joinedPieceLengths = joinedPieces
-    .map((piece) => piece.LengthPoint ?? piece.lengthPoint ?? piece.yard)
-    .filter((length) => length !== undefined && length !== null && String(length).trim() !== '')
-  const initialBreakdown = joinedPieceLengths.length
-    ? `X (${joinedPieceLengths.join(' + ')})`
-    : (roll?.breakdown || '')
+  // Hitung breakdown berdasarkan posisi yard JP → panjang segmen (bukan posisi)
+  // Contoh: total 177, JP di yard 40 & 73 → "40 + 33 + 104"
+  const totalLength = roll?.length ? parseFloat(roll.length) : 0
+  const allJoinedPieces =
+    joinedPieces && joinedPieces.length > 0
+      ? joinedPieces
+      : roll?.joinedPieces || roll?.JoinedPieces || []
+
+  const jpPositions = allJoinedPieces
+    .map((piece) => {
+      const pos = piece.yard ?? piece.LengthPoint ?? piece.lengthPoint
+      return pos !== undefined && pos !== null && String(pos).trim() !== ''
+        ? parseFloat(pos)
+        : null
+    })
+    .filter((pos) => pos !== null && !isNaN(pos))
+    .sort((a, b) => a - b)
+
+  let initialBreakdown = ''
+  if (jpPositions.length > 0) {
+    const segments = []
+    let prev = 0
+    for (const pos of jpPositions) {
+      segments.push(parseFloat((pos - prev).toFixed(2)))
+      prev = pos
+    }
+    segments.push(parseFloat((totalLength - prev).toFixed(2)))
+    initialBreakdown = `X (${segments.join(' + ')})`
+  } else {
+    initialBreakdown = roll?.breakdown || ''
+  }
 
   // Barcode format: QrNum;RecidProdId;RecidSalesId;RecidItemId;Length;
   const qrNum = String(roll?.qrNum || roll?.QrNum || '').trim()

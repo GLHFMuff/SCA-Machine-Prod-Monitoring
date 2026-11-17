@@ -2,6 +2,20 @@
  * Helpers for DefectModal & MainPage inspection/joined-piece routing.
  */
 
+export const DEFECT_POINT_OPTIONS = [
+  { value: 1, label: '0"-3"', fullLabel: '1 (0" - 3")' },
+  { value: 2, label: '3.1"-6"', fullLabel: '2 (3.1" - 6")' },
+  { value: 3, label: '6.1"-9"', fullLabel: '3 (6.1" - 9")' },
+  { value: 4, label: '9.1"-36"', fullLabel: '4 (9.1" - 36")' },
+]
+
+export const DEFECT_POINT_LABELS = {
+  1: '0"-3"',
+  2: '3.1"-6"',
+  3: '6.1"-9"',
+  4: '9.1"-36"',
+}
+
 function generateUniqueKey(prefix = 'item') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
@@ -53,13 +67,36 @@ export function buildInitialInspectionList(
   initJoinedPieces = [],
   isPreRoll = false
 ) {
-  const fromDefects = (Array.isArray(initDefects) ? initDefects : []).map((d, idx) => ({
-    ...d,
-    isJoinedPiece: isJoinedPieceCode(d.code),
-    _uid: `def-${idx}-${d.id ?? generateUniqueKey('d')}`,
-  }))
+  const fromDefects = (Array.isArray(initDefects) ? initDefects : []).map((d, idx) => {
+    const isJp = Boolean(d.isJoinedPiece) || isJoinedPieceCode(d.code)
+    const rawPoint = d.Point ?? d.point
+    const pointVal = rawPoint !== undefined && rawPoint !== null && rawPoint !== '' ? Number(rawPoint) : (isJp ? null : 1)
+    const cpType = d.coProductType || d.inventStatus || (d.isCutDefect ? 'BS' : null)
+    return {
+      ...d,
+      point: pointVal,
+      coProductType: cpType,
+      inventStatus: cpType,
+      isJoinedPiece: isJp,
+      _uid: d._uid || `def-${idx}-${d.id ?? generateUniqueKey('d')}`,
+    }
+  })
 
   if (isPreRoll) {
+    if (Array.isArray(initJoinedPieces) && initJoinedPieces.length > 0) {
+      const fromJp = initJoinedPieces.map((jp, idx) => ({
+        id: jp.id ?? Date.now() + Math.random(),
+        yard: parseFloat(jp.yard) || 0,
+        yardTo: parseFloat(jp.yardTo ?? jp.yard) || 0,
+        code: 'JP',
+        isJoinedPiece: true,
+        isAutoFromCut: Boolean(jp.isAutoFromCut),
+        ...(jp.linkedDefectId ? { linkedDefectId: jp.linkedDefectId } : {}),
+        ...(jp.lineNumber ? { lineNumber: jp.lineNumber } : {}),
+        _uid: jp._uid || `jp-${idx}-${jp.id ?? generateUniqueKey('j')}`,
+      }))
+      return [...fromDefects, ...fromJp]
+    }
     return fromDefects
   }
 
@@ -72,6 +109,8 @@ export function buildInitialInspectionList(
         yardTo: parsedYard,
         code: 'JP',
         isJoinedPiece: true,
+        isAutoFromCut: Boolean(jp.isAutoFromCut),
+        ...(jp.linkedDefectId ? { linkedDefectId: jp.linkedDefectId } : {}),
         ...(jp.lineNumber ? { lineNumber: jp.lineNumber } : {}),
         _uid: `jp-${idx}-${jp.id ?? generateUniqueKey('j')}`,
       }
@@ -92,8 +131,11 @@ export function validateAndBuildInspectionItem({
   yard,
   yardTo,
   code,
+  point = 1,
   isPreRoll = false,
   rollLength = null,
+  isCutDefect = false,
+  coProductType = 'BS',
 }) {
   const rawYard = String(yard ?? '').trim()
   if (!rawYard) {
@@ -101,16 +143,16 @@ export function validateAndBuildInspectionItem({
   }
 
   const parsedYard = parseFloat(rawYard)
-  if (isNaN(parsedYard) || parsedYard <= 0) {
-    return { error: 'Posisi inspeksi harus berupa angka lebih dari 0.' }
+  if (isNaN(parsedYard) || parsedYard < 0) {
+    return { error: 'Posisi inspeksi harus berupa angka 0 atau lebih.' }
   }
 
   const parsedRollLength = parseFloat(rollLength)
   const hasMaxRollLength = !isPreRoll && Number.isFinite(parsedRollLength) && parsedRollLength > 0
 
-  if (hasMaxRollLength && parsedYard >= parsedRollLength) {
+  if (hasMaxRollLength && parsedYard > parsedRollLength) {
     return {
-      error: `Posisi inspeksi (${parsedYard} yd) harus di bawah panjang roll (${parsedRollLength} yd).`,
+      error: `Posisi inspeksi (${parsedYard} yd) tidak boleh melebihi panjang roll (${parsedRollLength} yd).`,
     }
   }
 
@@ -137,14 +179,22 @@ export function validateAndBuildInspectionItem({
   const rawYardTo = String(yardTo ?? '').trim()
   let parsedYardTo = parsedYard
 
-  if (rawYardTo !== '') {
-    parsedYardTo = parseFloat(rawYardTo)
-    if (isNaN(parsedYardTo) || parsedYardTo <= 0) {
-      return { error: 'Posisi inspeksi to harus berupa angka lebih dari 0.' }
+  if (isCutDefect) {
+    if (rawYardTo === '') {
+      return { error: 'Posisi To (Yard) harus diisi untuk menentukan panjang kain cacat yang dipotong.' }
     }
-    if (hasMaxRollLength && parsedYardTo >= parsedRollLength) {
+    parsedYardTo = parseFloat(rawYardTo)
+    if (isNaN(parsedYardTo) || parsedYardTo <= parsedYard) {
+      return { error: `Posisi To (${parsedYardTo || rawYardTo} yd) harus lebih besar dari Posisi From (${parsedYard} yd).` }
+    }
+  } else if (rawYardTo !== '') {
+    parsedYardTo = parseFloat(rawYardTo)
+    if (isNaN(parsedYardTo) || parsedYardTo < 0) {
+      return { error: 'Posisi inspeksi to harus berupa angka 0 atau lebih.' }
+    }
+    if (hasMaxRollLength && parsedYardTo > parsedRollLength) {
       return {
-        error: `Posisi inspeksi to (${parsedYardTo} yd) harus di bawah panjang roll (${parsedRollLength} yd).`,
+        error: `Posisi inspeksi to (${parsedYardTo} yd) tidak boleh melebihi panjang roll (${parsedRollLength} yd).`,
       }
     }
     if (parsedYardTo < parsedYard) {
@@ -154,6 +204,12 @@ export function validateAndBuildInspectionItem({
     }
   }
 
+  const cutLength = (isCutDefect && parsedYardTo > parsedYard)
+    ? parseFloat((parsedYardTo - parsedYard).toFixed(2))
+    : 0
+
+  const parsedPoint = point !== undefined && point !== null && point !== '' ? Number(point) : 1
+
   return {
     item: {
       id,
@@ -162,6 +218,11 @@ export function validateAndBuildInspectionItem({
       yardTo: parsedYardTo,
       code: cleanCode,
       isJoinedPiece: false,
+      isCutDefect: Boolean(isCutDefect && cutLength > 0),
+      cutLength,
+      point: isNaN(parsedPoint) ? 1 : parsedPoint,
+      coProductType: isCutDefect ? (coProductType || 'BS') : null,
+      inventStatus: isCutDefect ? (coProductType || 'BS') : null,
     },
   }
 }
@@ -181,10 +242,15 @@ export function splitInspectionsByType(list = []) {
         id: item.id ?? Date.now() + Math.random(),
         yard: parseFloat(item.yard) || 0,
         ...(item.lineNumber ? { lineNumber: item.lineNumber } : {}),
+        ...(item.isAutoFromCut ? { isAutoFromCut: true } : {}),
+        ...(item.linkedDefectId ? { linkedDefectId: item.linkedDefectId } : {}),
       })
     } else {
       const { _uid, isJoinedPiece, ...cleanDefect } = item
-      defects.push(cleanDefect)
+      defects.push({
+        ...cleanDefect,
+        point: item.point !== undefined && item.point !== null && item.point !== '' ? Number(item.point) : null,
+      })
     }
   }
 
@@ -202,7 +268,8 @@ export function areDefectsEqual(a = [], b = []) {
     return (
       Number(item.yard) === Number(other.yard) &&
       Number(item.yardTo ?? item.yard) === Number(other.yardTo ?? other.yard) &&
-      String(item.code || '').trim() === String(other.code || '').trim()
+      String(item.code || '').trim() === String(other.code || '').trim() &&
+      (Number(item.point) || null) === (Number(other.point) || null)
     )
   })
 }
@@ -244,6 +311,9 @@ export function mapDbDefectToUi(d) {
   const displayCode = d?.Description && d.Description !== d.Code
     ? `${d.Code} – ${d.Description}`
     : d?.Code
+  const rawPoint = d?.Point ?? d?.point
+  const parsedPoint = rawPoint !== undefined && rawPoint !== null && rawPoint !== '' ? Number(rawPoint) : null
+
   return {
     id: d?.LineNumber || Date.now() + Math.random(),
     yard: parseFloat(d?.LengthPoint) || 0,
@@ -251,6 +321,7 @@ export function mapDbDefectToUi(d) {
     isExecuted: Boolean(d?.IsExecuted),
     lineNumber: Number(d?.LineNumber) || undefined,
     yardTo: parseFloat(d?.LengthPointTo) || 0,
+    point: isNaN(parsedPoint) ? null : parsedPoint,
   }
 }
 

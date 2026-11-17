@@ -47,6 +47,8 @@ export default function RollTable({
   joinedPieces = {},
   maxJoinedPieceLineByRoll = {},
   showToast,
+  activeTableTab: controlledActiveTab,
+  onTableTabChange,
 }) {
   // alert(window.innerWidth)
 
@@ -73,12 +75,22 @@ export default function RollTable({
   const [editingBsId, setEditingBsId] = useState(null)
   const [editBsValue, setEditBsValue] = useState('')
   const [joinedPieceModalRoll, setJoinedPieceModalRoll] = useState(null)
-  const [activeTableTab, setActiveTableTab] = useState('rolls')
+  const [localActiveTab, setLocalActiveTab] = useState('rolls')
+  const activeTableTab = controlledActiveTab !== undefined ? controlledActiveTab : localActiveTab
+  const setActiveTableTab = onTableTabChange || setLocalActiveTab
 
   const containerRef = useRef(null)
   const prevCountRef = useRef(rolls.length)
 
   const currentMachineId = String(user?.machine_id || user?.machineId || '1')
+
+  const cutDefectCount = (pendingDefects || []).filter(
+    (d) => Boolean(d.isCutDefect) && !d.isJoinedPiece
+  ).length
+
+  const regularDefectCount = (pendingDefects || []).filter(
+    (d) => !d.isCutDefect && !d.isAutoFromCut
+  ).length
 
   // Hitung nomor roll berikutnya KHUSUS SESUAI MESIN AKTIF (mengabaikan status soft delete roll sebelumnya)
   const { nextRollId, effectiveMax } = computeNextRollNumber({
@@ -274,26 +286,48 @@ export default function RollTable({
             <span>{isFetchingSensor ? 'Menarik Sensor…' : (loadingGetData ? 'Menyimpan…' : 'Get Data')}</span>
           </button>
 
-          {/* Tombol Catat Inspeksi Sebelum Doffing / Roll Belum Terbentuk */}
+          {/* Tombol 1: Potong Cacat (Masuk Co-Product BS & Sambung Kain) */}
           <button
             type="button"
-            className={`${styles.tempDefectBtn} ${pendingDefects.length > 0 ? styles.tempDefectActive : ''}`}
+            className={`${styles.tempDefectBtn} ${cutDefectCount > 0 ? styles.tempDefectActive : ''}`}
             onClick={() => {
               if (onCatatCacatPreRoll) {
-                onCatatCacatPreRoll(nextRollId)
+                onCatatCacatPreRoll(nextRollId, { isCutMode: true })
               } else if (onCatatCacat) {
-                onCatatCacat({ isPreRoll: true, id: nextRollId })
+                onCatatCacat({ isPreRoll: true, id: nextRollId, isCutMode: true })
               }
             }}
-            title="Catat titik inspeksi saat roll belum terbentuk (otomatis tersimpan saat Get Data)"
+            title="Potong kain cacat untuk masuk Co-Product BS & otomatis catat Joined Piece"
+          >
+            <span>✂️</span>
+            <span>
+              {cutDefectCount > 0
+                ? `Potong Cacat (${cutDefectCount})`
+                : '+ Potong Cacat (BS)'}
+            </span>
+            {cutDefectCount > 0 && <span className={styles.tempDefectBadgePulse} />}
+          </button>
+
+          {/* Tombol 2: Catat Cacat / Joined Piece Biasa (Tanpa Potong / Tanpa Buat Co-Product) */}
+          <button
+            type="button"
+            className={`${styles.tempDefectBtn} ${regularDefectCount > 0 ? styles.tempDefectActive : ''}`}
+            onClick={() => {
+              if (onCatatCacatPreRoll) {
+                onCatatCacatPreRoll(nextRollId, { isCutMode: false })
+              } else if (onCatatCacat) {
+                onCatatCacat({ isPreRoll: true, id: nextRollId, isCutMode: false })
+              }
+            }}
+            title="Catat titik cacat atau joined piece biasa tanpa memotong / tanpa membuat Co-Product BS"
           >
             <span>⚠️</span>
             <span>
-              {pendingDefects.length > 0
-                ? `Inspeksi Berjalan (${pendingDefects.length})`
-                : '+ Inspeksi (Roll Berjalan)'}
+              {regularDefectCount > 0
+                ? `Inspeksi/JP (${regularDefectCount})`
+                : '+ Inspeksi/JP Biasa'}
             </span>
-            {pendingDefects.length > 0 && <span className={styles.tempDefectBadgePulse} />}
+            {regularDefectCount > 0 && <span className={styles.tempDefectBadgePulse} />}
           </button>
 
           {/* Tombol Input Roll Manual */}
@@ -339,7 +373,14 @@ export default function RollTable({
           <div className={styles.pendingDefectsContent}>
             <span className={styles.pendingDefectsIcon}>⚠️</span>
             <div className={styles.pendingDefectsText}>
-              <strong>{pendingDefects.length} catatan inspeksi sementara</strong> telah dicatat untuk Roll berjalan (<strong>#{nextRollId}</strong>). Catatan ini akan otomatis masuk ke daftar roll saat Anda klik <strong>Get Data</strong>.
+              <strong>{pendingDefects.length} catatan berjalan</strong> telah dicatat untuk Roll berjalan (<strong>#{nextRollId}</strong>).
+              {cutDefectCount > 0 && (
+                <span> ✂️ <strong>{cutDefectCount} potongan cacat</strong> masuk ke Co-Product.</span>
+              )}
+              {regularDefectCount > 0 && (
+                <span> 📝 <strong>{regularDefectCount} titik cacat/sambungan biasa</strong> tersimpan pada roll ini.</span>
+              )}
+              <span> Semua akan tersimpan permanen saat Anda klik <strong>Get Data</strong>.</span>
             </div>
           </div>
           <button
@@ -347,14 +388,14 @@ export default function RollTable({
             className={styles.pendingDefectsBtn}
             onClick={() => {
               if (onCatatCacatPreRoll) {
-                onCatatCacatPreRoll(nextRollId)
+                onCatatCacatPreRoll(nextRollId, { isCutMode: cutDefectCount > 0 })
               } else if (onCatatCacat) {
-                onCatatCacat({ isPreRoll: true, id: nextRollId })
+                onCatatCacat({ isPreRoll: true, id: nextRollId, isCutMode: cutDefectCount > 0 })
               }
             }}
             title="Lihat atau edit catatan inspeksi sementara"
           >
-            ✏️ Kelola Inspeksi
+            ✏️ Kelola Catatan
           </button>
         </div>
       )}
@@ -704,6 +745,7 @@ export default function RollTable({
           targetRollId={pendingSensorData?.targetRollId || nextRollId}
           prodNumber={prodData?.prodNumber}
           length={pendingSensorData?.length}
+          pendingDefects={pendingDefects}
           pendingDefectsCount={pendingDefects.length}
           rolls={rolls}
           rollsByMachine={rollsByMachine}
@@ -784,6 +826,7 @@ export default function RollTable({
           roll={label100Roll}
           prodData={prodData}
           user={user}
+          joinedPieces={joinedPieces[label100Roll.id] || []}
           onPrint={handlePrintTicket}
           onClose={() => setLabel100Roll(null)}
         />

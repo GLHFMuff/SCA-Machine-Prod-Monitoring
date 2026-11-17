@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getNextRollInfo, getInventoryStatusList } from '../services/api.js'
 import { toDDMMYYYY, getTodayYYYYMMDD } from '../utils/dateUtils.js'
 import { computeNextRollNumber } from '../utils/rollNumberHelpers.js'
+import { isJoinedPieceCode } from '../utils/inspectionHelpers.js'
 import styles from './GetDataConfirmModal.module.css'
 
 export default function GetDataConfirmModal({
@@ -9,6 +10,7 @@ export default function GetDataConfirmModal({
   targetRollId,
   prodNumber,
   length,
+  pendingDefects = [],
   pendingDefectsCount = 0,
   rolls = [],
   rollsByMachine = {},
@@ -26,6 +28,10 @@ export default function GetDataConfirmModal({
   const [grade, setGrade] = useState('A')
   const [gradeOptions, setGradeOptions] = useState([])
   const [loadingDb, setLoadingDb] = useState(false)
+
+  const effectiveCount = pendingDefectsCount || (pendingDefects ? pendingDefects.length : 0)
+  const jpCount = (pendingDefects || []).filter((d) => isJoinedPieceCode(d?.code) || d?.isJoinedPiece).length
+  const cutDefectCount = (pendingDefects || []).filter((d) => !isJoinedPieceCode(d?.code) && !d?.isJoinedPiece).length
 
   useEffect(() => {
     setResolvedRollId(targetRollId || 1)
@@ -179,19 +185,30 @@ export default function GetDataConfirmModal({
                 }}
               />
             </div>
-            {pendingDefectsCount > 0 && (
+            {effectiveCount > 0 && (
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Catatan Inspeksi Sementara</span>
-                <span className={styles.infoValWarn}>⚠️ {pendingDefectsCount} Titik Inspeksi</span>
+                <span className={styles.infoLabel}>Inspeksi & Sambungan</span>
+                <span className={styles.infoValWarn}>
+                  {jpCount > 0 && `🧵 ${jpCount} Joined Piece`}
+                  {jpCount > 0 && cutDefectCount > 0 && ' • '}
+                  {cutDefectCount > 0 && `✂️ ${cutDefectCount} Potong Cacat`}
+                  {jpCount === 0 && cutDefectCount === 0 && `⚠️ ${effectiveCount} Titik`}
+                </span>
               </div>
             )}
           </div>
 
-          {pendingDefectsCount > 0 && (
+          {effectiveCount > 0 && (
             <div className={styles.pendingDefectBox}>
               <div className={styles.pendingDefectIcon}>📝</div>
               <div className={styles.pendingDefectText}>
-                <strong>{pendingDefectsCount} titik inspeksi sementara</strong> yang telah dicatat akan otomatis dihubungkan ke <strong>Roll #{resolvedRollId}</strong> dan tersimpan ke sistem.
+                <strong>Roll #{resolvedRollId}</strong> akan dicatat sebagai <strong>Roll Bagus (Grade {grade || 'A'})</strong>.
+                {jpCount > 0 && (
+                  <div>• <strong>{jpCount} titik sambungan (Joined Piece)</strong> otomatis tersimpan di tabel joined piece.</div>
+                )}
+                {cutDefectCount > 0 && (
+                  <div>• <strong>{cutDefectCount} potongan cacat</strong> otomatis masuk ke Co-Product dan tetap tercatat di tabel defect.</div>
+                )}
               </div>
             </div>
           )}

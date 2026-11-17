@@ -35,6 +35,7 @@ import {
   collectUsedRollNumbers,
   computeNextRollNumber,
   computeNextCoProductNumber,
+  allocateCoProductNumbers,
 } from '../utils/rollNumberHelpers.js'
 import styles from './MainPage.module.css'
 
@@ -122,6 +123,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
   const [allDbCoProductNumbers, setAllDbCoProductNumbers] = useState([])
   const [maxOtherRollNumber, setMaxOtherRollNumber] = useState(0)
   const [mandatoryReserveModal, setMandatoryReserveModal] = useState(null)
+  const [activeTableTab, setActiveTableTab] = useState('rolls')
 
   const activeProdIdRef = useRef(initialSavedOrder?.prodId ? String(initialSavedOrder.prodId).trim() : '')
   const statsReqSeqRef = useRef(0)
@@ -706,7 +708,65 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       inventStatus: finalInventStatus,
     }
 
-    // 1. Simpan data roll ke database PostgreSQL tabel CountingKainLines
+    // 1. Cek potongan cacat di pendingDefects yang harus masuk Co-Products (CountingKainLines)
+    const cutDefects = (pendingDefects || []).filter(
+      (d) => Boolean(d.isCutDefect) && !d.isJoinedPiece
+    )
+    const validCutDefects = cutDefects
+      .map((d) => {
+        const cutQty = parseFloat(d.cutLength) || (parseFloat(d.yardTo) - parseFloat(d.yard)) || 0
+        return { ...d, cutQty }
+      })
+      .filter((d) => d.cutQty > 0)
+
+    const allocatedCpIds = allocateCoProductNumbers({
+      count: validCutDefects.length,
+      coProducts,
+      existingDbRolls: effectiveExistingDbRolls,
+      allDbCoProductNumbers: Array.isArray(freshStats?.allCoProductNumbers)
+        ? freshStats.allCoProductNumbers
+        : allDbCoProductNumbers,
+      maxCoProductRoll: Math.max(maxCoProductRoll || 0, freshStats?.maxCoProductRoll || 0),
+    })
+
+    const coProductLines = validCutDefects.map((d, idx) => {
+      const cpId = allocatedCpIds[idx]
+      const defectDesc = d.code ? ` [Cacat: ${d.code}]` : ''
+      const cpType = d.coProductType || d.inventStatus || 'BS'
+      return {
+        RoolNumber: cpId,
+        Description: `${cpType} (${d.cutQty} yard)${defectDesc}`,
+        Length: d.cutQty,
+        IsExecute: false,
+        NoMesin: machineId,
+        isPrinted: false,
+        isStock: true,
+        ProductType: 1, // Co-Product
+        InventStatus: cpType,
+        CreatedBy: user?.username || user?.name || 'operator',
+        Shift: Number(user?.shift) || null,
+        TransDate: finalTransDate,
+      }
+    })
+
+    const mainRollLine = {
+      RoolNumber: nextId,
+      Description: `Roll #${nextId} (${lengthVal} yard)`,
+      Length: lengthVal,
+      IsExecute: false,
+      NoMesin: machineId,
+      isPrinted: false,
+      isStock: false,
+      ProductType: 5,
+      InventStatus: finalInventStatus,
+      CreatedBy: user?.username || user?.name || 'operator',
+      Shift: Number(user?.shift) || null,
+      TransDate: finalTransDate,
+    }
+
+    const linesToSave = [mainRollLine, ...coProductLines]
+
+    // Simpan data roll & Co-Products ke database PostgreSQL tabel CountingKainLines
     const saveRes = await saveCountingData({
       ProdId: prodId,
       NoMesin: machineId,
@@ -723,21 +783,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
       K3LName: prodData.k3lName || prodData.K3LName || '',
       PatternCode: prodData.patternCode || prodData.PatternCode || '',
-      lines: [
-        {
-          RoolNumber: nextId,
-          Description: `Roll #${nextId} (${lengthVal} yard)`,
-          Length: lengthVal,
-          IsExecute: false,
-          NoMesin: machineId,
-          isPrinted: false,
-          isStock: false,
-          InventStatus: finalInventStatus,
-          CreatedBy: user?.username || user?.name || 'operator',
-          Shift: Number(user?.shift),
-          TransDate: finalTransDate,
-        },
-      ],
+      lines: linesToSave,
     })
 
     const savedLine = saveRes?.data?.lines?.[0]
@@ -750,8 +796,27 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       transDate: savedLine?.TransDate || finalTransDate,
     }
 
+    const createdCoProducts = coProductLines.map((line, idx) => {
+      const savedCp = saveRes?.data?.lines?.[idx + 1]
+      const cpType = validCutDefects[idx]?.coProductType || validCutDefects[idx]?.inventStatus || line.InventStatus || 'BS'
+      return {
+        id: line.RoolNumber,
+        length: line.Length,
+        inventStatus: savedCp?.InventStatus || cpType,
+        noMesin: machineId,
+        productType: 1,
+        transDate: savedCp?.TransDate || finalTransDate,
+        description: line.Description,
+      }
+    })
+
     // Update state frontend
     setRolls((prev) => [...prev, createdRoll])
+    if (createdCoProducts.length > 0) {
+      setCoProducts((prev) => [...prev, ...createdCoProducts])
+      setMaxCoProductRoll((prev) => Math.max(prev, ...allocatedCpIds))
+      setAllDbCoProductNumbers((prev) => [...new Set([...prev, ...allocatedCpIds])])
+    }
     setMachineMaxRoll((prev) => Math.max(prev, nextId))
     setMaxRollNumber((prev) => Math.max(prev, nextId))
     setAllDbRollNumbers((prev) => (prev.includes(nextId) ? prev : [...prev, nextId]))
@@ -765,15 +830,23 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
     // 2. Hubungkan catatan inspeksi sementara (jika ada) ke roll baru
     if (pendingDefects.length > 0) {
-      const { defectsCount, joinedPiecesCount, errors } = await flushPendingInspections(prodId, nextId)
+      const { defectsCount, joinedPiecesCount, errors } = await flushPendingInspections(
+        prodId,
+        nextId,
+        validCutDefects,
+        allocatedCpIds
+      )
       const savedParts = []
-      if (defectsCount > 0) savedParts.push(`${defectsCount} titik inspeksi`)
+      if (createdCoProducts.length > 0) {
+        savedParts.push(`${createdCoProducts.length} Co-Product BS (#${createdCoProducts.map((c) => c.id).join(', #')})`)
+      }
+      if (defectsCount > 0) savedParts.push(`${defectsCount} titik cacat`)
       if (joinedPiecesCount > 0) savedParts.push(`${joinedPiecesCount} joined piece`)
 
       if (errors.length > 0) {
         showToast(`Roll #${nextId} tersimpan. ${savedParts.join(' & ')} tersimpan lokal (Gagal simpan: ${errors.join('; ')})`)
       } else {
-        showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) tersimpan di Roll #${nextId} & ${savedParts.join(' & ')} tersimpan.`)
+        showToast(`✓ Roll #${nextId} (${lengthVal} yd, Grade ${finalInventStatus}) & ${savedParts.join(' & ')} berhasil disimpan!`)
       }
     } else {
       showToast(`✓ Data Mesin #${machineId} (${lengthVal} yd) berhasil disimpan di Roll #${nextId}.`)
@@ -903,6 +976,64 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     }
 
     try {
+      // Cek potongan cacat di pendingDefects yang harus masuk Co-Products
+      const cutDefects = (pendingDefects || []).filter(
+        (d) => Boolean(d.isCutDefect) && !d.isJoinedPiece
+      )
+      const validCutDefects = cutDefects
+        .map((d) => {
+          const cutQty = parseFloat(d.cutLength) || (parseFloat(d.yardTo) - parseFloat(d.yard)) || 0
+          return { ...d, cutQty }
+        })
+        .filter((d) => d.cutQty > 0)
+
+      const allocatedCpIds = allocateCoProductNumbers({
+        count: validCutDefects.length,
+        coProducts,
+        existingDbRolls: freshStats?.lines || existingDbRolls,
+        allDbCoProductNumbers: Array.isArray(freshStats?.allCoProductNumbers)
+          ? freshStats.allCoProductNumbers
+          : allDbCoProductNumbers,
+        maxCoProductRoll: Math.max(maxCoProductRoll || 0, freshStats?.maxCoProductRoll || 0),
+      })
+
+      const coProductLines = validCutDefects.map((d, idx) => {
+        const cpId = allocatedCpIds[idx]
+        const defectDesc = d.code ? ` [Cacat: ${d.code}]` : ''
+        const cpType = d.coProductType || d.inventStatus || 'BS'
+        return {
+          RoolNumber: cpId,
+          Description: `${cpType} (${d.cutQty} yard)${defectDesc}`,
+          Length: d.cutQty,
+          IsExecute: false,
+          NoMesin: machineId,
+          isPrinted: false,
+          isStock: true,
+          ProductType: 1, // Co-Product
+          InventStatus: cpType,
+          CreatedBy: user?.username || user?.name || 'operator',
+          Shift: Number(user?.shift) || null,
+          TransDate: transDate,
+        }
+      })
+
+      const manualRollLine = {
+        RoolNumber: fullRoll.id,
+        Description: `Roll #${fullRoll.id} (${fullRoll.length} yard)`,
+        Length: fullRoll.length,
+        IsExecute: false,
+        NoMesin: machineId,
+        isPrinted: false,
+        isStock: Boolean(fullRoll.isStock),
+        ProductType: 5,
+        InventStatus: inventStatus,
+        CreatedBy: user?.username || user?.name || 'operator',
+        Shift: Number(user?.shift) || null,
+        TransDate: transDate,
+      }
+
+      const linesToSave = [manualRollLine, ...coProductLines]
+
       // Simpan langsung ke DB
       const saveRes = await saveCountingData({
         ProdId: prodId,
@@ -920,22 +1051,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
         K3LName: prodData.k3lName || prodData.K3LName || '',
         PatternCode: prodData.patternCode || prodData.PatternCode || '',
-        lines: [
-          {
-            RoolNumber: fullRoll.id,
-            Description: `Roll #${fullRoll.id} (${fullRoll.length} yard)`,
-            Length: fullRoll.length,
-            IsExecute: false,
-            NoMesin: machineId,
-            isPrinted: false,
-            isStock: Boolean(fullRoll.isStock),
-            ProductType: 5,
-            InventStatus: inventStatus,
-            CreatedBy: user?.username || user?.name || 'operator',
-            Shift: Number(user?.shift),
-            TransDate: transDate,
-          },
-        ],
+        lines: linesToSave,
       })
 
       const savedLine = saveRes?.data?.lines?.[0]
@@ -947,7 +1063,26 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         transDate: savedLine?.TransDate || transDate,
       }
 
+      const createdCoProducts = coProductLines.map((line, idx) => {
+        const savedCp = saveRes?.data?.lines?.[idx + 1]
+        const cpType = validCutDefects[idx]?.coProductType || validCutDefects[idx]?.inventStatus || line.InventStatus || 'BS'
+        return {
+          id: line.RoolNumber,
+          length: line.Length,
+          inventStatus: savedCp?.InventStatus || cpType,
+          noMesin: machineId,
+          productType: 1,
+          transDate: savedCp?.TransDate || transDate,
+          description: line.Description,
+        }
+      })
+
       setRolls((prev) => [...prev, savedRoll])
+      if (createdCoProducts.length > 0) {
+        setCoProducts((prev) => [...prev, ...createdCoProducts])
+        setMaxCoProductRoll((prev) => Math.max(prev, ...allocatedCpIds))
+        setAllDbCoProductNumbers((prev) => [...new Set([...prev, ...allocatedCpIds])])
+      }
       setMachineMaxRoll((prev) => Math.max(prev, fullRoll.id))
       setMaxRollNumber((prev) => Math.max(prev, fullRoll.id))
       setAllDbRollNumbers((prev) => (prev.includes(fullRoll.id) ? prev : [...prev, fullRoll.id]))
@@ -957,9 +1092,17 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
 
       // Jika ada catatan inspeksi sementara saat roll belum terbentuk, simpan ke roll manual ini
       if (pendingDefects.length > 0) {
-        const { defectsCount, joinedPiecesCount, errors } = await flushPendingInspections(prodId, fullRoll.id)
+        const { defectsCount, joinedPiecesCount, errors } = await flushPendingInspections(
+          prodId,
+          fullRoll.id,
+          validCutDefects,
+          allocatedCpIds
+        )
         const savedParts = []
-        if (defectsCount > 0) savedParts.push(`${defectsCount} titik inspeksi`)
+        if (createdCoProducts.length > 0) {
+          savedParts.push(`${createdCoProducts.length} Co-Product BS (#${createdCoProducts.map((c) => c.id).join(', #')})`)
+        }
+        if (defectsCount > 0) savedParts.push(`${defectsCount} titik cacat`)
         if (joinedPiecesCount > 0) savedParts.push(`${joinedPiecesCount} joined piece`)
 
         if (errors.length > 0) {
@@ -997,27 +1140,63 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         : allDbCoProductNumbers,
       maxCoProductRoll: Math.max(maxCoProductRoll || 0, freshStats?.maxCoProductRoll || 0),
     })
+    const finalDescription = item.description || `${item.inventStatus} (${item.length} yard)`
     try {
       const result = await saveCountingData({
-        ProdId: prodId, NoMesin: machineId, UserId: user?.username || user?.name || 'operator',
+        ProdId: prodId,
+        NoMesin: machineId,
+        UserId: user?.username || user?.name || 'operator',
+        SeqmentNum: prodData.seqmentNum || '',
+        CustCode: prodData.custCode || prodData.customer || '',
+        DesignCode: prodData.designCode || prodData.fabricType || '',
+        Color: prodData.color || '',
+        RecidProdId: prodData.recidProdId || '',
+        RecidSalesId: prodData.recidSalesId || '',
+        RecidItemId: prodData.recidItemId || '',
+        OrderQty: prodData.orderQty || 0,
+        StockQty: prodData.stockQty || 0,
+        K3LNumber: prodData.k3lNumber || prodData.K3LNumber || '',
+        K3LName: prodData.k3lName || prodData.K3LName || '',
+        PatternCode: prodData.patternCode || prodData.PatternCode || '',
         lines: [{
-          RoolNumber: id, Description: `${item.inventStatus} (${item.length} yard)`, Length: item.length,
-          IsExecute: false, NoMesin: machineId, isPrinted: false, isStock: true,
-          ProductType: 1, InventStatus: item.inventStatus,
-          CreatedBy: user?.username || user?.name || 'operator', Shift: Number(user?.shift),
-          TransDate: transDate
+          RoolNumber: id,
+          Description: finalDescription,
+          Length: item.length,
+          IsExecute: false,
+          NoMesin: machineId,
+          isPrinted: false,
+          isStock: true,
+          ProductType: 1,
+          InventStatus: item.inventStatus,
+          CreatedBy: user?.username || user?.name || 'operator',
+          Shift: Number(user?.shift) || null,
+          TransDate: transDate,
         }],
       })
       const saved = result?.data?.lines?.[0]
       if (saved?.action && saved.action !== 'created') {
         throw new Error(`Nomor roll #${id} sudah digunakan. Silakan coba lagi.`)
       }
-      setCoProducts(prev => [...prev, { ...item, id, noMesin: machineId, ProductType: 1, InventStatus: item.inventStatus, transDate: saved?.TransDate || transDate }])
+      const createdItem = {
+        ...item,
+        id,
+        noMesin: machineId,
+        ProductType: 1,
+        InventStatus: item.inventStatus,
+        transDate: saved?.TransDate || transDate,
+        description: finalDescription,
+      }
+      setCoProducts(prev => [...prev, createdItem])
       setMaxCoProductRoll((prev) => Math.max(prev, id))
       setAllDbCoProductNumbers((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      setActiveTableTab('coproducts')
       await refreshMultiMachineStats(prodId)
-      showToast(`Co-Product #${id} (${item.inventStatus}) berhasil disimpan.`)
-    } catch (err) { showToast(`Gagal menyimpan Co-Product: ${err.message}`); throw err }
+      showToast(`✓ Co-Product #${id} (${item.inventStatus} - ${item.length} yd) berhasil disimpan ke tab Co-Products.`)
+      return createdItem
+    } catch (err) {
+      showToast(`Gagal menyimpan Co-Product: ${err.message}`)
+      throw err
+    }
   }
 
   async function handleDeleteCoProduct(id) {
@@ -1025,6 +1204,11 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     try {
       await deleteRollApi(prodData.prodNumber, id)
       setCoProducts(prev => prev.filter(item => item.id !== id))
+      setDefects(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
       if (numericId >= 9001) {
         setMaxCoProductRoll((prev) => Math.max(prev, numericId))
         setAllDbCoProductNumbers((prev) => (prev.includes(numericId) ? prev : [...prev, numericId]))
@@ -1156,7 +1340,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
     }
   }
 
-  async function flushPendingInspections(prodId, rollId) {
+  async function flushPendingInspections(prodId, rollId, validCutDefects = [], allocatedCpIds = []) {
     if (pendingDefects.length === 0) {
       return { defectsCount: 0, joinedPiecesCount: 0, errors: [] }
     }
@@ -1171,6 +1355,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       isExecuted: false,
       lineNumber: Number(d.lineNumber) > 0 ? Number(d.lineNumber) : idx + 1,
       yardTo: parseFloat(d.yardTo) || 0,
+      point: d.point !== undefined && d.point !== null && d.point !== '' ? Number(d.point) : null,
     }))
 
     const jpToSave = pendingJpPieces.map((jp, idx) => ({
@@ -1187,6 +1372,31 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
       tasks.push({ type: 'joinedPiece', promise: saveJoinedPiecesApi(prodId, rollId, jpToSave) })
     }
 
+    // Catat defect pada setiap Co-Product (BS) yang terbentuk dari potongan cacat
+    const cpDefectsByRoll = {}
+    if (Array.isArray(validCutDefects) && Array.isArray(allocatedCpIds)) {
+      validCutDefects.forEach((d, idx) => {
+        const cpId = allocatedCpIds[idx]
+        if (!cpId) return
+        const cutLen = parseFloat(d.cutQty) || (parseFloat(d.yardTo) - parseFloat(d.yard)) || 0
+        const cpItem = {
+          id: Date.now() + Math.random() + idx + 0.5,
+          yard: 0,
+          yardTo: cutLen,
+          code: d.code,
+          isExecuted: false,
+          lineNumber: 1,
+          point: d.point !== undefined && d.point !== null && d.point !== '' ? Number(d.point) : 1,
+        }
+        cpDefectsByRoll[cpId] = [cpItem]
+        tasks.push({
+          type: 'cpDefect',
+          cpId,
+          promise: saveRollDefectsApi(prodId, cpId, [cpItem]),
+        })
+      })
+    }
+
     const results = await Promise.allSettled(tasks.map((t) => t.promise))
     const errors = []
     let savedDefectsState = defectsToSave
@@ -1198,7 +1408,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
         return
       }
       const payload = r.value
-      if (tasks[idx].type === 'defect' && Array.isArray(payload?.data)) {
+      const task = tasks[idx]
+      if (task.type === 'defect' && Array.isArray(payload?.data)) {
         savedDefectsState = payload.data.map(mapDbDefectToUi)
         if (payload.maxLineNumber) {
           setMaxDefectLineByRoll((prev) => ({
@@ -1206,7 +1417,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             [rollId]: Math.max(prev[rollId] || 0, Number(payload.maxLineNumber) || 0),
           }))
         }
-      } else if (tasks[idx].type === 'joinedPiece' && Array.isArray(payload?.data)) {
+      } else if (task.type === 'joinedPiece' && Array.isArray(payload?.data)) {
         savedJpState = payload.data.map(mapDbJoinedPieceToUi)
         if (payload.maxLineNumber) {
           setMaxJoinedPieceLineByRoll((prev) => ({
@@ -1214,15 +1425,30 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
             [rollId]: Math.max(prev[rollId] || 0, Number(payload.maxLineNumber) || 0),
           }))
         }
+      } else if (task.type === 'cpDefect' && task.cpId) {
+        if (Array.isArray(payload?.data) && payload.data.length > 0) {
+          cpDefectsByRoll[task.cpId] = payload.data.map(mapDbDefectToUi)
+        }
+        if (payload?.maxLineNumber) {
+          setMaxDefectLineByRoll((prev) => ({
+            ...prev,
+            [task.cpId]: Math.max(prev[task.cpId] || 0, Number(payload.maxLineNumber) || 0),
+          }))
+        }
       }
     })
 
-    if (defectsToSave.length > 0) {
-      setDefects((prev) => ({
-        ...prev,
-        [rollId]: savedDefectsState,
-      }))
-    }
+    setDefects((prev) => {
+      const next = { ...prev }
+      if (defectsToSave.length > 0) {
+        next[rollId] = savedDefectsState
+      }
+      Object.entries(cpDefectsByRoll).forEach(([cpId, cpItems]) => {
+        next[cpId] = cpItems
+      })
+      return next
+    })
+
     if (jpToSave.length > 0) {
       setJoinedPieces((prev) => ({
         ...prev,
@@ -1520,7 +1746,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               joinedPieces={joinedPieces}
               maxJoinedPieceLineByRoll={maxJoinedPieceLineByRoll}
               onCatatCacat={(roll) => setDefectModal(roll)}
-              onCatatCacatPreRoll={(targetId) => setDefectModal({ isPreRoll: true, id: targetId })}
+              onCatatCacatPreRoll={(targetId, opts = {}) => setDefectModal({ isPreRoll: true, id: targetId, ...opts })}
               onCatatJoinedPiece={handleSaveJoinedPieces}
               onFetchSensor={handleFetchSensor}
               onSaveRollFromSensor={handleSaveRollFromSensor}
@@ -1533,6 +1759,8 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
               onPrintRoll={handlePrintRoll}
               onSetStartRoll={(val) => updateStartRollNumber(val)}
               showToast={showToast}
+              activeTableTab={activeTableTab}
+              onTableTabChange={setActiveTableTab}
             />
 
             {/* Action Bar (Button Send Data telah dihilangkan sesuai permintaan) */}
@@ -1585,33 +1813,50 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           roll={defectModal}
           prodId={prodData.prodNumber}
           isPreRoll={Boolean(defectModal.isPreRoll)}
+          isCutMode={defectModal.isCutMode}
           initDefects={defectModal.isPreRoll ? pendingDefects : (defects[defectModal.id] || [])}
           initJoinedPieces={defectModal.isPreRoll ? [] : (joinedPieces[defectModal.id] || [])}
           maxDefectLine={defectModal.isPreRoll ? 0 : (maxDefectLineByRoll[defectModal.id] || 0)}
           maxJoinedPieceLine={defectModal.isPreRoll ? 0 : (maxJoinedPieceLineByRoll[defectModal.id] || 0)}
-          onSave={(defectList, joinedPieceList = []) => {
+          onSave={async (defectList, joinedPieceList = []) => {
             if (defectModal.isPreRoll) {
               const combinedPending = [
-                ...defectList,
+                ...defectList.map((d) => ({
+                  ...d,
+                  yard: parseFloat(d.yard) || 0,
+                  yardTo: parseFloat(d.yardTo ?? d.yard) || 0,
+                  isCutDefect: Boolean(d.isCutDefect),
+                  cutLength: parseFloat(d.cutLength) || (parseFloat(d.yardTo) - parseFloat(d.yard)) || 0,
+                  point: d.point !== undefined && d.point !== null && d.point !== '' ? Number(d.point) : null,
+                  coProductType: d.coProductType || d.inventStatus || 'BS',
+                  inventStatus: d.inventStatus || d.coProductType || 'BS',
+                })),
                 ...joinedPieceList.map((jp) => ({
                   id: jp.id || Date.now() + Math.random(),
                   yard: parseFloat(jp.yard) || 0,
-                  yardTo: parseFloat(jp.yard) || 0,
+                  yardTo: parseFloat(jp.yardTo ?? jp.yard) || 0,
                   code: 'JP',
+                  isJoinedPiece: true,
+                  isAutoFromCut: Boolean(jp.isAutoFromCut),
+                  ...(jp.linkedDefectId ? { linkedDefectId: jp.linkedDefectId } : {}),
                   ...(Number(jp.lineNumber) > 0 ? { lineNumber: Number(jp.lineNumber) } : {}),
                 })),
               ]
+
               updatePendingDefects(combinedPending)
               setDefectModal(null)
+
               if (combinedPending.length === 0) {
                 showToast('Catatan inspeksi sementara telah dikosongkan.')
               } else {
+                const cutCount = combinedPending.filter((d) => d.isCutDefect && !d.isJoinedPiece).length
+                const regularDefectCount = combinedPending.filter((d) => !d.isCutDefect && !d.isJoinedPiece).length
+                const jpCount = combinedPending.filter((d) => d.isJoinedPiece).length
                 const parts = []
-                if (defectList.length > 0) parts.push(`${defectList.length} titik inspeksi`)
-                if (joinedPieceList.length > 0) parts.push(`${joinedPieceList.length} joined piece`)
-                showToast(
-                  `✓ Catatan sementara (${parts.join(' & ')}) tersimpan. Akan otomatis masuk saat Get Data.`
-                )
+                if (cutCount > 0) parts.push(`${cutCount} potongan cacat Co-Product`)
+                if (regularDefectCount > 0) parts.push(`${regularDefectCount} titik cacat`)
+                if (jpCount > 0) parts.push(`${jpCount} joined piece`)
+                showToast(`✓ Catatan sementara disimpan (${parts.join(', ')}). Akan diproses saat klik 'Get Data' -> 'Ambil Data'.`)
               }
             } else {
               saveInspections(defectModal.id, defectList, joinedPieceList)

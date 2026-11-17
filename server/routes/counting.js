@@ -176,6 +176,9 @@ function normalizeDefect(item, parentProdId = '', parentRoolNumber = 0, defaultL
     desc = String(item.Description || item.description || code).trim();
   }
 
+  const pointRaw = item.Point ?? item.point;
+  const parsedPoint = pointRaw !== undefined && pointRaw !== null && pointRaw !== '' ? parseInt(pointRaw, 10) : null;
+
   return {
     ProdId: String(item.ProdId || item.prodId || item.prod_id || parentProdId || '').trim(),
     RoolNumber: parseInt(item.RoolNumber ?? item.roolNumber ?? item.rollNumber ?? parentRoolNumber ?? 0, 10),
@@ -185,6 +188,7 @@ function normalizeDefect(item, parentProdId = '', parentRoolNumber = 0, defaultL
     Description: desc,
     IsExecuted: Boolean(item.IsExecuted ?? item.isExecuted ?? true),
     LineNumber: parseInt(item.LineNumber ?? item.lineNumber ?? defaultLineNumber, 10),
+    Point: isNaN(parsedPoint) ? null : parsedPoint,
   };
 }
 
@@ -691,7 +695,7 @@ router.get('/headers/:prodId', async (req, res) => {
     // Ambil seluruh titik cacat kain & joined pieces aktif beserta max LineNumber (abaikan soft delete)
     const [defectsRes, joinedPiecesRes, maxDefectLineByRoll, maxJoinedPieceLineByRoll] = await Promise.all([
       pool.query(
-        `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
+        `SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "Point"
          FROM "CountingKainDefect"
          WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
          ORDER BY "RoolNumber" ASC, "LineNumber" ASC`,
@@ -1262,7 +1266,7 @@ router.get('/defect-report/:prodId', async (req, res) => {
       ),
       pool.query(
         `SELECT d."ProdId", d."RoolNumber", d."LengthPoint", d."LengthPointTo",
-                d."Code", d."Description", d."IsExecuted", d."LineNumber",
+                d."Code", d."Description", d."IsExecuted", d."LineNumber", d."Point",
                 dc."Defect" AS "MasterDefect"
          FROM "CountingKainDefect" d
          LEFT JOIN "DefectCode" dc
@@ -1327,7 +1331,7 @@ router.get('/defects/:prodId', async (req, res) => {
     const targetRoll = parseInt(roolNumber || rollNumber || 0, 10);
 
     let query = `
-      SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber","LengthPointTo"
+      SELECT "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "Point"
       FROM "CountingKainDefect"
       WHERE "ProdId" = $1 AND ${ACTIVE_LINE_FILTER}
     `;
@@ -1399,7 +1403,7 @@ router.post('/defects', async (req, res) => {
     // 1. Ambil seluruh titik cacat (aktif & soft-deleted) untuk roll ini agar LineNumber
     //    tetap berlanjut dan mengabaikan status soft delete pada line sebelumnya
     const existingRes = await client.query(
-      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo",
+      `SELECT ctid, "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "Point",
               COALESCE("isDeleted", false) AS "isDeleted"
        FROM "CountingKainDefect"
        WHERE "ProdId" = $1 AND "RoolNumber" = $2
@@ -1440,13 +1444,15 @@ router.post('/defects', async (req, res) => {
       const norm = normalizedList[i];
       const matched = matchedPairs.get(i);
       if (matched) {
-        if (String(matched.Description || '').trim() !== norm.Description) {
+        const descChanged = String(matched.Description || '').trim() !== norm.Description;
+        const pointChanged = (matched.Point ?? null) !== (norm.Point ?? null);
+        if (descChanged || pointChanged) {
           const updRes = await client.query(
             `UPDATE "CountingKainDefect"
-             SET "Description" = $2
+             SET "Description" = $2, "Point" = $3
              WHERE ctid = $1
-             RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"`,
-            [matched.ctid, norm.Description]
+             RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "Point"`,
+            [matched.ctid, norm.Description, norm.Point]
           );
           savedRows.push(updRes.rows[0]);
         } else {
@@ -1458,10 +1464,10 @@ router.post('/defects', async (req, res) => {
         const nextLineNumber = maxLineNumber;
         const insRes = await client.query(
           `INSERT INTO "CountingKainDefect"
-           ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "DeletedAt", "isDeleted")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamp, false)
-           RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo"`,
-          [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, false, nextLineNumber, norm.LengthPointTo, DEFAULT_DELETED_AT]
+           ("ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "Point", "DeletedAt", "isDeleted")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::timestamp, false)
+           RETURNING "ProdId", "RoolNumber", "LengthPoint", "Code", "Description", "IsExecuted", "LineNumber", "LengthPointTo", "Point"`,
+          [norm.ProdId, norm.RoolNumber, norm.LengthPoint, norm.Code, norm.Description, false, nextLineNumber, norm.LengthPointTo, norm.Point, DEFAULT_DELETED_AT]
         );
         savedRows.push(insRes.rows[0]);
       }

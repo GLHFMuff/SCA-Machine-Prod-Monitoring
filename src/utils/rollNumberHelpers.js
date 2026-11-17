@@ -116,6 +116,47 @@ export function computeNextRollNumber({
 }
 
 /**
+ * Alokasikan sekumpulan nomor roll Co-Product berikutnya (>= 9001), mengabaikan status soft delete.
+ *
+ * @param {object} params
+ * @returns {number[]}
+ */
+export function allocateCoProductNumbers({
+  count = 1,
+  coProducts = [],
+  existingDbRolls = [],
+  allDbCoProductNumbers = [],
+  maxCoProductRoll = 0,
+} = {}) {
+  if (count <= 0) return [];
+  const usedNumbers = collectUsedRollNumbers({
+    rolls: coProducts,
+    existingDbRolls,
+    allDbRollNumbers: allDbCoProductNumbers,
+    productType: 1,
+  });
+
+  const localMax = (coProducts || []).length > 0
+    ? Math.max(...coProducts.map((c) => Number(c?.id) || 0))
+    : 0;
+  const dbMax = (allDbCoProductNumbers || []).length > 0
+    ? Math.max(...allDbCoProductNumbers.map((n) => Number(n) || 0))
+    : 0;
+  const highest = Math.max(localMax, dbMax, Number(maxCoProductRoll) || 0);
+
+  const allocated = [];
+  let candidate = highest >= 9001 ? highest + 1 : 9001;
+  while (allocated.length < count) {
+    if (!usedNumbers.has(candidate)) {
+      allocated.push(candidate);
+      usedNumbers.add(candidate);
+    }
+    candidate += 1;
+  }
+  return allocated;
+}
+
+/**
  * Hitung nomor roll Co-Product berikutnya (>= 9001), mengabaikan status soft delete.
  *
  * @param {object} params
@@ -134,21 +175,16 @@ export function computeNextCoProductNumber({
     productType: 1,
   });
 
-  const localMax = (coProducts || []).length > 0
-    ? Math.max(...coProducts.map((c) => Number(c?.id) || 0))
-    : 0;
-  const dbMax = (allDbCoProductNumbers || []).length > 0
-    ? Math.max(...allDbCoProductNumbers.map((n) => Number(n) || 0))
-    : 0;
-  const highest = Math.max(localMax, dbMax, Number(maxCoProductRoll) || 0);
-
-  let nextCoProductId = highest >= 9001 ? highest + 1 : 9001;
-  while (usedCoProductNumbers.has(nextCoProductId)) {
-    nextCoProductId += 1;
-  }
+  const allocated = allocateCoProductNumbers({
+    count: 1,
+    coProducts,
+    existingDbRolls,
+    allDbCoProductNumbers,
+    maxCoProductRoll,
+  });
 
   return {
-    nextCoProductId,
+    nextCoProductId: allocated[0] || 9001,
     usedCoProductNumbers,
   };
 }
