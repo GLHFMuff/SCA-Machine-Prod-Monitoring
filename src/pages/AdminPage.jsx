@@ -179,6 +179,15 @@ export default function AdminPage({ theme, onToggleTheme, onNavigate }) {
               <button
                 type="button"
                 className={styles.iconBtn}
+                onClick={() => window.location.reload()}
+                title="Refresh / Muat Ulang Halaman"
+                aria-label="Refresh Halaman"
+              >
+                🔄
+              </button>
+              <button
+                type="button"
+                className={styles.iconBtn}
                 onClick={toggleFullscreen}
                 title={isFs ? 'Keluar Fullscreen (Esc)' : 'Masuk Fullscreen'}
                 aria-label="Toggle Fullscreen"

@@ -2,12 +2,29 @@ import { useState, useEffect } from 'react'
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from '../utils/fullscreen.js'
 import styles from './AppHeader.module.css'
 
-export default function AppHeader({ user, onLogout, theme, onToggleTheme }) {
+export default function AppHeader({ user, onLogout, theme, onToggleTheme, onRefresh }) {
   const [isFs, setIsFs] = useState(() => isFullscreen())
+  const [spinning, setSpinning] = useState(false)
 
   useEffect(() => {
     return onFullscreenChange(setIsFs)
   }, [])
+
+  function handleRefresh() {
+    setSpinning(true)
+    if (typeof onRefresh === 'function') {
+      try {
+        const res = onRefresh()
+        if (res && typeof res.then === 'function') {
+          res.finally(() => setTimeout(() => setSpinning(false), 500))
+          return
+        }
+      } catch (err) {
+        console.error('onRefresh error:', err)
+      }
+    }
+    window.location.reload()
+  }
 
   return (
     <header className={styles.header}>
@@ -22,6 +39,19 @@ export default function AppHeader({ user, onLogout, theme, onToggleTheme }) {
           <span>{user.name || user.username}</span>
           <span className="chip">{user.machine}</span>
         </div>
+        <button
+          type="button"
+          className={`${styles.themeBtn} ${spinning ? styles.spinning : ''}`}
+          onClick={handleRefresh}
+          title="Refresh / Muat Ulang Halaman"
+          aria-label="Refresh Halaman"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M23 4v6h-6" />
+            <path d="M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
         <button
           type="button"
           className={styles.themeBtn}

@@ -3,6 +3,7 @@
  */
 
 export const DEFECT_POINT_OPTIONS = [
+  { value: 0, label: 'Default', fullLabel: '0 (Default)' },
   { value: 1, label: '0"-3"', fullLabel: '1 (0" - 3")' },
   { value: 2, label: '3.1"-6"', fullLabel: '2 (3.1" - 6")' },
   { value: 3, label: '6.1"-9"', fullLabel: '3 (6.1" - 9")' },
@@ -10,6 +11,7 @@ export const DEFECT_POINT_OPTIONS = [
 ]
 
 export const DEFECT_POINT_LABELS = {
+  0: 'Default',
   1: '0"-3"',
   2: '3.1"-6"',
   3: '6.1"-9"',
@@ -70,7 +72,7 @@ export function buildInitialInspectionList(
   const fromDefects = (Array.isArray(initDefects) ? initDefects : []).map((d, idx) => {
     const isJp = Boolean(d.isJoinedPiece) || isJoinedPieceCode(d.code)
     const rawPoint = d.Point ?? d.point
-    const pointVal = rawPoint !== undefined && rawPoint !== null && rawPoint !== '' ? Number(rawPoint) : (isJp ? null : 1)
+    const pointVal = rawPoint !== undefined && rawPoint !== null && rawPoint !== '' ? Number(rawPoint) : (isJp ? null : 0)
     const cpType = d.coProductType || d.inventStatus || (d.isCutDefect ? 'BS' : null)
     return {
       ...d,
@@ -131,7 +133,7 @@ export function validateAndBuildInspectionItem({
   yard,
   yardTo,
   code,
-  point = 1,
+  point = 0,
   isPreRoll = false,
   rollLength = null,
   isCutDefect = false,
@@ -208,7 +210,7 @@ export function validateAndBuildInspectionItem({
     ? parseFloat((parsedYardTo - parsedYard).toFixed(2))
     : 0
 
-  const parsedPoint = point !== undefined && point !== null && point !== '' ? Number(point) : 1
+  const parsedPoint = point !== undefined && point !== null && point !== '' ? Number(point) : 0
 
   return {
     item: {
@@ -220,7 +222,7 @@ export function validateAndBuildInspectionItem({
       isJoinedPiece: false,
       isCutDefect: Boolean(isCutDefect && cutLength > 0),
       cutLength,
-      point: isNaN(parsedPoint) ? 1 : parsedPoint,
+      point: isNaN(parsedPoint) ? 0 : parsedPoint,
       coProductType: isCutDefect ? (coProductType || 'BS') : null,
       inventStatus: isCutDefect ? (coProductType || 'BS') : null,
     },
@@ -265,11 +267,13 @@ export function areDefectsEqual(a = [], b = []) {
   return a.every((item, idx) => {
     const other = b[idx]
     if (!other) return false
+    const itemPt = item.point !== undefined && item.point !== null && item.point !== '' ? Number(item.point) : null
+    const otherPt = other.point !== undefined && other.point !== null && other.point !== '' ? Number(other.point) : null
     return (
       Number(item.yard) === Number(other.yard) &&
       Number(item.yardTo ?? item.yard) === Number(other.yardTo ?? other.yard) &&
       String(item.code || '').trim() === String(other.code || '').trim() &&
-      (Number(item.point) || null) === (Number(other.point) || null)
+      itemPt === otherPt
     )
   })
 }

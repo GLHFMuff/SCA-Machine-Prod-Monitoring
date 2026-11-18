@@ -167,6 +167,19 @@ export default function LoginPage({ onLogin, theme, onToggleTheme, sessionNotice
             <button
               type="button"
               className={styles.themeBtn}
+              onClick={() => window.location.reload()}
+              title="Refresh / Muat Ulang Halaman"
+              aria-label="Refresh Halaman"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M23 4v6h-6" />
+                <path d="M1 20v-6h6" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={styles.themeBtn}
               onClick={toggleFullscreen}
               title={isFs ? 'Keluar Fullscreen (Esc)' : 'Masuk Fullscreen'}
               aria-label="Toggle Fullscreen"
@@ -319,7 +332,7 @@ export default function LoginPage({ onLogin, theme, onToggleTheme, sessionNotice
               </button>
             </form>
             <p className={styles.hint}>Mesin yang sedang digunakan operator lain tidak dapat dipilih.</p>
-            <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '13px', display: 'flex', justifyContent: 'center', gap: '16px' }}>
+            {/* <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '13px', display: 'flex', justifyContent: 'center', gap: '16px' }}>
               <a href="/panel" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>
                 🛡️ Panel Pengawas (Karu)
               </a>
@@ -327,7 +340,7 @@ export default function LoginPage({ onLogin, theme, onToggleTheme, sessionNotice
               <a href="/admin" style={{ color: 'var(--muted)', textDecoration: 'none' }}>
                 ⚙️ Admin Portal
               </a>
-            </div>
+            </div> */}
           </section>
         </div>
       </main>

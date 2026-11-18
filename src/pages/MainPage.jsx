@@ -1386,7 +1386,7 @@ export default function MainPage({ user, onLogout, theme, onToggleTheme }) {
           code: d.code,
           isExecuted: false,
           lineNumber: 1,
-          point: d.point !== undefined && d.point !== null && d.point !== '' ? Number(d.point) : 1,
+          point: d.point !== undefined && d.point !== null && d.point !== '' ? Number(d.point) : 0,
         }
         cpDefectsByRoll[cpId] = [cpItem]
         tasks.push({

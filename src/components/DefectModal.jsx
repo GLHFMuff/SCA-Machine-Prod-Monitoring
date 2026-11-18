@@ -74,7 +74,7 @@ export default function DefectModal({
   const [yard, setYard] = useState('')
   const [yardTo, setYardTo] = useState('')
   const [code, setCode] = useState('')
-  const [point, setPoint] = useState(1)
+  const [point, setPoint] = useState(0)
   const [error, setError] = useState('')
   const [defectOptions, setDefectOptions] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -229,7 +229,7 @@ export default function DefectModal({
       yard: rawYard,
       yardTo: rawYardTo,
       code: cleanCode,
-      point: isJp ? null : (Number(point) || 1),
+      point: isJp ? null : (point !== undefined && point !== null && point !== '' ? Number(point) : 0),
       isPreRoll,
       rollLength: roll?.length,
       isCutDefect: Boolean(isPreRoll && !isJp && isCutDefect),
@@ -306,7 +306,7 @@ export default function DefectModal({
     setYard('')
     setYardTo('')
     setCode('')
-    setPoint(1)
+    setPoint(0)
     setSearchQuery('')
     setIsDropdownOpen(false)
   }
@@ -462,7 +462,7 @@ export default function DefectModal({
                             Inspeksi Biasa
                           </span>
                         )}
-                        {!isJp && d.point && (
+                        {!isJp && d.point !== undefined && d.point !== null && (
                           <span className={styles.pointBadge}>
                             Point {d.point} ({DEFECT_POINT_LABELS[d.point] || ''})
                           </span>
