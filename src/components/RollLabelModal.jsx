@@ -38,7 +38,15 @@ export default function RollLabelModal({
   // ── Derive initial values from props or sensible defaults ──
   const initialRollNum = String(roll?.id ?? roll?.roolNumber ?? 1).padStart(2, '0')
 
-  // Kode Design
+  // Motif / Pattern Code (diambil dari PatternCode header dengan tambahan "MJSD ")
+  const rawPattern = String(
+    prodData?.patternCode ||
+    prodData?.PatternCode ||
+    roll?.patternCode ||
+    roll?.PatternCode ||
+    ''
+  ).trim()
+
   const rawDesign =
     prodData?.fabricType ||
     prodData?.design ||
@@ -47,8 +55,18 @@ export default function RollLabelModal({
     roll?.design ||
     'A0301'
 
-  const initialKodeDesign =
-    String(rawDesign).trim().replace(/^CD\s*[-–:]?\s*/i, '') || 'A0301'
+  const formatWithMjsd = (val) => {
+    if (!val) return ''
+    const cleaned = String(val).trim()
+    if (/^MJSD\s*/i.test(cleaned)) {
+      return `MJSD ${cleaned.replace(/^MJSD\s*/i, '').trim()}`
+    }
+    return `MJSD ${cleaned}`
+  }
+
+  const initialKodeDesign = rawPattern
+    ? formatWithMjsd(rawPattern)
+    : formatWithMjsd(String(rawDesign).trim().replace(/^CD\s*[-–:]?\s*/i, '') || 'A0301')
 
   // Motif / Warna
   const rawColor =
@@ -188,16 +206,12 @@ export default function RollLabelModal({
     setK3lName(initialK3LName)
   }
 
-  // Format Header Title (diambil dari CountingKainHeader field K3LName, fallback ke Kode Design jika kosong)
+  // Format Header Title (diambil dari CountingKainHeader field K3LName, fallback ke Jenis Kain/Design jika kosong)
   const rawK3LName = String(k3lName || '').trim()
-  const cleanCode = kodeDesign.trim()
-  const hasCdPrefix = /^CD\s*[-–:]?\s*/i.test(cleanCode)
-  const innerCode = hasCdPrefix
-    ? cleanCode.replace(/^CD\s*[-–:]?\s*/i, '').trim()
-    : cleanCode
+  const fallbackDesign = String(rawDesign).trim().replace(/^CD\s*[-–:]?\s*/i, '')
   const cdDesignTitle = rawK3LName
     ? rawK3LName.toUpperCase()
-    : (hasCdPrefix ? `CD ${innerCode.toUpperCase()}` : `CD ${cleanCode.toUpperCase()}`)
+    : `CD ${fallbackDesign.toUpperCase()}`
 
   // Dynamic font sizing for header title & color
   let headerTitleFontSize = '15px'
@@ -453,7 +467,7 @@ export default function RollLabelModal({
                         <span class="colonCell">:</span>
                         <span class="valueCell">${rollNum}</span>
 
-                        <span class="labelCell">KODE DESIGN</span>
+                        <span class="labelCell">MOTIF</span>
                         <span class="colonCell">:</span>
                         <span class="valueCell">${kodeDesign.toUpperCase()}</span>
 
@@ -602,7 +616,7 @@ export default function RollLabelModal({
 
       const rows = [
         ['NO. ROLL', data.rollNum],
-        ['KODE DESIGN', (data.kodeDesign || '').toUpperCase()],
+        ['MOTIF', (data.kodeDesign || '').toUpperCase()],
         ['DATE', data.dateStr],
         ['LENGTH', data.lengthInchStr],
         ['QTY', data.qtyStr],
@@ -756,13 +770,13 @@ export default function RollLabelModal({
                   />
                 </div>
                 <div className={styles.editGroup}>
-                  <label className={styles.editLabel}>Kode Design</label>
+                  <label className={styles.editLabel}>Motif</label>
                   <input
                     type="text"
                     className={styles.editInput}
                     value={kodeDesign}
                     onChange={(e) => setKodeDesign(e.target.value)}
-                    placeholder="Contoh: A0301"
+                    placeholder="Contoh: MJSD A0301"
                   />
                 </div>
                 <div className={styles.editGroup}>
@@ -917,9 +931,10 @@ export default function RollLabelModal({
                       <span className={styles.colonCell}>:</span>
                       <span className={styles.valueCell}>{rollNum}</span>
 
-                      <span className={styles.labelCell}>KODE DESIGN</span>
+                      <span className={styles.labelCell}>MOTIF</span>
                       <span className={styles.colonCell}>:</span>
                       <span className={styles.valueCell}>{kodeDesign.toUpperCase()}</span>
+                      
 
                       <span className={styles.labelCell}>DATE</span>
                       <span className={styles.colonCell}>:</span>
@@ -964,8 +979,8 @@ export default function RollLabelModal({
           {printStatus && (
             <div
               className={`${styles.statusMessage} ${printStatus.type === 'success'
-                  ? styles.statusMessageSuccess
-                  : styles.statusMessageError
+                ? styles.statusMessageSuccess
+                : styles.statusMessageError
                 }`}
             >
               <span>{printStatus.message}</span>
